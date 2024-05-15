@@ -1,0 +1,15 @@
+# Ignore everything inside the specified folders
+.streamlit/
+env/
+envLinux/
+
+# Ignore specific files
+.env
+
+# Allow these specific files to be tracked
+LICENSE
+README
+README.md
+app.py
+requirements.txt
+setup_mindsdb.py
