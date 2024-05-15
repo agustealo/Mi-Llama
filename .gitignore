@@ -1,10 +1,13 @@
 # Ignore everything inside the specified folders
+.vscode/
 .streamlit/
 env/
 envLinux/
 
 # Ignore specific files
 .env
+.gitignore
+.gitattributes
 
 # Allow these specific files to be tracked
 LICENSE
