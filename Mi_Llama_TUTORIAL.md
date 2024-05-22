@@ -233,7 +233,7 @@ This tutorial will guide you through creating the Mi Llama chat application that
         try:
             response = requests.post(OLLAMA
 
-_API_URL, json=data)
+    _API_URL, json=data)
             response.raise_for_status()
             llm_response = response.json().get("choices")[0].get("text").strip()
         except RequestException as e:
