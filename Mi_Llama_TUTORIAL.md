@@ -7,7 +7,7 @@ This tutorial will guide you through creating the Mi Llama chat application that
 - Basic knowledge of Python
 - Python installed on your system
 - Streamlit, MindsDB, and Ollama installed
-- A MindsDB API key
+- A MindsDB API key ( Not required for local connection )
 
 ### Step 1: Project Setup
 
