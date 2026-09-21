@@ -319,15 +319,9 @@ class SupabaseResearchRepository(SupabaseRepository):
             access_token=access_token,
             json={
                 "project_id": str(project_id),
-                "question_id": (
-                    None
-                    if request.question_id is None
-                    else str(request.question_id)
-                ),
+                "question_id": (None if request.question_id is None else str(request.question_id)),
                 "source_chunk_id": (
-                    None
-                    if request.source_chunk_id is None
-                    else str(request.source_chunk_id)
+                    None if request.source_chunk_id is None else str(request.source_chunk_id)
                 ),
                 "kind": request.kind.value,
                 "title": request.title,

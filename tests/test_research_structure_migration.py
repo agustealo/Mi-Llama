@@ -2,9 +2,9 @@ from pathlib import Path
 
 
 def test_research_structure_migration_locks_authority_and_provenance() -> None:
-    sql = Path(
-        "supabase/migrations/20260921230500_research_structure.sql"
-    ).read_text(encoding="utf-8")
+    sql = Path("supabase/migrations/20260921230500_research_structure.sql").read_text(
+        encoding="utf-8"
+    )
 
     for table in (
         "research_questions",

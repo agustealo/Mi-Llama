@@ -58,9 +58,7 @@ class ResearchStructureService:
         next_status = request.status or current.status
         if next_status is ResearchQuestionStatus.RESOLVED:
             resolution = (
-                request.resolution
-                if request.resolution is not None
-                else current.resolution
+                request.resolution if request.resolution is not None else current.resolution
             )
             if not resolution or not resolution.strip():
                 raise ValueError("Resolved research questions require a resolution")

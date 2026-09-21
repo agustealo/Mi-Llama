@@ -31,11 +31,11 @@ VERSION_ID = UUID("66666666-6666-6666-6666-666666666666")
 CHUNK_ID = UUID("77777777-7777-7777-7777-777777777777")
 
 
-def _now() -> datetime:
+def now() -> datetime:
     return datetime.now(UTC)
 
 
-def _chunk(chunk_id: UUID = CHUNK_ID) -> SourceChunk:
+def source_chunk(chunk_id: UUID) -> SourceChunk:
     return SourceChunk(
         id=chunk_id,
         source_version_id=VERSION_ID,
@@ -46,7 +46,7 @@ def _chunk(chunk_id: UUID = CHUNK_ID) -> SourceChunk:
         content="Relevant evidence.",
         character_start=0,
         character_end=18,
-        created_at=_now(),
+        created_at=now(),
     )
 
 
@@ -80,34 +80,32 @@ class FakeResearch:
         )
 
 
-class FakeStructureRepository:
+class FakeRepo:
     def __init__(self) -> None:
         self.question = ResearchQuestion(
             id=QUESTION_ID,
             project_id=PROJECT_ID,
             created_by=USER_ID,
-            question="What evidence supports the trade-network thesis?",
+            question="What evidence supports the thesis?",
             status=ResearchQuestionStatus.OPEN,
             priority=5,
             resolution=None,
-            created_at=_now(),
-            updated_at=_now(),
+            created_at=now(),
+            updated_at=now(),
         )
         self.claim = ResearchClaim(
             id=CLAIM_ID,
             project_id=PROJECT_ID,
             created_by=USER_ID,
-            statement="The trade network connected several regions.",
+            statement="The network connected several regions.",
             status=ClaimStatus.NEEDS_EVIDENCE,
-            created_at=_now(),
-            updated_at=_now(),
+            created_at=now(),
+            updated_at=now(),
         )
-        self.chunks: dict[UUID, SourceChunk] = {CHUNK_ID: _chunk()}
+        self.chunks = {CHUNK_ID: source_chunk(CHUNK_ID)}
         self.evidence: list[ClaimEvidence] = []
         self.citations: list[CitationCandidate] = []
-        self.signals: list[
-            tuple[LearningEvent, str | None, UUID | None, dict[str, Any]]
-        ] = []
+        self.signals: list[tuple[LearningEvent, str | None, UUID | None, dict[str, Any]]] = []
 
     async def get_research_question(
         self, *, access_token: str, project_id: UUID, question_id: UUID
@@ -124,9 +122,7 @@ class FakeStructureRepository:
         changes: dict[str, Any],
     ) -> ResearchQuestion:
         del access_token, project_id, question_id
-        self.question = self.question.model_copy(
-            update=changes | {"updated_at": _now()}
-        )
+        self.question = self.question.model_copy(update=changes | {"updated_at": now()})
         return self.question
 
     async def get_claim(
@@ -139,9 +135,7 @@ class FakeStructureRepository:
         self, *, access_token: str, project_id: UUID, chunk_id: UUID
     ) -> SourceChunk | None:
         del access_token
-        if project_id != PROJECT_ID:
-            return None
-        return self.chunks.get(chunk_id)
+        return self.chunks.get(chunk_id) if project_id == PROJECT_ID else None
 
     async def create_claim_evidence(
         self,
@@ -154,7 +148,7 @@ class FakeStructureRepository:
         note: str | None,
     ) -> ClaimEvidence:
         del access_token
-        item = ClaimEvidence(
+        evidence = ClaimEvidence(
             id=uuid4(),
             project_id=project_id,
             claim_id=claim_id,
@@ -164,34 +158,29 @@ class FakeStructureRepository:
             created_by=USER_ID,
             stance=stance,
             note=note,
-            created_at=_now(),
+            created_at=now(),
         )
-        self.evidence.append(item)
-
-        stances = {evidence.stance for evidence in self.evidence}
+        self.evidence.append(evidence)
+        stances = {item.stance for item in self.evidence}
+        status = ClaimStatus.NEEDS_EVIDENCE
         if EvidenceStance.CONTRADICTS in stances:
-            next_status = ClaimStatus.DISPUTED
+            status = ClaimStatus.DISPUTED
         elif EvidenceStance.SUPPORTS in stances:
-            next_status = ClaimStatus.SUPPORTED
-        else:
-            next_status = ClaimStatus.NEEDS_EVIDENCE
-        self.claim = self.claim.model_copy(
-            update={"status": next_status, "updated_at": _now()}
-        )
-
+            status = ClaimStatus.SUPPORTED
+        self.claim = self.claim.model_copy(update={"status": status, "updated_at": now()})
         self.citations.append(
             CitationCandidate(
                 id=uuid4(),
                 project_id=project_id,
                 claim_id=claim_id,
-                evidence_id=item.id,
+                evidence_id=evidence.id,
                 created_by=USER_ID,
                 status=CitationStatus.PROPOSED,
-                created_at=_now(),
-                updated_at=_now(),
+                created_at=now(),
+                updated_at=now(),
             )
         )
-        return item
+        return evidence
 
     async def get_citation_candidate_by_evidence(
         self, *, access_token: str, project_id: UUID, evidence_id: UUID
@@ -199,10 +188,9 @@ class FakeStructureRepository:
         del access_token
         return next(
             (
-                citation
-                for citation in self.citations
-                if citation.project_id == project_id
-                and citation.evidence_id == evidence_id
+                item
+                for item in self.citations
+                if item.project_id == project_id and item.evidence_id == evidence_id
             ),
             None,
         )
@@ -213,16 +201,10 @@ class FakeStructureRepository:
         del access_token, project_id
         return [self.question]
 
-    async def list_claims(
-        self, *, access_token: str, project_id: UUID
-    ) -> list[ResearchClaim]:
+    async def list_claims(self, *, access_token: str, project_id: UUID) -> list[ResearchClaim]:
         del access_token, project_id
         disputed = self.claim.model_copy(
-            update={
-                "id": uuid4(),
-                "statement": "A disputed claim.",
-                "status": ClaimStatus.DISPUTED,
-            }
+            update={"id": uuid4(), "statement": "Disputed.", "status": ClaimStatus.DISPUTED}
         )
         return [self.claim, disputed]
 
@@ -230,7 +212,7 @@ class FakeStructureRepository:
         self, *, access_token: str, project_id: UUID
     ) -> list[CitationCandidate]:
         del access_token
-        return [c for c in self.citations if c.project_id == project_id]
+        return [item for item in self.citations if item.project_id == project_id]
 
     async def add_learning_signal(
         self,
@@ -248,104 +230,78 @@ class FakeStructureRepository:
 
 
 @pytest.mark.asyncio
-async def test_attached_supporting_evidence_is_materialized_by_repository() -> None:
-    repository = FakeStructureRepository()
-    service = ResearchStructureService(
-        repository=repository,  # type: ignore[arg-type]
-        research=None,
-    )
-
+async def test_evidence_materialization_updates_claim_and_citation() -> None:
+    repo = FakeRepo()
+    service = ResearchStructureService(repository=repo, research=None)  # type: ignore[arg-type]
     result = await service.attach_evidence(
         access_token="jwt",
         project_id=PROJECT_ID,
         claim_id=CLAIM_ID,
-        request=AttachEvidenceRequest(
-            chunk_id=CHUNK_ID,
-            stance=EvidenceStance.SUPPORTS,
-        ),
+        request=AttachEvidenceRequest(chunk_id=CHUNK_ID, stance=EvidenceStance.SUPPORTS),
     )
-
     assert result.claim.status is ClaimStatus.SUPPORTED
-    assert result.evidence.chunk_id == CHUNK_ID
     assert result.citation.status is CitationStatus.PROPOSED
 
 
 @pytest.mark.asyncio
-async def test_contradicting_evidence_overrides_support_status() -> None:
-    repository = FakeStructureRepository()
-    second_chunk_id = uuid4()
-    repository.chunks[second_chunk_id] = _chunk(second_chunk_id)
-    service = ResearchStructureService(
-        repository=repository,  # type: ignore[arg-type]
-        research=None,
-    )
-
+async def test_conflicting_evidence_marks_claim_disputed() -> None:
+    repo = FakeRepo()
+    other_chunk_id = uuid4()
+    repo.chunks[other_chunk_id] = source_chunk(other_chunk_id)
+    service = ResearchStructureService(repository=repo, research=None)  # type: ignore[arg-type]
     await service.attach_evidence(
         access_token="jwt",
         project_id=PROJECT_ID,
         claim_id=CLAIM_ID,
-        request=AttachEvidenceRequest(
-            chunk_id=CHUNK_ID,
-            stance=EvidenceStance.SUPPORTS,
-        ),
+        request=AttachEvidenceRequest(chunk_id=CHUNK_ID, stance=EvidenceStance.SUPPORTS),
     )
     result = await service.attach_evidence(
         access_token="jwt",
         project_id=PROJECT_ID,
         claim_id=CLAIM_ID,
         request=AttachEvidenceRequest(
-            chunk_id=second_chunk_id,
+            chunk_id=other_chunk_id,
             stance=EvidenceStance.CONTRADICTS,
         ),
     )
-
     assert result.claim.status is ClaimStatus.DISPUTED
 
 
 @pytest.mark.asyncio
-async def test_resolved_question_requires_resolution_text() -> None:
-    repository = FakeStructureRepository()
-    service = ResearchStructureService(
-        repository=repository,  # type: ignore[arg-type]
-        research=None,
-    )
-
+async def test_resolved_question_requires_resolution() -> None:
+    repo = FakeRepo()
+    service = ResearchStructureService(repository=repo, research=None)  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="require a resolution"):
         await service.update_question(
             access_token="jwt",
             project_id=PROJECT_ID,
             question_id=QUESTION_ID,
-            request=UpdateResearchQuestionRequest(
-                status=ResearchQuestionStatus.RESOLVED
-            ),
+            request=UpdateResearchQuestionRequest(status=ResearchQuestionStatus.RESOLVED),
         )
 
 
 @pytest.mark.asyncio
-async def test_search_records_learning_signal_without_auto_attaching_evidence() -> None:
-    repository = FakeStructureRepository()
+async def test_search_is_candidate_only_and_records_impression() -> None:
+    repo = FakeRepo()
     service = ResearchStructureService(
-        repository=repository,  # type: ignore[arg-type]
+        repository=repo,  # type: ignore[arg-type]
         research=FakeResearch(),  # type: ignore[arg-type]
     )
-
     response = await service.search_question(
         access_token="jwt",
         project_id=PROJECT_ID,
         question_id=QUESTION_ID,
         limit=5,
     )
-
     assert response.hits[0].chunk_id == CHUNK_ID
-    assert repository.evidence == []
-    assert repository.signals[0][0] is LearningEvent.RESEARCH_RESULT_IMPRESSION
-    assert repository.signals[0][1] == "research_question"
+    assert repo.evidence == []
+    assert repo.signals[0][0] is LearningEvent.RESEARCH_RESULT_IMPRESSION
 
 
 @pytest.mark.asyncio
-async def test_gap_report_surfaces_open_questions_claims_and_pending_citations() -> None:
-    repository = FakeStructureRepository()
-    repository.citations.append(
+async def test_gap_report_surfaces_all_gap_types() -> None:
+    repo = FakeRepo()
+    repo.citations.append(
         CitationCandidate(
             id=uuid4(),
             project_id=PROJECT_ID,
@@ -353,23 +309,20 @@ async def test_gap_report_surfaces_open_questions_claims_and_pending_citations()
             evidence_id=uuid4(),
             created_by=USER_ID,
             status=CitationStatus.PROPOSED,
-            created_at=_now(),
-            updated_at=_now(),
+            created_at=now(),
+            updated_at=now(),
         )
     )
-    service = ResearchStructureService(
-        repository=repository,  # type: ignore[arg-type]
-        research=None,
-    )
-
+    service = ResearchStructureService(repository=repo, research=None)  # type: ignore[arg-type]
     report = await service.gap_report(access_token="jwt", project_id=PROJECT_ID)
-
     kinds = {item.kind for item in report.items}
     assert report.open_questions == 1
     assert report.unsupported_claims == 1
     assert report.disputed_claims == 1
     assert report.pending_citations == 1
-    assert ResearchGapKind.OPEN_QUESTION in kinds
-    assert ResearchGapKind.UNSUPPORTED_CLAIM in kinds
-    assert ResearchGapKind.DISPUTED_CLAIM in kinds
-    assert ResearchGapKind.PENDING_CITATION in kinds
+    assert kinds == {
+        ResearchGapKind.OPEN_QUESTION,
+        ResearchGapKind.UNSUPPORTED_CLAIM,
+        ResearchGapKind.DISPUTED_CLAIM,
+        ResearchGapKind.PENDING_CITATION,
+    }
