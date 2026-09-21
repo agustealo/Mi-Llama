@@ -234,9 +234,7 @@ class SupabaseWritingRepository(SupabaseResearchRepository):
             access_token=access_token,
             json={
                 "project_id": str(project_id),
-                "outline_node_id": (
-                    None if outline_node_id is None else str(outline_node_id)
-                ),
+                "outline_node_id": (None if outline_node_id is None else str(outline_node_id)),
                 "title": title,
             },
             prefer="return=representation",
@@ -384,9 +382,7 @@ class SupabaseWritingRepository(SupabaseResearchRepository):
             json={
                 "project_id": str(project_id),
                 "document_id": str(document_id),
-                "outline_node_id": (
-                    None if outline_node_id is None else str(outline_node_id)
-                ),
+                "outline_node_id": (None if outline_node_id is None else str(outline_node_id)),
                 "revision_id": None if revision_id is None else str(revision_id),
                 "kind": kind.value,
                 "entity_id": str(entity_id),
