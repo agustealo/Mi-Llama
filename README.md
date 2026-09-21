@@ -2,7 +2,7 @@
 
 **Mi-Llama is an AI research and writing studio for evidence-grounded long-form work.**
 
-The product is being built for writers, researchers, educators, analysts, and teams whose work starts with sources and ends in serious written output: books, articles, research, lessons, reports, white papers, briefs, and internal knowledge.
+The product is focused on writers, researchers, educators, analysts, and teams whose work starts with sources and ends in serious written output: books, articles, research, lessons, reports, white papers, briefs, and internal knowledge.
 
 Mi-Llama's center of gravity is a **Project**, not a chat thread.
 
@@ -14,42 +14,50 @@ Project -> Sources -> Research -> Evidence -> Notebook -> Outline -> Manuscript 
 
 The current development line provides:
 
-- a typed Python application package
-- FastAPI as the application boundary
-- a stable model-provider contract
-- native Ollama health, model discovery, chat, and token streaming
-- Supabase/Postgres as the canonical durable product-data authority
-- Supabase JWT propagation so Row Level Security evaluates the actual caller
-- project ownership and project membership roles
+- a typed Python/FastAPI application core
+- native Ollama model discovery, chat, and token streaming behind a provider contract
+- Supabase/Postgres as the canonical product-data authority
+- Supabase JWT propagation so Row Level Security evaluates the real caller
+- project ownership and role-based membership
 - project-scoped conversations and messages
-- append-only learning signals for future ranking, evidence, recommendation, and personalization ML
-- explicit Supabase migrations, grants, and RLS policies
+- append-oriented learning signals for future ranking/evidence/personalization ML
+- a private, project-scoped Research Library in Supabase Storage
+- PDF, DOCX, EPUB, TXT, Markdown, and HTML extraction
+- deterministic chunking, checksums, source versions, and duplicate detection
+- immutable source/version provenance fields
+- project-scoped MindsDB knowledge bases for derived semantic/hybrid research indexes
+- evidence hits that preserve source, source-version, chunk, ordinal, and location provenance
+- explicit research indexing state and reindexing
 - automated formatting, lint, strict type-check, and test gates
 
-## Architecture
+## Authority map
 
 ### Supabase
 
-Supabase owns durable application truth: identity, projects, membership, conversations, messages, future source/manuscript data, storage, collaboration, and vector indexes.
+Supabase is durable truth for identity, projects, memberships, conversations, source metadata, source versions, extracted chunks, raw source objects, and learning signals.
 
-The normal application runtime uses a **publishable key plus the user's bearer token**. It does not use a `service_role` key for ordinary user-scoped operations.
+The normal application runtime uses a publishable key plus the user's bearer token. It does **not** use a privileged service-role key for ordinary user operations.
 
 ### MindsDB
 
-MindsDB is the next research-intelligence layer. Its planned responsibilities include knowledge bases, hybrid retrieval, federated research sources, research synchronization, and bounded evidence/citation specialists.
+MindsDB is Mi-Llama's research-intelligence boundary. Each Project gets an isolated, UUID-derived knowledge-base namespace. MindsDB performs semantic/hybrid retrieval over derived research indexes.
 
-MindsDB does not own users, project permissions, manuscript persistence, or billing.
+The MindsDB index is **rebuildable derived state**, not canonical product data. A failed index must never destroy or invalidate a successfully ingested source in Supabase.
+
+MindsDB never owns users, project permissions, manuscript persistence, billing, or source authorization. Mi-Llama verifies project access through Supabase before entering a MindsDB project namespace.
 
 ### Ollama
 
-Ollama is the first model runtime behind Mi-Llama's provider interface. The application is not coupled to Ollama-specific URLs outside that provider implementation.
+Ollama is the first local model runtime. It powers chat and, when MindsDB research is enabled, can provide the embedding model used by the research index.
 
 ## Requirements
 
 - Python 3.11+
 - a Supabase project with the migrations in `supabase/migrations/` applied
 - Ollama running locally for local inference
-- at least one model installed in Ollama
+- at least one chat model installed in Ollama
+- MindsDB only when research indexing/querying is enabled
+- an Ollama embedding model such as `nomic-embed-text` when using the default MindsDB embedding configuration
 
 ## Development setup
 
@@ -69,6 +77,15 @@ MI_LLAMA_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 MI_LLAMA_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
 MI_LLAMA_REQUEST_TIMEOUT_SECONDS=60
 MI_LLAMA_CONNECT_TIMEOUT_SECONDS=3
+
+# Research indexing/querying
+MI_LLAMA_MINDSDB_ENABLED=true
+MI_LLAMA_MINDSDB_BASE_URL=http://127.0.0.1:47334
+MI_LLAMA_MINDSDB_PROJECT=mi_llama
+MI_LLAMA_MINDSDB_EMBEDDING_MODEL=nomic-embed-text
+# Optional when MindsDB is remote/authenticated:
+# MI_LLAMA_MINDSDB_API_TOKEN=...
+# MI_LLAMA_MINDSDB_EMBEDDING_BASE_URL=http://host-visible-to-mindsdb:11434
 ```
 
 Then run:
@@ -77,15 +94,31 @@ Then run:
 mi-llama
 ```
 
+## Research Library lifecycle
+
+```text
+Upload
+  -> validate project access
+  -> detect/parse source
+  -> SHA-256 duplicate check
+  -> create source + immutable version provenance
+  -> upload raw object to private Supabase Storage
+  -> persist deterministic chunks in Supabase
+  -> mark source ready
+  -> derive/update the Project MindsDB knowledge base
+```
+
+A source can be `ready` even if its research index is `failed`. That is deliberate: canonical research material must survive an embedding or MindsDB outage. The source can then be explicitly reindexed.
+
 ## API
 
-Provider endpoints remain local/runtime oriented:
+Provider/runtime endpoints:
 
 - `GET /health`
 - `GET /api/provider/health`
 - `GET /api/models`
 
-Project endpoints require `Authorization: Bearer <supabase-access-token>`:
+Authenticated Project endpoints:
 
 - `GET /api/projects`
 - `POST /api/projects`
@@ -96,13 +129,32 @@ Project endpoints require `Authorization: Bearer <supabase-access-token>`:
 - `POST /api/conversations/{conversation_id}/messages`
 - `POST /api/projects/{project_id}/learning-signals`
 
-The message endpoint streams newline-delimited JSON events.
+Research Library endpoints:
+
+- `GET /api/projects/{project_id}/sources`
+- `POST /api/projects/{project_id}/sources` (multipart `file`)
+- `GET /api/projects/{project_id}/sources/{source_id}`
+- `POST /api/projects/{project_id}/sources/{source_id}/reindex`
+- `POST /api/projects/{project_id}/research/query`
+
+All project/source/research endpoints require `Authorization: Bearer <supabase-access-token>`.
+
+## Security invariants
+
+- RLS is enabled on every exposed project/source table.
+- anonymous table access is explicitly revoked.
+- raw source objects live in a private Supabase Storage bucket.
+- Storage reads/uploads are project-scoped through RLS.
+- ready raw source objects cannot be deleted through the normal application role.
+- source and source-version provenance columns are immutable after creation.
+- source chunks may only be inserted into a processing source version.
+- ordinary application requests never use a Supabase secret/service-role key.
+- MindsDB is entered only after Supabase confirms Project access.
+- user content is SQL-escaped at the MindsDB boundary and Project/KB identifiers are generated internally.
 
 ## Learning-ready, not ML-heavy
 
-Mi-Llama does not yet ship a custom ML subsystem. It does capture high-value decisions from day one, including research-result saves/rejections, source trust choices, citation acceptance, AI edit acceptance, and research suggestion acceptance.
-
-This gives future learning-to-rank, evidence verification, recommendation, and personalization models real training/evaluation data without burdening today's runtime with speculative models.
+Mi-Llama captures meaningful decisions such as research-result saves/rejections, source trust choices, citation acceptance, AI-edit acceptance, and research-suggestion acceptance. These events are behavioral evidence, not unquestionable ground truth. They form a future training/evaluation substrate for targeted ranking, evidence-verification, recommendation, and personalization models.
 
 ## Quality gate
 
@@ -113,14 +165,14 @@ mypy src/mi_llama
 pytest
 ```
 
-No feature is considered complete until the exact PR head is green.
+No feature is considered complete until its exact PR head passes the gate.
 
 ## Product roadmap
 
 1. **Foundation**: modular API, Ollama provider, quality gates
 2. **Project authority**: Supabase, RLS, membership, learning signals
-3. **Research Library**: PDF/DOCX/EPUB/TXT/Markdown/HTML source ingestion and Storage
-4. **Research Intelligence**: MindsDB knowledge bases, federation, hybrid retrieval, citations
+3. **Research Library**: source ingestion, private Storage, source versions/chunks, provenance
+4. **Research Intelligence**: MindsDB project KBs, hybrid retrieval, inspectable evidence
 5. **Research Structure**: notebook, questions, claims, evidence, contradictions
 6. **Writing Studio**: outline and manuscript editor
 7. **Evidence-aware editing**: manuscript analysis, citation integrity, source-backed revision
@@ -128,7 +180,7 @@ No feature is considered complete until the exact PR head is green.
 9. **Collaboration**: realtime team and education workflows
 10. **Consumer release**: desktop packaging and clean-machine acceptance
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the architectural doctrine.
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for architectural contracts.
 
 ## License
 

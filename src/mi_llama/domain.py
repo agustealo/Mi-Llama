@@ -43,6 +43,29 @@ class ProviderStatus(StrEnum):
     DEGRADED = "degraded"
 
 
+class SourceKind(StrEnum):
+    PDF = "pdf"
+    DOCX = "docx"
+    EPUB = "epub"
+    TEXT = "text"
+    MARKDOWN = "markdown"
+    HTML = "html"
+
+
+class SourceStatus(StrEnum):
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
+
+
+class ResearchIndexStatus(StrEnum):
+    NOT_INDEXED = "not_indexed"
+    INDEXING = "indexing"
+    READY = "ready"
+    FAILED = "failed"
+    DISABLED = "disabled"
+
+
 class Project(BaseModel):
     id: UUID
     owner_id: UUID
@@ -122,3 +145,77 @@ class CreateLearningSignalRequest(BaseModel):
     entity_type: str | None = Field(default=None, max_length=80)
     entity_id: UUID | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class Source(BaseModel):
+    id: UUID
+    project_id: UUID
+    created_by: UUID
+    filename: str
+    media_type: str
+    kind: SourceKind
+    checksum_sha256: str
+    size_bytes: int
+    status: SourceStatus
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SourceVersion(BaseModel):
+    id: UUID
+    source_id: UUID
+    project_id: UUID
+    created_by: UUID
+    version_number: int
+    storage_path: str
+    checksum_sha256: str
+    parser: str
+    character_count: int
+    status: SourceStatus
+    error_message: str | None = None
+    research_status: ResearchIndexStatus
+    research_error: str | None = None
+    created_at: datetime
+
+
+class SourceChunk(BaseModel):
+    id: UUID
+    source_version_id: UUID
+    source_id: UUID
+    project_id: UUID
+    ordinal: int
+    location: str | None = None
+    content: str
+    character_start: int
+    character_end: int
+    created_at: datetime | None = None
+
+
+class SourceIngestResult(BaseModel):
+    source: Source
+    version: SourceVersion
+    chunk_count: int
+    deduplicated: bool
+
+
+class ResearchQueryRequest(BaseModel):
+    query: str = Field(min_length=2, max_length=4000)
+    limit: int = Field(default=8, ge=1, le=25)
+
+
+class ResearchHit(BaseModel):
+    source_id: UUID
+    source_version_id: UUID
+    chunk_id: UUID
+    source_filename: str
+    location: str | None = None
+    ordinal: int
+    content: str
+    relevance: float = Field(ge=0)
+
+
+class ResearchResponse(BaseModel):
+    project_id: UUID
+    query: str
+    hits: list[ResearchHit]
