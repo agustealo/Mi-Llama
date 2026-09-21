@@ -414,7 +414,9 @@ def create_app(
                 content=content,
             )
         except KeyError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+            ) from exc
 
     @app.get("/api/projects/{project_id}/sources/{source_id}", response_model=Source)
     async def get_source(
@@ -451,7 +453,9 @@ def create_app(
                 source_id=source_id,
             )
         except KeyError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found") from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Source not found"
+            ) from exc
 
     @app.post(
         "/api/projects/{project_id}/research/query",
@@ -475,7 +479,9 @@ def create_app(
                 limit=request.limit,
             )
         except KeyError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+            ) from exc
         await runtime_repository.add_learning_signal(
             access_token=access_token,
             project_id=project_id,

@@ -11,7 +11,6 @@ from mi_llama.domain import (
     ResearchIndexStatus,
     Source,
     SourceChunk,
-    SourceKind,
     SourceStatus,
     SourceVersion,
 )
@@ -122,7 +121,11 @@ class MemorySourceRepository:
         del access_token, source_id
         assert self.source is not None
         self.source = self.source.model_copy(
-            update={"status": status, "error_message": error_message, "updated_at": datetime.now(UTC)}
+            update={
+                "status": status,
+                "error_message": error_message,
+                "updated_at": datetime.now(UTC),
+            }
         )
         return self.source
 
@@ -136,7 +139,9 @@ class MemorySourceRepository:
     ) -> SourceVersion:
         del access_token, version_id
         assert self.version is not None
-        self.version = self.version.model_copy(update={"status": status, "error_message": error_message})
+        self.version = self.version.model_copy(
+            update={"status": status, "error_message": error_message}
+        )
         return self.version
 
     async def set_source_version_research_state(
