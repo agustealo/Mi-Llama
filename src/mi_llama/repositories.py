@@ -296,7 +296,9 @@ class SupabaseRepository:
     @staticmethod
     def _one(rows: Sequence[dict[str, Any]], model: type[ModelT]) -> ModelT:
         if len(rows) != 1:
-            raise RepositoryProtocolError(f"Expected one {model.__name__} row, received {len(rows)}")
+            raise RepositoryProtocolError(
+                f"Expected one {model.__name__} row, received {len(rows)}"
+            )
         try:
             return model.model_validate(rows[0])
         except ValidationError as exc:
