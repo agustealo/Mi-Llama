@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Query, status
 
 from mi_llama.domain import ResearchResponse
 from mi_llama.research import AuthorizedResearchService
@@ -103,7 +103,7 @@ def register_research_structure_routes(
         project_id: UUID,
         question_id: UUID,
         access_token: Annotated[str, Depends(access_token_dependency)],
-        limit: int = 8,
+        limit: Annotated[int, Query(ge=1, le=25)] = 8,
     ) -> ResearchResponse:
         try:
             return await service.search_question(
@@ -155,7 +155,7 @@ def register_research_structure_routes(
         project_id: UUID,
         claim_id: UUID,
         access_token: Annotated[str, Depends(access_token_dependency)],
-        limit: int = 8,
+        limit: Annotated[int, Query(ge=1, le=25)] = 8,
     ) -> ResearchResponse:
         try:
             return await service.search_claim(
