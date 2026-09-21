@@ -182,7 +182,9 @@ class MemoryRepository:
 
 
 def test_project_api_requires_supabase_identity() -> None:
-    app = create_app(settings=Settings(_env_file=None), provider=FakeProvider(), repository=MemoryRepository())
+    app = create_app(
+        settings=Settings(_env_file=None), provider=FakeProvider(), repository=MemoryRepository()
+    )
 
     with TestClient(app) as client:
         response = client.get("/api/projects")
@@ -193,7 +195,9 @@ def test_project_api_requires_supabase_identity() -> None:
 
 def test_project_chat_and_learning_signal_keep_user_scope() -> None:
     repository = MemoryRepository()
-    app = create_app(settings=Settings(_env_file=None), provider=FakeProvider(), repository=repository)
+    app = create_app(
+        settings=Settings(_env_file=None), provider=FakeProvider(), repository=repository
+    )
     headers = {"Authorization": "Bearer test-user-jwt"}
 
     with TestClient(app) as client:
