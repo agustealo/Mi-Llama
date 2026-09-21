@@ -1,7 +1,0 @@
-streamlit
-googlesearch
-bs4
-aiohttp
-transformers
-langchain
-dotenv

@@ -1,18 +1,26 @@
-# Ignore everything inside the specified folders
-.vscode/
-.streamlit/
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
 env/
-envLinux/
 
-# Ignore specific files
+# Local runtime
 .env
-.gitignore
-.gitattributes
+.mi-llama/
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
 
-# Allow these specific files to be tracked
-LICENSE
-README
-README.md
-app.py
-requirements.txt
-setup_mindsdb.py
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Build output
+dist/
+build/
+*.egg-info/
