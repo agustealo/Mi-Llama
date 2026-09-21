@@ -66,9 +66,7 @@ class OllamaProvider:
             parsed_modified_at: datetime | None = None
             if isinstance(modified_at, str):
                 try:
-                    parsed_modified_at = datetime.fromisoformat(
-                        modified_at.replace("Z", "+00:00")
-                    )
+                    parsed_modified_at = datetime.fromisoformat(modified_at.replace("Z", "+00:00"))
                 except ValueError:
                     parsed_modified_at = None
             size = raw_model.get("size")
