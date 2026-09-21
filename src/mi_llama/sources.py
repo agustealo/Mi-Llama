@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 from collections.abc import Sequence
+from contextlib import suppress
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -131,15 +132,13 @@ class SourceService:
             )
         except Exception as exc:
             message = _safe_error(exc)
-            try:
+            with suppress(Exception):
                 await self._repository.set_source_ingest_state(
                     access_token=access_token,
                     source_id=source_id,
                     status=SourceStatus.FAILED,
                     error_message=message,
                 )
-            except Exception:
-                pass
             raise SourceProcessingError(message) from exc
 
         uploaded = False
@@ -306,34 +305,28 @@ class SourceService:
         version_id: UUID,
         message: str,
     ) -> None:
-        try:
+        with suppress(Exception):
             await self._repository.set_source_version_ingest_state(
                 access_token=access_token,
                 version_id=version_id,
                 status=SourceStatus.FAILED,
                 error_message=message,
             )
-        except Exception:
-            pass
-        try:
+        with suppress(Exception):
             await self._repository.set_source_ingest_state(
                 access_token=access_token,
                 source_id=source_id,
                 status=SourceStatus.FAILED,
                 error_message=message,
             )
-        except Exception:
-            pass
 
     async def _best_effort_delete(self, *, access_token: str, storage_path: str) -> None:
-        try:
+        with suppress(Exception):
             await self._storage.delete(
                 access_token=access_token,
                 bucket=self._bucket,
                 path=storage_path,
             )
-        except Exception:
-            pass
 
 
 def _materialize_chunks(

@@ -21,14 +21,17 @@ def test_html_extraction_drops_non_readable_content() -> None:
     document = parse_document(
         filename="source.html",
         media_type="text/html",
-        content=b"<html><body><h1>Visible</h1><script>secret()</script><p>Evidence text.</p></body></html>",
+        content=(
+            b"<html><body><h1>Visible</h1><script>ignored()</script>"
+            b"<p>Evidence text.</p></body></html>"
+        ),
         max_extracted_chars=10_000,
     )
 
     assert document.kind is SourceKind.HTML
     assert "Visible" in document.sections[0].text
     assert "Evidence text." in document.sections[0].text
-    assert "secret()" not in document.sections[0].text
+    assert "ignored()" not in document.sections[0].text
 
 
 def test_docx_extraction_includes_tables() -> None:
