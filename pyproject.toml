@@ -4,14 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mi-llama"
-version = "0.2.0"
-description = "Local-first AI knowledge and data studio powered by user-owned models and data."
+version = "0.3.0"
+description = "AI research and writing studio for evidence-grounded long-form work."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Agustealo Johnson" }]
 dependencies = [
-  "aiosqlite>=0.21,<1",
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
   "pydantic>=2.11,<3",

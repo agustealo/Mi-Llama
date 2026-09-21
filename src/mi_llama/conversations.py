@@ -4,44 +4,63 @@ from collections.abc import AsyncIterator
 from uuid import UUID
 
 from mi_llama.domain import ChatMessage, ConversationWithMessages, Role
-from mi_llama.persistence import ConversationRepository
 from mi_llama.providers.base import ModelProvider
+from mi_llama.repositories import Repository
 
 
 class ConversationService:
     def __init__(
         self,
         *,
-        repository: ConversationRepository,
+        repository: Repository,
         provider: ModelProvider,
     ) -> None:
         self._repository = repository
         self._provider = provider
 
-    async def get_conversation(self, conversation_id: UUID) -> ConversationWithMessages | None:
-        conversation = await self._repository.get_conversation(conversation_id)
+    async def get_conversation(
+        self,
+        *,
+        access_token: str,
+        conversation_id: UUID,
+    ) -> ConversationWithMessages | None:
+        conversation = await self._repository.get_conversation(
+            access_token=access_token,
+            conversation_id=conversation_id,
+        )
         if conversation is None:
             return None
-        messages = await self._repository.get_messages(conversation_id)
+        messages = await self._repository.get_messages(
+            access_token=access_token,
+            conversation_id=conversation_id,
+        )
         return ConversationWithMessages(conversation=conversation, messages=messages)
 
     async def stream_reply(
         self,
         *,
+        access_token: str,
         conversation_id: UUID,
         user_content: str,
     ) -> AsyncIterator[str]:
-        conversation = await self._repository.get_conversation(conversation_id)
+        conversation = await self._repository.get_conversation(
+            access_token=access_token,
+            conversation_id=conversation_id,
+        )
         if conversation is None:
             raise KeyError(str(conversation_id))
 
         await self._repository.add_message(
+            access_token=access_token,
             conversation_id=conversation_id,
             role=Role.USER,
             content=user_content,
         )
 
-        stored_messages = await self._repository.get_messages(conversation_id)
+        stored_messages = await self._repository.get_messages(
+            access_token=access_token,
+            conversation_id=conversation_id,
+        )
         provider_messages = [
             ChatMessage(role=message.role, content=message.content) for message in stored_messages
         ]
@@ -57,6 +76,7 @@ class ConversationService:
         reply = "".join(reply_parts).strip()
         if reply:
             await self._repository.add_message(
+                access_token=access_token,
                 conversation_id=conversation_id,
                 role=Role.ASSISTANT,
                 content=reply,
