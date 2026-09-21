@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     app_name: str = "Mi-Llama"
     host: str = "127.0.0.1"
     port: int = Field(default=8765, ge=1, le=65535)
-    ollama_base_url: AnyHttpUrl = "http://127.0.0.1:11434"
+    ollama_base_url: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:11434")
     request_timeout_seconds: float = Field(default=60.0, gt=0)
     connect_timeout_seconds: float = Field(default=3.0, gt=0)
     data_dir: Path = Path.home() / ".mi-llama"
