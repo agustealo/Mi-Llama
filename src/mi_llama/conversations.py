@@ -43,8 +43,7 @@ class ConversationService:
 
         stored_messages = await self._repository.get_messages(conversation_id)
         provider_messages = [
-            ChatMessage(role=message.role, content=message.content)
-            for message in stored_messages
+            ChatMessage(role=message.role, content=message.content) for message in stored_messages
         ]
 
         reply_parts: list[str] = []
