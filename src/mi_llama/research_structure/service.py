@@ -4,6 +4,7 @@ from typing import Literal
 from uuid import UUID
 
 from mi_llama.domain import LearningEvent, ResearchResponse
+from mi_llama.repositories import RepositoryProtocolError
 from mi_llama.research import AuthorizedResearchService, ResearchError
 from mi_llama.research_structure.models import (
     AttachEvidenceRequest,
@@ -12,8 +13,6 @@ from mi_llama.research_structure.models import (
     ClaimStatus,
     CreateResearchNoteRequest,
     EvidenceAttachment,
-    EvidenceStance,
-    ResearchClaim,
     ResearchGapItem,
     ResearchGapKind,
     ResearchGapReport,
@@ -138,15 +137,22 @@ class ResearchStructureService:
             stance=request.stance,
             note=request.note,
         )
-        citation = await self._repository.create_citation_candidate(
-            access_token=access_token,
-            evidence=evidence,
-        )
-        claim = await self._reconcile_claim(
+
+        claim = await self._repository.get_claim(
             access_token=access_token,
             project_id=project_id,
-            claim=claim,
+            claim_id=claim_id,
         )
+        citation = await self._repository.get_citation_candidate_by_evidence(
+            access_token=access_token,
+            project_id=project_id,
+            evidence_id=evidence.id,
+        )
+        if claim is None or citation is None:
+            raise RepositoryProtocolError(
+                "Evidence materialization did not produce claim/citation state"
+            )
+
         return EvidenceAttachment(claim=claim, evidence=evidence, citation=citation)
 
     async def search_question(
@@ -345,37 +351,6 @@ class ResearchStructureService:
             disputed_claims=disputed_claims,
             pending_citations=pending_citations,
             items=items,
-        )
-
-    async def _reconcile_claim(
-        self,
-        *,
-        access_token: str,
-        project_id: UUID,
-        claim: ResearchClaim,
-    ) -> ResearchClaim:
-        evidence = await self._repository.list_claim_evidence(
-            access_token=access_token,
-            project_id=project_id,
-            claim_id=claim.id,
-        )
-        stances = {item.stance for item in evidence}
-
-        if EvidenceStance.CONTRADICTS in stances:
-            next_status = ClaimStatus.DISPUTED
-        elif EvidenceStance.SUPPORTS in stances:
-            next_status = ClaimStatus.SUPPORTED
-        else:
-            next_status = ClaimStatus.NEEDS_EVIDENCE
-
-        if next_status is claim.status:
-            return claim
-
-        return await self._repository.set_claim_status(
-            access_token=access_token,
-            project_id=project_id,
-            claim_id=claim.id,
-            claim_status=next_status,
         )
 
     async def _search_and_record(

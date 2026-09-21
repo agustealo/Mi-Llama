@@ -9,7 +9,6 @@ from mi_llama.research_structure.models import (
     CitationCandidate,
     CitationStatus,
     ClaimEvidence,
-    ClaimStatus,
     CreateResearchNoteRequest,
     EvidenceStance,
     ResearchClaim,
@@ -76,15 +75,6 @@ class ResearchStructureRepository(Protocol):
         claim_id: UUID,
     ) -> ResearchClaim | None: ...
 
-    async def set_claim_status(
-        self,
-        *,
-        access_token: str,
-        project_id: UUID,
-        claim_id: UUID,
-        claim_status: ClaimStatus,
-    ) -> ResearchClaim: ...
-
     async def create_research_note(
         self,
         *,
@@ -135,12 +125,13 @@ class ResearchStructureRepository(Protocol):
         evidence_id: UUID,
     ) -> ClaimEvidence | None: ...
 
-    async def create_citation_candidate(
+    async def get_citation_candidate_by_evidence(
         self,
         *,
         access_token: str,
-        evidence: ClaimEvidence,
-    ) -> CitationCandidate: ...
+        project_id: UUID,
+        evidence_id: UUID,
+    ) -> CitationCandidate | None: ...
 
     async def list_citation_candidates(
         self,
@@ -315,27 +306,6 @@ class SupabaseResearchRepository(SupabaseRepository):
         )
         return None if not rows else self._one(rows, ResearchClaim)
 
-    async def set_claim_status(
-        self,
-        *,
-        access_token: str,
-        project_id: UUID,
-        claim_id: UUID,
-        claim_status: ClaimStatus,
-    ) -> ResearchClaim:
-        rows = await self._request_rows(
-            "PATCH",
-            "/research_claims",
-            access_token=access_token,
-            params={
-                "project_id": f"eq.{project_id}",
-                "id": f"eq.{claim_id}",
-            },
-            json={"status": claim_status.value},
-            prefer="return=representation",
-        )
-        return self._one(rows, ResearchClaim)
-
     async def create_research_note(
         self,
         *,
@@ -472,24 +442,25 @@ class SupabaseResearchRepository(SupabaseRepository):
         )
         return None if not rows else self._one(rows, ClaimEvidence)
 
-    async def create_citation_candidate(
+    async def get_citation_candidate_by_evidence(
         self,
         *,
         access_token: str,
-        evidence: ClaimEvidence,
-    ) -> CitationCandidate:
+        project_id: UUID,
+        evidence_id: UUID,
+    ) -> CitationCandidate | None:
         rows = await self._request_rows(
-            "POST",
+            "GET",
             "/citation_candidates",
             access_token=access_token,
-            json={
-                "project_id": str(evidence.project_id),
-                "claim_id": str(evidence.claim_id),
-                "evidence_id": str(evidence.id),
+            params={
+                "select": "*",
+                "project_id": f"eq.{project_id}",
+                "evidence_id": f"eq.{evidence_id}",
+                "limit": "1",
             },
-            prefer="return=representation",
         )
-        return self._one(rows, CitationCandidate)
+        return None if not rows else self._one(rows, CitationCandidate)
 
     async def list_citation_candidates(
         self,

@@ -124,9 +124,27 @@ create trigger research_notes_preserve_identity
 before update on public.research_notes
 for each row execute function public.enforce_research_identity();
 
-create trigger citation_candidates_preserve_identity
+create or replace function public.enforce_citation_candidate_provenance()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+    if new.id is distinct from old.id
+        or new.project_id is distinct from old.project_id
+        or new.claim_id is distinct from old.claim_id
+        or new.evidence_id is distinct from old.evidence_id
+        or new.created_by is distinct from old.created_by
+        or new.created_at is distinct from old.created_at then
+        raise exception 'citation candidate provenance is immutable';
+    end if;
+    return new;
+end;
+$$;
+
+create trigger citation_candidates_preserve_provenance
 before update on public.citation_candidates
-for each row execute function public.enforce_research_identity();
+for each row execute function public.enforce_citation_candidate_provenance();
 
 create or replace function public.validate_research_note_links()
 returns trigger
@@ -203,28 +221,52 @@ create trigger claim_evidence_immutable
 before update on public.claim_evidence
 for each row execute function public.preserve_claim_evidence_provenance();
 
-create or replace function public.validate_citation_candidate_links()
+create or replace function public.materialize_claim_evidence_effects()
 returns trigger
 language plpgsql
+security definer
 set search_path = public
 as $$
 begin
-    if not exists (
-        select 1
-        from public.claim_evidence e
-        where e.id = new.evidence_id
-          and e.claim_id = new.claim_id
-          and e.project_id = new.project_id
-    ) then
-        raise exception 'citation candidate must reference evidence from the same claim and project';
-    end if;
+    update public.research_claims c
+    set status = case
+        when exists (
+            select 1
+            from public.claim_evidence e
+            where e.claim_id = new.claim_id and e.stance = 'contradicts'
+        ) then 'disputed'
+        when exists (
+            select 1
+            from public.claim_evidence e
+            where e.claim_id = new.claim_id and e.stance = 'supports'
+        ) then 'supported'
+        else 'needs_evidence'
+    end
+    where c.id = new.claim_id and c.project_id = new.project_id;
+
+    insert into public.citation_candidates (
+        project_id,
+        claim_id,
+        evidence_id,
+        created_by
+    )
+    values (
+        new.project_id,
+        new.claim_id,
+        new.id,
+        new.created_by
+    )
+    on conflict (evidence_id) do nothing;
+
     return new;
 end;
 $$;
 
-create trigger citation_candidates_validate_links
-before insert on public.citation_candidates
-for each row execute function public.validate_citation_candidate_links();
+revoke all on function public.materialize_claim_evidence_effects() from public;
+
+create trigger claim_evidence_materialize_effects
+after insert on public.claim_evidence
+for each row execute function public.materialize_claim_evidence_effects();
 
 alter table public.research_questions enable row level security;
 alter table public.research_claims enable row level security;
@@ -239,10 +281,10 @@ revoke all on public.claim_evidence from anon;
 revoke all on public.citation_candidates from anon;
 
 grant select, insert, update on public.research_questions to authenticated;
-grant select, insert, update on public.research_claims to authenticated;
+grant select, insert on public.research_claims to authenticated;
 grant select, insert, update on public.research_notes to authenticated;
 grant select, insert on public.claim_evidence to authenticated;
-grant select, insert, update on public.citation_candidates to authenticated;
+grant select, update on public.citation_candidates to authenticated;
 
 create policy research_questions_select_project
 on public.research_questions
@@ -274,13 +316,6 @@ on public.research_claims
 for insert
 to authenticated
 with check (created_by = auth.uid() and public.can_edit_project(project_id));
-
-create policy research_claims_update_editor
-on public.research_claims
-for update
-to authenticated
-using (public.can_edit_project(project_id))
-with check (public.can_edit_project(project_id));
 
 create policy research_notes_select_project
 on public.research_notes
@@ -318,12 +353,6 @@ on public.citation_candidates
 for select
 to authenticated
 using (public.can_access_project(project_id));
-
-create policy citation_candidates_insert_editor
-on public.citation_candidates
-for insert
-to authenticated
-with check (created_by = auth.uid() and public.can_edit_project(project_id));
 
 create policy citation_candidates_update_editor
 on public.citation_candidates
