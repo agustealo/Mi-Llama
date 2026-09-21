@@ -172,9 +172,7 @@ class FakeWritingRepository:
         self.links.append(link)
         return link
 
-    async def list_outline_nodes(
-        self, *, access_token: str, project_id: UUID
-    ) -> list[OutlineNode]:
+    async def list_outline_nodes(self, *, access_token: str, project_id: UUID) -> list[OutlineNode]:
         del access_token, project_id
         return [self.node]
 
