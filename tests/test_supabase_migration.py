@@ -47,7 +47,7 @@ def test_learning_signal_contract_is_explicit_and_append_only() -> None:
     assert "grant select, insert on public.learning_signals to authenticated" in sql
     assert (
         "grant select, insert, update"
-        not in sql.split("grant select, insert on public.learning_signals to authenticated")[0].split(
-            "public.learning_signals"
-        )[-1]
+        not in sql.split("grant select, insert on public.learning_signals to authenticated")[
+            0
+        ].split("public.learning_signals")[-1]
     )
