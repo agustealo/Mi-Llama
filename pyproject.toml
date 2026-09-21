@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mi-llama"
-version = "0.3.0"
+version = "0.4.0"
 description = "AI research and writing studio for evidence-grounded long-form work."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,6 +15,9 @@ dependencies = [
   "httpx>=0.28,<1",
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
+  "pypdf>=6,<7",
+  "python-docx>=1.2,<2",
+  "python-multipart>=0.0.20,<1",
   "uvicorn[standard]>=0.35,<1",
 ]
 
@@ -48,3 +51,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
 python_version = "3.11"
 strict = true
 packages = ["mi_llama"]
+
+[[tool.mypy.overrides]]
+module = ["docx", "docx.*", "pypdf", "pypdf.*"]
+ignore_missing_imports = true
