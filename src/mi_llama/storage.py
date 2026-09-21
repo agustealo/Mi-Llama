@@ -94,7 +94,8 @@ class SupabaseStorage:
             "Content-Type": "application/json",
         }
         try:
-            response = await self._client.delete(
+            response = await self._client.request(
+                "DELETE",
                 f"/object/{quote(bucket, safe='')}",
                 json={"prefixes": [path]},
                 headers=headers,
