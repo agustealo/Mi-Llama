@@ -23,6 +23,7 @@ from mi_llama.writing_intelligence.repository import WritingIntelligenceReposito
 from mi_llama.writing_intelligence.service import (
     WritingIntelligenceError,
     WritingIntelligenceService,
+    WritingIntelligenceUnavailableError,
     WritingIntelligenceValidationError,
 )
 from mi_llama.writing_structure.models import WritingStructureNotFound
@@ -32,8 +33,8 @@ def register_writing_intelligence_routes(
     *,
     app: FastAPI,
     repository: WritingIntelligenceRepository,
-    provider: StructuredModelProvider,
-    research: AuthorizedResearchService,
+    provider: StructuredModelProvider | None,
+    research: AuthorizedResearchService | None,
     access_token_dependency: Callable[..., str],
 ) -> None:
     service = WritingIntelligenceService(
@@ -68,6 +69,11 @@ def register_writing_intelligence_routes(
         except WritingIntelligenceValidationError as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        except WritingIntelligenceUnavailableError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=str(exc),
             ) from exc
         except (WritingIntelligenceError, ProviderError) as exc:
