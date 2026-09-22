@@ -567,7 +567,12 @@ def _sentence_spans(text: str, *, base_offset: int) -> list[SentenceSpan]:
         if terminal_end < len(text) and not text[terminal_end].isspace():
             index = terminal_end
             continue
-        if character == "." and _is_common_abbreviation(text, segment_start, index):
+        if character == "." and _is_nonterminal_abbreviation(
+            text,
+            segment_start=segment_start,
+            period_index=index,
+            terminal_end=terminal_end,
+        ):
             index = terminal_end
             continue
 
@@ -615,11 +620,38 @@ def _append_sentence_span(
     )
 
 
-def _is_common_abbreviation(text: str, segment_start: int, period_index: int) -> bool:
+def _is_nonterminal_abbreviation(
+    text: str,
+    *,
+    segment_start: int,
+    period_index: int,
+    terminal_end: int,
+) -> bool:
     token_start = period_index
     while token_start > segment_start and not text[token_start - 1].isspace():
         token_start -= 1
     token = text[token_start : period_index + 1].lower()
-    if token in _COMMON_ABBREVIATIONS:
-        return True
-    return len(token) == 2 and token[0].isalpha()
+    is_initial = len(token) == 2 and token[0].isalpha()
+    if token not in _COMMON_ABBREVIATIONS and not is_initial:
+        return False
+
+    next_start = terminal_end
+    while next_start < len(text) and text[next_start].isspace() and text[next_start] != "\n":
+        next_start += 1
+    if next_start >= len(text) or text[next_start] == "\n":
+        return False
+
+    if token == "etc.":
+        return not text[next_start].isupper()
+
+    if is_initial:
+        previous_end = token_start
+        while previous_end > segment_start and text[previous_end - 1].isspace():
+            previous_end -= 1
+        previous_start = previous_end
+        while previous_start > segment_start and not text[previous_start - 1].isspace():
+            previous_start -= 1
+        previous_token = text[previous_start:previous_end]
+        return not previous_token or previous_token[0].isupper()
+
+    return True
