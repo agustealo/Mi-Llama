@@ -2,9 +2,9 @@ from pathlib import Path
 
 
 def test_writing_intelligence_migration_keeps_analysis_proposal_only() -> None:
-    sql = Path(
-        "supabase/migrations/20260922005500_writing_intelligence.sql"
-    ).read_text(encoding="utf-8")
+    sql = Path("supabase/migrations/20260922005500_writing_intelligence.sql").read_text(
+        encoding="utf-8"
+    )
 
     assert "create table public.writing_analysis_runs" in sql
     assert "create table public.writing_analysis_findings" in sql
