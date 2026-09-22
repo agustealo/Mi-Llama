@@ -201,7 +201,9 @@ def create_app(
         register_writing_intelligence_routes(
             app=app,
             repository=runtime_repository,
-            provider=(runtime_provider if isinstance(runtime_provider, StructuredModelProvider) else None),
+            provider=(
+                runtime_provider if isinstance(runtime_provider, StructuredModelProvider) else None
+            ),
             research=research_service,
             access_token_dependency=require_access_token,
         )
