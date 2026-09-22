@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
+from mi_llama.repositories import RepositoryProtocolError
 from mi_llama.research_structure.models import ResearchQuestion
 from mi_llama.writing_intelligence.models import (
     FindingDraft,
@@ -91,6 +92,46 @@ class WritingIntelligenceRepository(WritingRepository, Protocol):
 
 class SupabaseWritingIntelligenceRepository(SupabaseWritingRepository):
     """Canonical Supabase repository extended with manuscript evidence analysis."""
+
+    async def acquire_conversation_reply_lease(
+        self,
+        *,
+        access_token: str,
+        conversation_id: UUID,
+        ttl_seconds: int,
+    ) -> UUID:
+        rows = await self._request_rows(
+            "POST",
+            "/rpc/acquire_conversation_reply_lease",
+            access_token=access_token,
+            json={
+                "p_conversation_id": str(conversation_id),
+                "p_ttl_seconds": ttl_seconds,
+            },
+        )
+        if len(rows) != 1 or rows[0].get("lease_token") is None:
+            raise RepositoryProtocolError("Conversation lease RPC returned an invalid token")
+        try:
+            return UUID(str(rows[0]["lease_token"]))
+        except ValueError as exc:
+            raise RepositoryProtocolError("Conversation lease RPC returned an invalid UUID") from exc
+
+    async def release_conversation_reply_lease(
+        self,
+        *,
+        access_token: str,
+        conversation_id: UUID,
+        lease_token: UUID,
+    ) -> None:
+        await self._request_rows(
+            "POST",
+            "/rpc/release_conversation_reply_lease",
+            access_token=access_token,
+            json={
+                "p_conversation_id": str(conversation_id),
+                "p_lease_token": str(lease_token),
+            },
+        )
 
     async def persist_writing_analysis(
         self,
