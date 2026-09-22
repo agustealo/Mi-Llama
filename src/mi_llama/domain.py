@@ -35,6 +35,9 @@ class LearningEvent(StrEnum):
     AI_EDIT_REJECTED = "ai_edit_rejected"
     RESEARCH_SUGGESTION_ACCEPTED = "research_suggestion_accepted"
     RESEARCH_SUGGESTION_REJECTED = "research_suggestion_rejected"
+    WRITING_FINDING_CONFIRMED = "writing_finding_confirmed"
+    WRITING_FINDING_DISMISSED = "writing_finding_dismissed"
+    WRITING_GAP_CREATED = "writing_gap_created"
 
 
 class ProviderStatus(StrEnum):
