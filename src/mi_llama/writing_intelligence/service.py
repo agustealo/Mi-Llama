@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -8,6 +7,7 @@ from pydantic import ValidationError
 
 from mi_llama.domain import ChatMessage, Role
 from mi_llama.providers.base import StructuredModelProvider
+from mi_llama.providers.errors import ProviderError
 from mi_llama.research import AuthorizedResearchService
 from mi_llama.writing_intelligence.models import (
     AnalyzeManuscriptRequest,
@@ -29,8 +29,27 @@ from mi_llama.writing_intelligence.repository import WritingIntelligenceReposito
 from mi_llama.writing_structure.models import WritingStructureNotFound
 
 MAX_ANALYSIS_CHARACTERS = 30_000
+MAX_FINDING_STATEMENT_CHARACTERS = 8_000
 MAX_SENTENCES = 160
-_SENTENCE_RE = re.compile(r"[^.!?\n]+(?:[.!?]+(?=\s|$)|(?=\n|$))")
+_SENTENCE_CLOSERS = frozenset("\"'”’»)]}")
+_COMMON_ABBREVIATIONS = frozenset(
+    {
+        "dr.",
+        "mr.",
+        "mrs.",
+        "ms.",
+        "prof.",
+        "sr.",
+        "jr.",
+        "st.",
+        "vs.",
+        "etc.",
+        "e.g.",
+        "i.e.",
+        "fig.",
+        "no.",
+    }
+)
 
 
 class WritingIntelligenceError(RuntimeError):
@@ -114,6 +133,10 @@ class WritingIntelligenceService:
         if len(sentences) > MAX_SENTENCES:
             raise WritingIntelligenceValidationError(
                 f"The selected passage contains more than {MAX_SENTENCES} sentence units"
+            )
+        if any(len(sentence.text) > MAX_FINDING_STATEMENT_CHARACTERS for sentence in sentences):
+            raise WritingIntelligenceValidationError(
+                f"Each sentence unit must be at most {MAX_FINDING_STATEMENT_CHARACTERS} characters"
             )
 
         claim_payload = await self._select_claims(
@@ -387,27 +410,30 @@ class WritingIntelligenceService:
         sentences: list[SentenceSpan],
     ) -> ClaimSelectionPayload:
         sentence_lines = "\n".join(f"{sentence.index}: {sentence.text}" for sentence in sentences)
-        payload = await provider.chat_json(
-            model=model,
-            schema=ClaimSelectionPayload.model_json_schema(),
-            messages=[
-                ChatMessage(
-                    role=Role.SYSTEM,
-                    content=(
-                        "Identify externally verifiable factual claims in manuscript prose. "
-                        "Do not select opinions, rhetorical questions, transitions, headings, "
-                        "purely subjective judgments, or instructions. Return only "
-                        "sentence indexes from the supplied list. For every selected sentence, "
-                        "provide a concise research query that could find evidence for or against "
-                        "the claim."
+        try:
+            payload = await provider.chat_json(
+                model=model,
+                schema=ClaimSelectionPayload.model_json_schema(),
+                messages=[
+                    ChatMessage(
+                        role=Role.SYSTEM,
+                        content=(
+                            "Identify externally verifiable factual claims in manuscript prose. "
+                            "Do not select opinions, rhetorical questions, transitions, headings, "
+                            "purely subjective judgments, or instructions. Return only "
+                            "sentence indexes from the supplied list. For every selected sentence, "
+                            "provide a concise research query that could find evidence for or "
+                            "against the claim."
+                        ),
                     ),
-                ),
-                ChatMessage(
-                    role=Role.USER,
-                    content=f"Manuscript sentence units:\n{sentence_lines}",
-                ),
-            ],
-        )
+                    ChatMessage(
+                        role=Role.USER,
+                        content=f"Manuscript sentence units:\n{sentence_lines}",
+                    ),
+                ],
+            )
+        except ProviderError as exc:
+            raise WritingIntelligenceError("Ollama claim selection failed") from exc
         try:
             return ClaimSelectionPayload.model_validate(payload)
         except ValidationError as exc:
@@ -431,26 +457,30 @@ class WritingIntelligenceService:
             )
             for item in hits
         )
-        payload = await provider.chat_json(
-            model=model,
-            schema=EvidenceJudgmentPayload.model_json_schema(),
-            messages=[
-                ChatMessage(
-                    role=Role.SYSTEM,
-                    content=(
-                        "Compare a manuscript claim to retrieved project evidence. "
-                        "Classify each supplied candidate only as supports, contradicts, context, "
-                        "or unclear. Do not invent candidate indexes and do not infer facts not "
-                        "stated or directly entailed by the passages. The application derives the "
-                        "final evidence status from these per-candidate relations."
+        try:
+            payload = await provider.chat_json(
+                model=model,
+                schema=EvidenceJudgmentPayload.model_json_schema(),
+                messages=[
+                    ChatMessage(
+                        role=Role.SYSTEM,
+                        content=(
+                            "Compare a manuscript claim to retrieved project evidence. "
+                            "Classify each supplied candidate only as supports, contradicts, "
+                            "context, or unclear. Do not invent candidate indexes and do not infer "
+                            "facts not stated or directly entailed by the passages. "
+                            "The application derives the final evidence status from these "
+                            "per-candidate relations."
+                        ),
                     ),
-                ),
-                ChatMessage(
-                    role=Role.USER,
-                    content=f"Claim:\n{claim}\n\nCandidate evidence:\n{evidence}",
-                ),
-            ],
-        )
+                    ChatMessage(
+                        role=Role.USER,
+                        content=f"Claim:\n{claim}\n\nCandidate evidence:\n{evidence}",
+                    ),
+                ],
+            )
+        except ProviderError as exc:
+            raise WritingIntelligenceError("Ollama evidence judgment failed") from exc
         try:
             return EvidenceJudgmentPayload.model_validate(payload)
         except ValidationError as exc:
@@ -497,20 +527,131 @@ def _derive_assessment(candidates: list[CandidateDraft]) -> EvidenceAssessment:
 
 def _sentence_spans(text: str, *, base_offset: int) -> list[SentenceSpan]:
     spans: list[SentenceSpan] = []
-    for match in _SENTENCE_RE.finditer(text):
-        raw = match.group(0)
-        stripped = raw.strip()
-        if len(stripped) < 3:
-            continue
-        leading = len(raw) - len(raw.lstrip())
-        start = base_offset + match.start() + leading
-        end = start + len(stripped)
-        spans.append(
-            SentenceSpan(
-                index=len(spans),
-                text=stripped,
-                start=start,
-                end=end,
+    segment_start = 0
+    index = 0
+
+    while index < len(text):
+        character = text[index]
+        if character == "\n":
+            _append_sentence_span(
+                spans,
+                text=text,
+                start=segment_start,
+                end=index,
+                base_offset=base_offset,
             )
+            segment_start = index + 1
+            index += 1
+            continue
+
+        if character not in ".!?":
+            index += 1
+            continue
+
+        if (
+            character == "."
+            and index > 0
+            and index + 1 < len(text)
+            and text[index - 1].isdigit()
+            and text[index + 1].isdigit()
+        ):
+            index += 1
+            continue
+
+        terminal_end = index + 1
+        while terminal_end < len(text) and text[terminal_end] in ".!?":
+            terminal_end += 1
+        while terminal_end < len(text) and text[terminal_end] in _SENTENCE_CLOSERS:
+            terminal_end += 1
+
+        if terminal_end < len(text) and not text[terminal_end].isspace():
+            index = terminal_end
+            continue
+        if character == "." and _is_nonterminal_abbreviation(
+            text,
+            segment_start=segment_start,
+            period_index=index,
+            terminal_end=terminal_end,
+        ):
+            index = terminal_end
+            continue
+
+        _append_sentence_span(
+            spans,
+            text=text,
+            start=segment_start,
+            end=terminal_end,
+            base_offset=base_offset,
         )
+        segment_start = terminal_end
+        index = terminal_end
+
+    _append_sentence_span(
+        spans,
+        text=text,
+        start=segment_start,
+        end=len(text),
+        base_offset=base_offset,
+    )
     return spans
+
+
+def _append_sentence_span(
+    spans: list[SentenceSpan],
+    *,
+    text: str,
+    start: int,
+    end: int,
+    base_offset: int,
+) -> None:
+    raw = text[start:end]
+    stripped = raw.strip()
+    if len(stripped) < 3:
+        return
+    leading = len(raw) - len(raw.lstrip())
+    absolute_start = base_offset + start + leading
+    spans.append(
+        SentenceSpan(
+            index=len(spans),
+            text=stripped,
+            start=absolute_start,
+            end=absolute_start + len(stripped),
+        )
+    )
+
+
+def _is_nonterminal_abbreviation(
+    text: str,
+    *,
+    segment_start: int,
+    period_index: int,
+    terminal_end: int,
+) -> bool:
+    token_start = period_index
+    while token_start > segment_start and not text[token_start - 1].isspace():
+        token_start -= 1
+    token = text[token_start : period_index + 1].lower()
+    is_initial = len(token) == 2 and token[0].isalpha()
+    if token not in _COMMON_ABBREVIATIONS and not is_initial:
+        return False
+
+    next_start = terminal_end
+    while next_start < len(text) and text[next_start].isspace() and text[next_start] != "\n":
+        next_start += 1
+    if next_start >= len(text) or text[next_start] == "\n":
+        return False
+
+    if token == "etc.":
+        return not text[next_start].isupper()
+
+    if is_initial:
+        previous_end = token_start
+        while previous_end > segment_start and text[previous_end - 1].isspace():
+            previous_end -= 1
+        previous_start = previous_end
+        while previous_start > segment_start and not text[previous_start - 1].isspace():
+            previous_start -= 1
+        previous_token = text[previous_start:previous_end]
+        return not previous_token or previous_token[0].isupper()
+
+    return True

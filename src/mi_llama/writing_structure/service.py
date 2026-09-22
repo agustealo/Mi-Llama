@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Protocol, runtime_checkable
 from uuid import UUID
 
 from mi_llama.writing_structure.models import (
@@ -18,6 +19,18 @@ from mi_llama.writing_structure.models import (
     WritingWorkspaceSummary,
 )
 from mi_llama.writing_structure.repository import WritingRepository
+
+
+@runtime_checkable
+class AtomicRevisionRepository(Protocol):
+    async def create_manuscript_revision_result(
+        self,
+        *,
+        access_token: str,
+        project_id: UUID,
+        document_id: UUID,
+        content: str,
+    ) -> ManuscriptRevisionResult: ...
 
 
 class WritingStructureService:
@@ -162,6 +175,14 @@ class WritingStructureService:
         )
         if document is None:
             raise WritingStructureNotFound(str(document_id))
+
+        if isinstance(self._repository, AtomicRevisionRepository):
+            return await self._repository.create_manuscript_revision_result(
+                access_token=access_token,
+                project_id=project_id,
+                document_id=document_id,
+                content=request.content,
+            )
 
         revision = await self._repository.create_manuscript_revision(
             access_token=access_token,

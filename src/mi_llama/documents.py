@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import posixpath
 import re
 import zipfile
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from io import BytesIO
 from pathlib import Path, PurePosixPath
+from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
 
 from docx import Document
+from docx.table import Table
+from docx.text.paragraph import Paragraph
 from pypdf import PdfReader
 
 from mi_llama.domain import SourceKind
@@ -212,18 +216,24 @@ def _parse_pdf(content: bytes) -> ParsedDocument:
 def _parse_docx(content: bytes) -> ParsedDocument:
     try:
         document = Document(BytesIO(content))
-        parts = [paragraph.text for paragraph in document.paragraphs if paragraph.text.strip()]
-        for table in document.tables:
-            for row in table.rows:
-                cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
-                if cells:
-                    parts.append(" | ".join(cells))
+        parts: list[str] = []
+        for child in document.element.body.iterchildren():
+            if child.tag.endswith("}p"):
+                text = Paragraph(child, document).text.strip()
+                if text:
+                    parts.append(text)
+            elif child.tag.endswith("}tbl"):
+                table = Table(child, document)
+                for row in table.rows:
+                    cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                    if cells:
+                        parts.append(" | ".join(cells))
     except Exception as exc:
         raise DocumentExtractionError("DOCX parsing failed") from exc
     text = _normalize_text("\n\n".join(parts))
     return ParsedDocument(
         kind=SourceKind.DOCX,
-        parser="python-docx-v1",
+        parser="python-docx-v2",
         sections=(ParsedSection(location="document", text=text),),
     )
 
@@ -252,7 +262,7 @@ def _parse_epub(content: bytes) -> ParsedDocument:
                     )
     except (zipfile.BadZipFile, KeyError, ElementTree.ParseError) as exc:
         raise DocumentExtractionError("EPUB parsing failed") from exc
-    return ParsedDocument(kind=SourceKind.EPUB, parser="epub-zip-v1", sections=tuple(sections))
+    return ParsedDocument(kind=SourceKind.EPUB, parser="epub-zip-v2", sections=tuple(sections))
 
 
 def _epub_spine_documents(archive: zipfile.ZipFile) -> list[str]:
@@ -275,14 +285,30 @@ def _epub_spine_documents(archive: zipfile.ZipFile) -> list[str]:
             href = node.attrib.get("href")
             if item_id and href:
                 manifest[item_id] = href
-    base = PurePosixPath(rootfile).parent
     ordered: list[str] = []
     for node in package.iter():
         if node.tag.endswith("itemref"):
             href = manifest.get(node.attrib.get("idref", ""))
             if href:
-                ordered.append(str(base / href))
+                ordered.append(_resolve_epub_member(rootfile, href))
     return ordered
+
+
+def _resolve_epub_member(rootfile: str, href: str) -> str:
+    parsed = urlsplit(href)
+    if parsed.scheme or parsed.netloc:
+        raise DocumentExtractionError("EPUB manifest contains an external document reference")
+    decoded_path = unquote(parsed.path)
+    if not decoded_path:
+        raise DocumentExtractionError("EPUB manifest contains an empty document reference")
+    if decoded_path.startswith("/"):
+        raise DocumentExtractionError("EPUB manifest document reference escapes the archive root")
+
+    base = posixpath.dirname(rootfile)
+    resolved = posixpath.normpath(posixpath.join(base, decoded_path))
+    if resolved == ".." or resolved.startswith("../") or resolved.startswith("/"):
+        raise DocumentExtractionError("EPUB manifest document reference escapes the archive root")
+    return resolved
 
 
 def _parse_html(content: bytes) -> ParsedDocument:
