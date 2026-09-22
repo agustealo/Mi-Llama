@@ -119,6 +119,27 @@ class SupabaseWritingIntelligenceRepository(SupabaseWritingRepository):
                 "Conversation lease RPC returned an invalid UUID"
             ) from exc
 
+    async def renew_conversation_reply_lease(
+        self,
+        *,
+        access_token: str,
+        conversation_id: UUID,
+        lease_token: UUID,
+        ttl_seconds: int,
+    ) -> None:
+        rows = await self._request_rows(
+            "POST",
+            "/rpc/renew_conversation_reply_lease",
+            access_token=access_token,
+            json={
+                "p_conversation_id": str(conversation_id),
+                "p_lease_token": str(lease_token),
+                "p_ttl_seconds": ttl_seconds,
+            },
+        )
+        if len(rows) != 1 or rows[0].get("renewed") is not True:
+            raise RepositoryProtocolError("Conversation lease RPC failed to renew the lease")
+
     async def release_conversation_reply_lease(
         self,
         *,
