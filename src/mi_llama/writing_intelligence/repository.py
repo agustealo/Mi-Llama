@@ -115,7 +115,9 @@ class SupabaseWritingIntelligenceRepository(SupabaseWritingRepository):
         try:
             return UUID(str(rows[0]["lease_token"]))
         except ValueError as exc:
-            raise RepositoryProtocolError("Conversation lease RPC returned an invalid UUID") from exc
+            raise RepositoryProtocolError(
+                "Conversation lease RPC returned an invalid UUID"
+            ) from exc
 
     async def release_conversation_reply_lease(
         self,
