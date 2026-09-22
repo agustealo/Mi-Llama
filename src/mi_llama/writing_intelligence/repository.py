@@ -12,6 +12,7 @@ from mi_llama.writing_intelligence.models import (
     WritingFindingCandidate,
     WritingFindingStatus,
 )
+from mi_llama.writing_structure.models import ManuscriptRevisionResult
 from mi_llama.writing_structure.repository import SupabaseWritingRepository, WritingRepository
 
 
@@ -132,6 +133,26 @@ class SupabaseWritingIntelligenceRepository(SupabaseWritingRepository):
                 "p_lease_token": str(lease_token),
             },
         )
+
+    async def create_manuscript_revision_result(
+        self,
+        *,
+        access_token: str,
+        project_id: UUID,
+        document_id: UUID,
+        content: str,
+    ) -> ManuscriptRevisionResult:
+        rows = await self._request_rows(
+            "POST",
+            "/rpc/create_manuscript_revision_result",
+            access_token=access_token,
+            json={
+                "p_project_id": str(project_id),
+                "p_document_id": str(document_id),
+                "p_content": content,
+            },
+        )
+        return self._one(rows, ManuscriptRevisionResult)
 
     async def persist_writing_analysis(
         self,
