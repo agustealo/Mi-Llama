@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import Depends, FastAPI, HTTPException, status
 
 from mi_llama.providers.base import StructuredModelProvider
+from mi_llama.providers.errors import ProviderError
 from mi_llama.research import AuthorizedResearchService
 from mi_llama.writing_intelligence.models import (
     AnalyzeManuscriptRequest,
@@ -69,7 +70,7 @@ def register_writing_intelligence_routes(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(exc),
             ) from exc
-        except WritingIntelligenceError as exc:
+        except (WritingIntelligenceError, ProviderError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=str(exc),
