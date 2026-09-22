@@ -136,8 +136,7 @@ class WritingIntelligenceService:
             )
         if any(len(sentence.text) > MAX_FINDING_STATEMENT_CHARACTERS for sentence in sentences):
             raise WritingIntelligenceValidationError(
-                "Each sentence unit must be at most "
-                f"{MAX_FINDING_STATEMENT_CHARACTERS} characters"
+                f"Each sentence unit must be at most {MAX_FINDING_STATEMENT_CHARACTERS} characters"
             )
 
         claim_payload = await self._select_claims(
