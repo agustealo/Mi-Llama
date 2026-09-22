@@ -129,8 +129,7 @@ class ConversationService:
                         lease_repository is not None
                         and lease_token is not None
                         and lease_last_renewed is not None
-                        and monotonic() - lease_last_renewed
-                        >= _REPLY_LEASE_RENEW_INTERVAL_SECONDS
+                        and monotonic() - lease_last_renewed >= _REPLY_LEASE_RENEW_INTERVAL_SECONDS
                     ):
                         await lease_repository.renew_conversation_reply_lease(
                             access_token=access_token,
