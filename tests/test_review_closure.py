@@ -121,9 +121,7 @@ def test_docx_extraction_preserves_paragraph_table_paragraph_order() -> None:
 
     parsed = parse_document(
         filename="ordered.docx",
-        media_type=(
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        ),
+        media_type=("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
         content=buffer.getvalue(),
         max_extracted_chars=10_000,
     )
@@ -133,7 +131,7 @@ def test_docx_extraction_preserves_paragraph_table_paragraph_order() -> None:
 
 def test_sentence_segmentation_preserves_decimals_and_closing_quotes() -> None:
     spans = _sentence_spans(
-        'Revenue rose 3.14 percent. “That matters.” Next claim.',
+        "Revenue rose 3.14 percent. “That matters.” Next claim.",
         base_offset=10,
     )
     assert [span.text for span in spans] == [
@@ -188,11 +186,7 @@ class _AnalysisRepository:
         revision_id: UUID,
     ) -> ManuscriptRevision | None:
         del access_token
-        if (
-            project_id == PROJECT_ID
-            and document_id == DOCUMENT_ID
-            and revision_id == REVISION_ID
-        ):
+        if project_id == PROJECT_ID and document_id == DOCUMENT_ID and revision_id == REVISION_ID:
             return self.revision
         return None
 
