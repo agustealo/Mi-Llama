@@ -303,9 +303,7 @@ class WritingIntelligenceService:
                 "A dismissed finding cannot become a research question"
             )
         if finding.research_question_id is not None:
-            raise WritingIntelligenceValidationError(
-                "This finding already has a research question"
-            )
+            raise WritingIntelligenceValidationError("This finding already has a research question")
         question = await self._repository.promote_writing_finding_to_question(
             access_token=access_token,
             project_id=project_id,
@@ -356,12 +354,8 @@ class WritingIntelligenceService:
             insufficient=sum(
                 finding.assessment is EvidenceAssessment.INSUFFICIENT for finding in findings
             ),
-            confirmed=sum(
-                finding.status is WritingFindingStatus.CONFIRMED for finding in findings
-            ),
-            dismissed=sum(
-                finding.status is WritingFindingStatus.DISMISSED for finding in findings
-            ),
+            confirmed=sum(finding.status is WritingFindingStatus.CONFIRMED for finding in findings),
+            dismissed=sum(finding.status is WritingFindingStatus.DISMISSED for finding in findings),
             research_questions_created=sum(
                 finding.status is WritingFindingStatus.RESEARCH_QUESTION_CREATED
                 for finding in findings
@@ -392,9 +386,7 @@ class WritingIntelligenceService:
         model: str,
         sentences: list[SentenceSpan],
     ) -> ClaimSelectionPayload:
-        sentence_lines = "\n".join(
-            f"{sentence.index}: {sentence.text}" for sentence in sentences
-        )
+        sentence_lines = "\n".join(f"{sentence.index}: {sentence.text}" for sentence in sentences)
         payload = await provider.chat_json(
             model=model,
             schema=ClaimSelectionPayload.model_json_schema(),
