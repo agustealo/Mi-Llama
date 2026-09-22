@@ -94,6 +94,10 @@ class MindsDBResearchEngine:
             raise ResearchError("Cannot index a source without chunks")
         await self._ensure_knowledge_base(project_id)
         knowledge_base = self._qualified_kb(project_id)
+
+        # The knowledge base is created with chunk UUID as its id_column. MindsDB
+        # therefore upserts a repeated chunk ID, which makes reindex retries safe:
+        # previously inserted batches are replaced and missing batches are filled in.
         for offset in range(0, len(chunks), 25):
             batch = chunks[offset : offset + 25]
             values = ",\n".join(
@@ -211,6 +215,9 @@ class MindsDBResearchEngine:
             payload = cast(object, response.json())
         except ValueError as exc:
             raise ResearchProtocolError("MindsDB returned invalid JSON") from exc
+        if isinstance(payload, dict) and str(payload.get("type", "")).lower() == "error":
+            detail = payload.get("error_message") or payload.get("message") or "unknown SQL error"
+            raise ResearchError(f"MindsDB query failed: {detail}")
         return _result_rows(payload)
 
     def _qualified_kb(self, project_id: UUID) -> str:
@@ -253,6 +260,9 @@ def _result_rows(payload: object) -> list[dict[str, Any]]:
         raise ResearchProtocolError("MindsDB list response contains non-object rows")
     if not isinstance(payload, dict):
         raise ResearchProtocolError("MindsDB response must be an object or list")
+    if str(payload.get("type", "")).lower() == "error":
+        detail = payload.get("error_message") or payload.get("message") or "unknown SQL error"
+        raise ResearchError(f"MindsDB query failed: {detail}")
     data = payload.get("data")
     columns = payload.get("column_names") or payload.get("columns")
     if data is None:
