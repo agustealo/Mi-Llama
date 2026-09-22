@@ -468,8 +468,9 @@ class WritingIntelligenceService:
                             "Compare a manuscript claim to retrieved project evidence. "
                             "Classify each supplied candidate only as supports, contradicts, "
                             "context, or unclear. Do not invent candidate indexes and do not infer "
-                            "facts not stated or directly entailed by the passages. The application "
-                            "derives the final evidence status from these per-candidate relations."
+                            "facts not stated or directly entailed by the passages. "
+                            "The application derives the final evidence status from these "
+                            "per-candidate relations."
                         ),
                     ),
                     ChatMessage(
