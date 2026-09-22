@@ -197,15 +197,15 @@ def create_app(
             access_token_dependency=require_access_token,
         )
 
-    if (
-        research_service is not None
-        and isinstance(runtime_repository, WritingIntelligenceRepository)
-        and isinstance(runtime_provider, StructuredModelProvider)
-    ):
+    if isinstance(runtime_repository, WritingIntelligenceRepository):
         register_writing_intelligence_routes(
             app=app,
             repository=runtime_repository,
-            provider=runtime_provider,
+            provider=(
+                runtime_provider
+                if isinstance(runtime_provider, StructuredModelProvider)
+                else None
+            ),
             research=research_service,
             access_token_dependency=require_access_token,
         )
