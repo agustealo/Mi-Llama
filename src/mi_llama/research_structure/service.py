@@ -57,12 +57,13 @@ class ResearchStructureService:
 
         next_status = request.status or current.status
         if next_status is ResearchQuestionStatus.RESOLVED:
-            resolution = (
-                request.resolution if request.resolution is not None else current.resolution
-            )
+            if "resolution" in changes:
+                resolution = request.resolution
+            else:
+                resolution = current.resolution
             if not resolution or not resolution.strip():
                 raise ValueError("Resolved research questions require a resolution")
-        elif request.status is not None and request.resolution is None:
+        elif request.status is not None and "resolution" not in changes:
             changes["resolution"] = None
 
         return await self._repository.update_research_question(
@@ -218,6 +219,8 @@ class ResearchStructureService:
         )
         if citation is None:
             raise ResearchStructureNotFound(str(citation_id))
+        if citation.status is citation_status:
+            return citation
 
         updated = await self._repository.update_citation_candidate(
             access_token=access_token,
