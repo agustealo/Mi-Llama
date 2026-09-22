@@ -37,6 +37,10 @@ class WritingIntelligenceError(RuntimeError):
     """Evidence-aware writing analysis could not be completed safely."""
 
 
+class WritingIntelligenceUnavailableError(RuntimeError):
+    """A required intelligence engine is unavailable for new analysis."""
+
+
 class WritingIntelligenceValidationError(ValueError):
     """A manuscript analysis request violated a bounded-analysis contract."""
 
@@ -54,8 +58,8 @@ class WritingIntelligenceService:
         self,
         *,
         repository: WritingIntelligenceRepository,
-        provider: StructuredModelProvider,
-        research: AuthorizedResearchService,
+        provider: StructuredModelProvider | None,
+        research: AuthorizedResearchService | None,
     ) -> None:
         self._repository = repository
         self._provider = provider
@@ -69,6 +73,13 @@ class WritingIntelligenceService:
         document_id: UUID,
         request: AnalyzeManuscriptRequest,
     ) -> WritingAnalysisResult:
+        provider = self._provider
+        research = self._research
+        if provider is None or research is None:
+            raise WritingIntelligenceUnavailableError(
+                "Ollama structured output and MindsDB research are required for new analysis"
+            )
+
         document = await self._repository.get_manuscript_document(
             access_token=access_token,
             project_id=project_id,
@@ -105,7 +116,11 @@ class WritingIntelligenceService:
                 f"The selected passage contains more than {MAX_SENTENCES} sentence units"
             )
 
-        claim_payload = await self._select_claims(model=request.model, sentences=sentences)
+        claim_payload = await self._select_claims(
+            provider=provider,
+            model=request.model,
+            sentences=sentences,
+        )
         selected: list[tuple[SentenceSpan, str]] = []
         seen_indexes: set[int] = set()
         for item in claim_payload.claims:
@@ -119,7 +134,7 @@ class WritingIntelligenceService:
         drafts: list[FindingDraft] = []
         for sentence, search_query in selected:
             query = search_query or sentence.text
-            research_response = await self._research.query(
+            research_response = await research.query(
                 access_token=access_token,
                 project_id=project_id,
                 query=query,
@@ -140,6 +155,7 @@ class WritingIntelligenceService:
                 continue
 
             judgment = await self._judge_evidence(
+                provider=provider,
                 model=request.model,
                 claim=sentence.text,
                 hits=[
@@ -372,13 +388,14 @@ class WritingIntelligenceService:
     async def _select_claims(
         self,
         *,
+        provider: StructuredModelProvider,
         model: str,
         sentences: list[SentenceSpan],
     ) -> ClaimSelectionPayload:
         sentence_lines = "\n".join(
             f"{sentence.index}: {sentence.text}" for sentence in sentences
         )
-        payload = await self._provider.chat_json(
+        payload = await provider.chat_json(
             model=model,
             schema=ClaimSelectionPayload.model_json_schema(),
             messages=[
@@ -408,6 +425,7 @@ class WritingIntelligenceService:
     async def _judge_evidence(
         self,
         *,
+        provider: StructuredModelProvider,
         model: str,
         claim: str,
         hits: list[dict[str, object]],
@@ -420,7 +438,7 @@ class WritingIntelligenceService:
             )
             for item in hits
         )
-        payload = await self._provider.chat_json(
+        payload = await provider.chat_json(
             model=model,
             schema=EvidenceJudgmentPayload.model_json_schema(),
             messages=[
