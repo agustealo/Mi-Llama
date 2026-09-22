@@ -87,18 +87,13 @@ class OllamaProvider:
         model: str,
         messages: Sequence[ChatMessage],
     ) -> str:
-        payload = {
-            "model": model,
-            "messages": [message.model_dump(mode="json") for message in messages],
-            "stream": False,
-        }
-        try:
-            response = await self._client.post("/api/chat", json=payload)
-            response.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise ProviderUnavailableError(str(exc)) from exc
-
-        body = cast(dict[str, Any], response.json())
+        body = await self._chat_response(
+            payload={
+                "model": model,
+                "messages": [message.model_dump(mode="json") for message in messages],
+                "stream": False,
+            }
+        )
         message = body.get("message")
         if not isinstance(message, dict):
             raise ProviderProtocolError("Ollama chat response is missing message")
@@ -106,6 +101,50 @@ class OllamaProvider:
         if not isinstance(content, str):
             raise ProviderProtocolError("Ollama chat response is missing message.content")
         return content
+
+    async def chat_json(
+        self,
+        *,
+        model: str,
+        messages: Sequence[ChatMessage],
+        schema: dict[str, Any],
+    ) -> dict[str, Any]:
+        body = await self._chat_response(
+            payload={
+                "model": model,
+                "messages": [message.model_dump(mode="json") for message in messages],
+                "stream": False,
+                "format": schema,
+                "options": {"temperature": 0},
+            }
+        )
+        message = body.get("message")
+        if not isinstance(message, dict):
+            raise ProviderProtocolError("Ollama structured response is missing message")
+        content = message.get("content")
+        if not isinstance(content, str):
+            raise ProviderProtocolError("Ollama structured response is missing message.content")
+        try:
+            parsed = cast(object, json.loads(content))
+        except json.JSONDecodeError as exc:
+            raise ProviderProtocolError("Ollama structured response is invalid JSON") from exc
+        if not isinstance(parsed, dict):
+            raise ProviderProtocolError("Ollama structured response must be a JSON object")
+        return cast(dict[str, Any], parsed)
+
+    async def _chat_response(self, *, payload: dict[str, Any]) -> dict[str, Any]:
+        try:
+            response = await self._client.post("/api/chat", json=payload)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise ProviderUnavailableError(str(exc)) from exc
+        try:
+            body = cast(object, response.json())
+        except ValueError as exc:
+            raise ProviderProtocolError("Ollama returned invalid JSON") from exc
+        if not isinstance(body, dict):
+            raise ProviderProtocolError("Ollama chat response must be a JSON object")
+        return cast(dict[str, Any], body)
 
     async def chat_stream(
         self,

@@ -33,7 +33,7 @@ from mi_llama.domain import (
     SourceIngestResult,
     SourceVersion,
 )
-from mi_llama.providers.base import ModelProvider
+from mi_llama.providers.base import ModelProvider, StructuredModelProvider
 from mi_llama.providers.errors import ProviderError
 from mi_llama.providers.ollama import OllamaProvider
 from mi_llama.repositories import (
@@ -54,8 +54,12 @@ from mi_llama.research_structure import (
 )
 from mi_llama.sources import SourceIngestError, SourceProcessingError, SourceService
 from mi_llama.storage import SOURCE_BUCKET, ObjectStorage, SupabaseStorage
+from mi_llama.writing_intelligence import (
+    SupabaseWritingIntelligenceRepository,
+    WritingIntelligenceRepository,
+    register_writing_intelligence_routes,
+)
 from mi_llama.writing_structure import (
-    SupabaseWritingRepository,
     WritingRepository,
     register_writing_structure_routes,
 )
@@ -89,7 +93,7 @@ def create_app(
     if repository is None:
         configured_supabase = runtime_settings.require_supabase()
         supabase_url, publishable_key = configured_supabase
-        runtime_repository: Repository = SupabaseWritingRepository(
+        runtime_repository: Repository = SupabaseWritingIntelligenceRepository(
             supabase_url=supabase_url,
             publishable_key=publishable_key,
             timeout_seconds=runtime_settings.request_timeout_seconds,
@@ -190,6 +194,17 @@ def create_app(
         register_writing_structure_routes(
             app=app,
             repository=runtime_repository,
+            access_token_dependency=require_access_token,
+        )
+
+    if isinstance(runtime_repository, WritingIntelligenceRepository):
+        register_writing_intelligence_routes(
+            app=app,
+            repository=runtime_repository,
+            provider=(
+                runtime_provider if isinstance(runtime_provider, StructuredModelProvider) else None
+            ),
+            research=research_service,
             access_token_dependency=require_access_token,
         )
 
