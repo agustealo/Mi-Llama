@@ -396,9 +396,10 @@ class WritingIntelligenceService:
                     content=(
                         "Identify externally verifiable factual claims in manuscript prose. "
                         "Do not select opinions, rhetorical questions, transitions, headings, "
-                        "purely subjective judgments, or instructions. Return only sentence indexes "
-                        "from the supplied list. For every selected sentence, provide a concise "
-                        "research query that could find evidence for or against the claim."
+                        "purely subjective judgments, or instructions. Return only "
+                        "sentence indexes from the supplied list. For every selected sentence, "
+                        "provide a concise research query that could find evidence for or against "
+                        "the claim."
                     ),
                 ),
                 ChatMessage(
