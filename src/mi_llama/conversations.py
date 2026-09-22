@@ -1,11 +1,34 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
+from typing import Protocol, runtime_checkable
 from uuid import UUID
 
 from mi_llama.domain import ChatMessage, ConversationWithMessages, Role
 from mi_llama.providers.base import ModelProvider
-from mi_llama.repositories import Repository
+from mi_llama.repositories import Repository, RepositoryError
+
+_REPLY_LEASE_SECONDS = 600
+
+
+@runtime_checkable
+class ConversationLeaseRepository(Protocol):
+    async def acquire_conversation_reply_lease(
+        self,
+        *,
+        access_token: str,
+        conversation_id: UUID,
+        ttl_seconds: int,
+    ) -> UUID: ...
+
+    async def release_conversation_reply_lease(
+        self,
+        *,
+        access_token: str,
+        conversation_id: UUID,
+        lease_token: UUID,
+    ) -> None: ...
 
 
 class ConversationService:
@@ -17,6 +40,7 @@ class ConversationService:
     ) -> None:
         self._repository = repository
         self._provider = provider
+        self._turn_locks: dict[UUID, asyncio.Lock] = {}
 
     async def get_conversation(
         self,
@@ -43,41 +67,70 @@ class ConversationService:
         conversation_id: UUID,
         user_content: str,
     ) -> AsyncIterator[str]:
-        conversation = await self._repository.get_conversation(
-            access_token=access_token,
-            conversation_id=conversation_id,
-        )
-        if conversation is None:
-            raise KeyError(str(conversation_id))
-
-        await self._repository.add_message(
-            access_token=access_token,
-            conversation_id=conversation_id,
-            role=Role.USER,
-            content=user_content,
-        )
-
-        stored_messages = await self._repository.get_messages(
-            access_token=access_token,
-            conversation_id=conversation_id,
-        )
-        provider_messages = [
-            ChatMessage(role=message.role, content=message.content) for message in stored_messages
-        ]
-
-        reply_parts: list[str] = []
-        async for chunk in self._provider.chat_stream(
-            model=conversation.model,
-            messages=provider_messages,
-        ):
-            reply_parts.append(chunk)
-            yield chunk
-
-        reply = "".join(reply_parts).strip()
-        if reply:
-            await self._repository.add_message(
-                access_token=access_token,
-                conversation_id=conversation_id,
-                role=Role.ASSISTANT,
-                content=reply,
+        lock = self._turn_locks.setdefault(conversation_id, asyncio.Lock())
+        async with lock:
+            lease_repository = (
+                self._repository
+                if isinstance(self._repository, ConversationLeaseRepository)
+                else None
             )
+            lease_token: UUID | None = None
+            if lease_repository is not None:
+                lease_token = await lease_repository.acquire_conversation_reply_lease(
+                    access_token=access_token,
+                    conversation_id=conversation_id,
+                    ttl_seconds=_REPLY_LEASE_SECONDS,
+                )
+
+            try:
+                conversation = await self._repository.get_conversation(
+                    access_token=access_token,
+                    conversation_id=conversation_id,
+                )
+                if conversation is None:
+                    raise KeyError(str(conversation_id))
+
+                await self._repository.add_message(
+                    access_token=access_token,
+                    conversation_id=conversation_id,
+                    role=Role.USER,
+                    content=user_content,
+                )
+
+                stored_messages = await self._repository.get_messages(
+                    access_token=access_token,
+                    conversation_id=conversation_id,
+                )
+                provider_messages = [
+                    ChatMessage(role=message.role, content=message.content)
+                    for message in stored_messages
+                ]
+
+                reply_parts: list[str] = []
+                async for chunk in self._provider.chat_stream(
+                    model=conversation.model,
+                    messages=provider_messages,
+                ):
+                    reply_parts.append(chunk)
+                    yield chunk
+
+                reply = "".join(reply_parts).strip()
+                if reply:
+                    await self._repository.add_message(
+                        access_token=access_token,
+                        conversation_id=conversation_id,
+                        role=Role.ASSISTANT,
+                        content=reply,
+                    )
+            finally:
+                if lease_repository is not None and lease_token is not None:
+                    try:
+                        await lease_repository.release_conversation_reply_lease(
+                            access_token=access_token,
+                            conversation_id=conversation_id,
+                            lease_token=lease_token,
+                        )
+                    except RepositoryError:
+                        # The durable lease has an expiry and cannot outlive its TTL.
+                        # A failed cleanup must not turn a completed model reply into a failure.
+                        pass
