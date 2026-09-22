@@ -12,6 +12,7 @@ import httpx
 import pytest
 from docx import Document
 
+import mi_llama.conversations as conversations_module
 from mi_llama.conversations import ConversationService
 from mi_llama.documents import _resolve_epub_member, parse_document
 from mi_llama.domain import ChatMessage, Conversation, Role, StoredMessage
@@ -141,6 +142,30 @@ def test_sentence_segmentation_preserves_decimals_and_closing_quotes() -> None:
     ]
     assert spans[0].start == 10
     assert spans[1].text.endswith(".”")
+
+
+def test_sentence_segmentation_splits_terminal_abbreviations_and_initials() -> None:
+    spans = _sentence_spans(
+        "Items include pens, etc. Next claim. The grade was A. Final claim.",
+        base_offset=0,
+    )
+    assert [span.text for span in spans] == [
+        "Items include pens, etc.",
+        "Next claim.",
+        "The grade was A.",
+        "Final claim.",
+    ]
+
+
+def test_sentence_segmentation_keeps_nonterminal_titles_and_initials() -> None:
+    spans = _sentence_spans(
+        "Dr. Jane Smith met John A. Doe. Another claim.",
+        base_offset=0,
+    )
+    assert [span.text for span in spans] == [
+        "Dr. Jane Smith met John A. Doe.",
+        "Another claim.",
+    ]
 
 
 class _AnalysisRepository:
@@ -364,6 +389,23 @@ class _ConversationRepository:
         return list(self.messages)
 
 
+class _LeasedConversationRepository(_ConversationRepository):
+    def __init__(self) -> None:
+        super().__init__()
+        self.lease_token = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        self.renew_count = 0
+        self.release_count = 0
+
+    async def acquire_conversation_reply_lease(self, **_: Any) -> UUID:
+        return self.lease_token
+
+    async def renew_conversation_reply_lease(self, **_: Any) -> None:
+        self.renew_count += 1
+
+    async def release_conversation_reply_lease(self, **_: Any) -> None:
+        self.release_count += 1
+
+
 class _BlockingChatProvider:
     def __init__(self) -> None:
         self.first_entered = asyncio.Event()
@@ -382,6 +424,18 @@ class _BlockingChatProvider:
             self.first_entered.set()
             await self.release_first.wait()
         yield f"reply:{messages[-1].content}"
+
+
+class _TwoChunkChatProvider:
+    async def chat_stream(
+        self,
+        *,
+        model: str,
+        messages: Sequence[ChatMessage],
+    ) -> AsyncIterator[str]:
+        del model, messages
+        yield "first"
+        yield "second"
 
 
 @pytest.mark.asyncio
@@ -423,6 +477,32 @@ async def test_conversation_turns_do_not_interleave() -> None:
     ]
 
 
+@pytest.mark.asyncio
+async def test_long_stream_renews_durable_conversation_lease(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = _LeasedConversationRepository()
+    service = ConversationService(
+        repository=repository,  # type: ignore[arg-type]
+        provider=_TwoChunkChatProvider(),  # type: ignore[arg-type]
+    )
+    timestamps = iter([0.0, 0.0, 121.0, 121.0])
+    monkeypatch.setattr(conversations_module, "monotonic", lambda: next(timestamps))
+
+    chunks = [
+        chunk
+        async for chunk in service.stream_reply(
+            access_token="jwt",
+            conversation_id=CONVERSATION_ID,
+            user_content="hello",
+        )
+    ]
+
+    assert chunks == ["first", "second"]
+    assert repository.renew_count == 1
+    assert repository.release_count == 1
+
+
 def test_review_closure_migration_contains_durable_invariants() -> None:
     sql = Path("supabase/migrations/20260922014500_review_closure_hardening.sql").read_text(
         encoding="utf-8"
@@ -432,8 +512,13 @@ def test_review_closure_migration_contains_durable_invariants() -> None:
     assert "drop constraint if exists writing_analysis_findings_created_by_fkey" in sql
     assert "messages_touch_conversation_activity" in sql
     assert "acquire_conversation_reply_lease" in sql
+    assert "renew_conversation_reply_lease" in sql
     assert "conversation reply already in progress" in sql
+    assert "conversation reply lease is no longer held" in sql
     assert "pg_advisory_xact_lock" in sql
+    assert "create or replace function public.validate_writing_research_link()" in sql
+    assert "select citation.status" in sql
+    assert "for update;" in sql
     assert "citation is linked to manuscript writing and must remain accepted" in sql
     assert "create_manuscript_revision_result" in sql
     assert "to_jsonb(updated_document), to_jsonb(inserted_revision)" in sql
