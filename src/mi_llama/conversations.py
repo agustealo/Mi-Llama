@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
@@ -124,13 +125,11 @@ class ConversationService:
                     )
             finally:
                 if lease_repository is not None and lease_token is not None:
-                    try:
+                    # The durable lease has an expiry and cannot outlive its TTL. A failed cleanup
+                    # must not turn an otherwise completed model reply into an API failure.
+                    with suppress(RepositoryError):
                         await lease_repository.release_conversation_reply_lease(
                             access_token=access_token,
                             conversation_id=conversation_id,
                             lease_token=lease_token,
                         )
-                    except RepositoryError:
-                        # The durable lease has an expiry and cannot outlive its TTL.
-                        # A failed cleanup must not turn a completed model reply into a failure.
-                        pass
