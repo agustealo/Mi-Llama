@@ -21,6 +21,7 @@ from mi_llama.writing_intelligence.routes import register_writing_intelligence_r
 from mi_llama.writing_intelligence.service import (
     WritingIntelligenceError,
     WritingIntelligenceService,
+    WritingIntelligenceUnavailableError,
     WritingIntelligenceValidationError,
 )
 
@@ -42,6 +43,7 @@ __all__ = [
     "WritingIntelligenceError",
     "WritingIntelligenceRepository",
     "WritingIntelligenceService",
+    "WritingIntelligenceUnavailableError",
     "WritingIntelligenceValidationError",
     "register_writing_intelligence_routes",
 ]
