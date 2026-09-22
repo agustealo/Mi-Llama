@@ -153,6 +153,50 @@ $$;
 revoke all on function public.acquire_conversation_reply_lease(uuid, integer) from public;
 grant execute on function public.acquire_conversation_reply_lease(uuid, integer) to authenticated;
 
+-- Active streams renew the same token before expiry. A caller can only renew a
+-- lease it currently owns, so renewal cannot steal another worker's turn.
+create or replace function public.renew_conversation_reply_lease(
+    p_conversation_id uuid,
+    p_lease_token uuid,
+    p_ttl_seconds integer
+)
+returns table(renewed boolean)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    caller uuid;
+    updated_count integer;
+begin
+    caller := auth.uid();
+    if caller is null then
+        raise exception 'authentication required';
+    end if;
+    if p_ttl_seconds < 30 or p_ttl_seconds > 1800 then
+        raise exception 'conversation reply lease TTL must be between 30 and 1800 seconds';
+    end if;
+
+    update public.conversation_reply_leases lease
+    set expires_at = now() + make_interval(secs => p_ttl_seconds)
+    where lease.conversation_id = p_conversation_id
+      and lease.lease_token = p_lease_token
+      and lease.acquired_by = caller
+      and lease.expires_at > now();
+
+    get diagnostics updated_count = row_count;
+    if updated_count <> 1 then
+        raise exception 'conversation reply lease is no longer held';
+    end if;
+
+    return query select true;
+end;
+$$;
+
+revoke all on function public.renew_conversation_reply_lease(uuid, uuid, integer) from public;
+grant execute on function public.renew_conversation_reply_lease(uuid, uuid, integer)
+    to authenticated;
+
 create or replace function public.release_conversation_reply_lease(
     p_conversation_id uuid,
     p_lease_token uuid
@@ -237,6 +281,88 @@ begin
 
     if cycle_found then
         raise exception 'outline hierarchy cannot contain cycles';
+    end if;
+
+    return new;
+end;
+$$;
+
+-- Citation-link inserts lock their citation row before validating acceptance.
+-- A concurrent status update already holds the same row lock, making link-vs-
+-- rejection checks serializable in either transaction order.
+create or replace function public.validate_writing_research_link()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+    revision_content_length integer;
+    citation_status text;
+begin
+    if not exists (
+        select 1
+        from public.manuscript_documents document
+        where document.id = new.document_id
+          and document.project_id = new.project_id
+    ) then
+        raise exception 'writing research link document must belong to the same project';
+    end if;
+
+    if new.outline_node_id is not null and not exists (
+        select 1
+        from public.outline_nodes node
+        where node.id = new.outline_node_id
+          and node.project_id = new.project_id
+    ) then
+        raise exception 'writing research link outline node must belong to the same project';
+    end if;
+
+    if new.revision_id is not null then
+        select char_length(revision.content)
+        into revision_content_length
+        from public.manuscript_revisions revision
+        where revision.id = new.revision_id
+          and revision.document_id = new.document_id
+          and revision.project_id = new.project_id;
+
+        if revision_content_length is null then
+            raise exception 'writing research link revision must belong to the manuscript document';
+        end if;
+
+        if new.character_end is not null and new.character_end > revision_content_length then
+            raise exception 'writing research link passage exceeds revision content';
+        end if;
+    end if;
+
+    if new.kind = 'claim' then
+        if not exists (
+            select 1
+            from public.research_claims claim
+            where claim.id = new.entity_id
+              and claim.project_id = new.project_id
+        ) then
+            raise exception 'linked claim must belong to the same project';
+        end if;
+    elsif new.kind = 'evidence' then
+        if not exists (
+            select 1
+            from public.claim_evidence evidence
+            where evidence.id = new.entity_id
+              and evidence.project_id = new.project_id
+        ) then
+            raise exception 'linked evidence must belong to the same project';
+        end if;
+    elsif new.kind = 'citation' then
+        select citation.status
+        into citation_status
+        from public.citation_candidates citation
+        where citation.id = new.entity_id
+          and citation.project_id = new.project_id
+        for update;
+
+        if citation_status is distinct from 'accepted' then
+            raise exception 'linked citation must be accepted and belong to the same project';
+        end if;
     end if;
 
     return new;
