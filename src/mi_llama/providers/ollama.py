@@ -50,7 +50,13 @@ class OllamaProvider:
         except httpx.HTTPError as exc:
             raise ProviderUnavailableError(str(exc)) from exc
 
-        payload = cast(dict[str, Any], response.json())
+        try:
+            payload = cast(object, response.json())
+        except ValueError as exc:
+            raise ProviderProtocolError("Ollama /api/tags returned invalid JSON") from exc
+        if not isinstance(payload, dict):
+            raise ProviderProtocolError("Ollama /api/tags response must be a JSON object")
+
         raw_models = payload.get("models")
         if not isinstance(raw_models, list):
             raise ProviderProtocolError("Ollama /api/tags response is missing a models list")
@@ -157,6 +163,7 @@ class OllamaProvider:
             "messages": [message.model_dump(mode="json") for message in messages],
             "stream": True,
         }
+        completed = False
         try:
             async with self._client.stream("POST", "/api/chat", json=payload) as response:
                 response.raise_for_status()
@@ -164,18 +171,24 @@ class OllamaProvider:
                     if not line:
                         continue
                     try:
-                        event = cast(dict[str, Any], json.loads(line))
+                        event = cast(object, json.loads(line))
                     except json.JSONDecodeError as exc:
                         raise ProviderProtocolError("Invalid JSON in Ollama stream") from exc
+                    if not isinstance(event, dict):
+                        raise ProviderProtocolError("Ollama stream event must be a JSON object")
                     message = event.get("message")
                     if isinstance(message, dict):
                         content = message.get("content")
                         if isinstance(content, str) and content:
                             yield content
                     if event.get("done") is True:
+                        completed = True
                         break
         except httpx.HTTPError as exc:
             raise ProviderUnavailableError(str(exc)) from exc
+
+        if not completed:
+            raise ProviderProtocolError("Ollama stream ended before a terminal done event")
 
     async def close(self) -> None:
         await self._client.aclose()
