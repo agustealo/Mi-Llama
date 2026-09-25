@@ -1,3 +1,5 @@
+![Mi-Llama — AI research and writing studio](docs/assets/mi-llama-banner.svg)
+
 # Mi-Llama
 
 **Mi-Llama is an AI research and writing studio for evidence-grounded long-form work.**
@@ -9,6 +11,14 @@ Mi-Llama's center of gravity is a **Project**, not a chat thread.
 ```text
 Project -> Sources -> Research -> Evidence -> Notebook -> Outline -> Manuscript -> Publication
 ```
+
+## Product identity
+
+![Mi-Llama wordmark](docs/assets/mi-llama-wordmark.svg)
+
+Mi-Llama's canonical visual identity lives in [`docs/assets/`](docs/assets/). The brand system, palette, and usage rules are documented in [`docs/BRAND.md`](docs/BRAND.md).
+
+Product screenshots are treated as evidence, not decoration. The current repository is primarily a FastAPI research/writing engine, so generated pseudo-UI is deliberately excluded from the README. The truthful capture plan for the current API surface and the future consumer-shell gallery is defined in [`docs/PRODUCT_MEDIA.md`](docs/PRODUCT_MEDIA.md).
 
 ## Current foundation
 
