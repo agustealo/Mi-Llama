@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from mi_llama.domain import LearningEvent
+from mi_llama.writing_structure import ManuscriptDocument, ManuscriptStatus
 from mi_llama.writing_studio import (
     ApplyWritingProposalRequest,
     CreateWritingProposalRequest,
@@ -19,7 +20,6 @@ from mi_llama.writing_studio import (
     WritingProposalStatus,
     WritingStudioService,
 )
-from mi_llama.writing_structure import ManuscriptDocument, ManuscriptStatus
 
 PROJECT_ID = UUID("11111111-1111-1111-1111-111111111111")
 USER_ID = UUID("22222222-2222-2222-2222-222222222222")

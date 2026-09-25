@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
+from mi_llama.repositories import Repository
 from mi_llama.writing_intelligence.repository import (
     SupabaseWritingIntelligenceRepository,
     WritingIntelligenceRepository,
@@ -16,7 +17,7 @@ from mi_llama.writing_studio.models import (
 
 
 @runtime_checkable
-class WritingStudioRepository(WritingIntelligenceRepository, Protocol):
+class WritingStudioRepository(WritingIntelligenceRepository, Repository, Protocol):
     async def get_manuscript_draft(
         self,
         *,

@@ -6,6 +6,7 @@ from uuid import UUID
 
 from mi_llama.domain import ChatMessage, LearningEvent, Role
 from mi_llama.providers.base import StructuredModelProvider
+from mi_llama.writing_structure.models import ManuscriptDocument, WritingStructureNotFound
 from mi_llama.writing_studio.models import (
     ApplyWritingProposalRequest,
     CreateWritingProposalRequest,
@@ -17,7 +18,6 @@ from mi_llama.writing_studio.models import (
     WritingProposalStatus,
 )
 from mi_llama.writing_studio.repository import WritingStudioRepository
-from mi_llama.writing_structure.models import ManuscriptDocument, WritingStructureNotFound
 
 
 class WritingStudioError(RuntimeError):

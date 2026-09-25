@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI, HTTPException, status
 
 from mi_llama.providers.base import StructuredModelProvider
 from mi_llama.providers.errors import ProviderError
+from mi_llama.writing_structure.models import WritingStructureNotFound
 from mi_llama.writing_studio.models import (
     ApplyWritingProposalRequest,
     CreateWritingProposalRequest,
@@ -23,7 +24,6 @@ from mi_llama.writing_studio.service import (
     WritingStudioService,
     WritingStudioValidationError,
 )
-from mi_llama.writing_structure.models import WritingStructureNotFound
 
 
 def register_writing_studio_routes(
