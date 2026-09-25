@@ -1,10 +1,10 @@
 # Mi-Llama visual identity
 
-Mi-Llama presents itself as a serious research and writing product, not a generic chatbot. The visual system should communicate evidence, memory, synthesis, and long-form craft.
+Mi-Llama presents itself as a serious research and writing product with a recognizable guide at its center. The visual system should communicate evidence, memory, synthesis, long-form craft, and calm intelligence.
 
 ## Canonical assets
 
-- `docs/assets/mi-llama-mark.svg` — square application/avatar/favicon mark.
+- `docs/assets/mi-llama-mark.svg` — square application/avatar/favicon persona mark.
 - `docs/assets/mi-llama-wordmark.svg` — horizontal identity lockup.
 - `docs/assets/mi-llama-banner.svg` — README, documentation, repository social/header artwork.
 
@@ -12,31 +12,36 @@ Do not create alternate llama marks, recolored wordmarks, or ad-hoc logos inside
 
 ## Identity idea
 
-The mark combines three concepts:
+The identity is now **persona-led rather than abstract-symbol-led**. The llama is a calm research companion: alert ears, rounded research glasses, a restrained expression, and a small bookmark/evidence accent. It should feel like a capable presence in the workspace without becoming a novelty mascot.
 
-1. a geometric llama silhouette for product recognition;
-2. an open book for research and writing;
-3. a joined center seam that suggests synthesis: many sources becoming one coherent body of work.
+The persona communicates four ideas:
 
-The identity deliberately avoids a cartoon mascot treatment. Mi-Llama should feel capable enough for writers, researchers, educators, analysts, and teams working on serious material.
+1. **attention** — the upright ears and direct gaze imply active reading;
+2. **research** — rounded glasses make inspection and study part of the silhouette;
+3. **craft** — warm paper/fur tones connect the character to books and manuscripts;
+4. **evidence** — the amber bookmark accent marks provenance and reviewed material.
+
+The character can appear in navigation, app icons, empty states, onboarding, and documentation. Avoid exaggerated expressions, meme styling, costumes, or unrelated character variants that fragment recognition.
 
 ## Palette
 
 | Token | Value | Use |
 | --- | --- | --- |
-| Ink | `#0B1020` | primary dark surface |
-| Deep indigo | `#121936` | secondary dark surface |
-| Violet | `#7C5CFC` | primary intelligence/accent |
-| Blue | `#5B7CFA` | structure/navigation accent |
-| Teal | `#2DD4BF` | evidence/provenance/healthy state |
-| Paper | `#F8FAFC` | primary light foreground |
-| Slate | `#9CA9C8` | secondary text |
+| Ink | `#171A24` | primary dark surface and type |
+| Night | `#0C0E14` | deepest shell surface |
+| Paper | `#FFFDF9` | primary reading surface |
+| Parchment | `#F5F2ED` | workspace background |
+| Warm fur | `#D7C7B2` | persona secondary tone |
+| Light fur | `#F4EADB` | persona primary tone |
+| Amber | `#D88A4B` | evidence, active state, identity accent |
+| Sage | `#6F8D79` | healthy/supported state |
+| Slate | `#75766F` | secondary text |
 
-The violet → blue → teal gradient is reserved for brand emphasis and identity moments. Product UI should not spray the gradient across ordinary controls.
+Amber is the principal brand accent. Product UI should use it sparingly for selected states, evidence emphasis, and identity moments rather than painting every control orange.
 
 ## Typography
 
-Repository-owned SVGs use the platform sans-serif stack (`Inter`, `ui-sans-serif`, `system-ui`, `sans-serif`) so they render without bundled font files. Product UI may later establish a stricter typography package, but documentation assets must remain self-contained.
+Repository-owned SVGs use platform-safe sans-serif stacks for UI labels and a restrained serif for editorial/product headlines. No bundled font binaries are required. The product shell follows the same split: sans-serif for controls and metadata, serif for manuscript/research emphasis.
 
 ## Voice in visual media
 
@@ -46,11 +51,12 @@ Prefer short, concrete language:
 - **Evidence-grounded**
 - **Project-centered**
 - **Local-model ready**
+- **Research that stays attached to the writing**
 
-Avoid vague claims such as “revolutionary AI,” fabricated metrics, or screenshots that imply capabilities the current build does not expose.
+Avoid vague claims, fabricated metrics, or screenshots that imply capabilities the running build does not expose.
 
 ## Screenshot integrity
 
 Screenshots are product evidence. They must be captured from a runnable Mi-Llama surface at the exact code revision being documented. Mockups, concept art, Figma frames, or generated pseudo-UI must never be labeled as product screenshots.
 
-See [`PRODUCT_MEDIA.md`](PRODUCT_MEDIA.md) for the capture contract and required gallery.
+The canonical capture set and verification rules live in [`PRODUCT_MEDIA.md`](PRODUCT_MEDIA.md).
