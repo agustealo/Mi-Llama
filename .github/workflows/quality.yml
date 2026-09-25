@@ -38,6 +38,12 @@ jobs:
       - name: Ruff lint
         run: ruff check .
 
+      - name: Workspace JavaScript syntax
+        run: |
+          node --check src/mi_llama/workspace_assets/app.js
+          node --check src/mi_llama/workspace_assets/auth.js
+          node --check src/mi_llama/workspace_assets/studio.js
+
       - name: MyPy
         run: mypy src/mi_llama
 
