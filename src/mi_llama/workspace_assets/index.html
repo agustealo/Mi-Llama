@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mi-Llama Workspace</title>
+<link rel="icon" href="mi-llama-mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand"><img src="mi-llama-mark.svg" alt="Mi-Llama"><div><strong>Mi-Llama</strong><span>Research Studio</span></div></div>
+    <div class="project-switch"><span class="eyebrow">PROJECT</span><button><span>No project selected</span><b>⌄</b></button></div>
+    <nav id="nav"></nav>
+    <div class="sidebar-bottom">
+      <div class="runtime"><span class="pulse"></span><div><b>Local runtime</b><small>Ollama ready · Supabase auth required</small></div></div>
+      <button class="profile"><span>OJ</span><div><b>Workspace owner</b><small>Local session</small></div><b>•••</b></button>
+    </div>
+  </aside>
+  <main>
+    <header class="topbar"><div><span class="crumb">No project selected</span><span class="slash">/</span><b id="crumb-title">Overview</b></div><div class="top-actions"><button class="icon-btn">⌘K</button><button class="icon-btn">?</button><button class="primary">+ New</button></div></header>
+    <section id="content" class="content"></section>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
