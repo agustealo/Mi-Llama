@@ -1,19 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
-  <title id="title">Mi-Llama brand mark</title>
-  <desc id="desc">A geometric llama and open-book monogram representing research, memory, and writing.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Mi-Llama persona mark</title>
+  <desc id="desc">A calm, intelligent llama persona wearing rounded research glasses.</desc>
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#7C5CFC"/>
-      <stop offset="0.55" stop-color="#5B7CFA"/>
-      <stop offset="1" stop-color="#2DD4BF"/>
-    </linearGradient>
+    <linearGradient id="bg" x1="24" y1="18" x2="232" y2="238" gradientUnits="userSpaceOnUse"><stop stop-color="#171A24"/><stop offset="1" stop-color="#0C0E14"/></linearGradient>
+    <linearGradient id="fur" x1="80" y1="48" x2="172" y2="218" gradientUnits="userSpaceOnUse"><stop stop-color="#F4EADB"/><stop offset="1" stop-color="#D7C7B2"/></linearGradient>
   </defs>
-  <rect width="512" height="512" rx="128" fill="#0B1020"/>
-  <path d="M143 121 202 72l30 93h48l30-93 59 49-22 94c28 28 43 65 43 108 0 91-59 145-134 145s-134-54-134-145c0-43 15-80 43-108l-22-94Z" fill="url(#g)"/>
-  <path d="M174 202c19-14 45-21 78-21 32 0 59 7 78 21l-13 45c-18-9-39-14-65-14s-48 5-65 14l-13-45Z" fill="#0B1020" opacity=".9"/>
-  <circle cx="210" cy="286" r="10" fill="#F8FAFC"/>
-  <circle cx="302" cy="286" r="10" fill="#F8FAFC"/>
-  <path d="M224 335c20 13 44 13 64 0" fill="none" stroke="#F8FAFC" stroke-width="12" stroke-linecap="round"/>
-  <path d="M153 365c43-30 78-34 103-12 25-22 60-18 103 12v50c-44-28-79-31-103-9-24-22-59-19-103 9v-50Z" fill="#F8FAFC"/>
-  <path d="M256 353v53" stroke="#0B1020" stroke-width="8" stroke-linecap="round"/>
+  <rect width="256" height="256" rx="58" fill="url(#bg)"/><circle cx="204" cy="52" r="20" fill="#D88A4B" opacity=".16"/>
+  <path d="M83 78 66 31c-2-7 6-13 12-8l32 28M173 78l17-47c2-7 10-13 12-8l-30 32" fill="#D7C7B2" stroke="#F4EADB" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M77 97c4-37 25-57 51-57s47 20 51 57l7 55c5 39-19 68-58 68s-63-29-58-68l7-55Z" fill="url(#fur)"/>
+  <path d="M97 128c8-12 18-18 31-18s23 6 31 18l7 30c4 20-10 36-38 36s-42-16-38-36l7-30Z" fill="#FFF9F0"/>
+  <path d="M73 114h48M135 114h48M121 114h14" stroke="#202532" stroke-width="8" stroke-linecap="round"/>
+  <rect x="80" y="96" width="42" height="36" rx="15" fill="#FFFFFF" fill-opacity=".08" stroke="#202532" stroke-width="7"/><rect x="134" y="96" width="42" height="36" rx="15" fill="#FFFFFF" fill-opacity=".08" stroke="#202532" stroke-width="7"/>
+  <circle cx="104" cy="114" r="5" fill="#202532"/><circle cx="152" cy="114" r="5" fill="#202532"/>
+  <path d="M119 153c4 4 14 4 18 0" stroke="#55483C" stroke-width="6" stroke-linecap="round"/><path d="M128 150v9" stroke="#55483C" stroke-width="6" stroke-linecap="round"/><path d="M111 175c10 8 24 8 34 0" stroke="#D88A4B" stroke-width="6" stroke-linecap="round"/>
+  <path d="M197 169v29l-16-8-16 8v-29c0-8 7-15 16-15s16 7 16 15Z" fill="#D88A4B"/><path d="M181 164v24" stroke="#FBE9D7" stroke-width="3" stroke-linecap="round"/>
 </svg>
