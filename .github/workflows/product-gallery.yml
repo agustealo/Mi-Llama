@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -56,4 +58,6 @@ jobs:
             exit 0
           fi
           git commit -m "Refresh real Mi-Llama product screenshots"
-          git push
+          git fetch origin brand/product-imagery-v2
+          git rebase origin/brand/product-imagery-v2
+          git push origin HEAD:brand/product-imagery-v2
