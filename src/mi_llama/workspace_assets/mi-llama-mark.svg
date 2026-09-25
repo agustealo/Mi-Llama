@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Mi-Llama persona mark</title>
+  <desc id="desc">A calm, intelligent llama persona wearing rounded research glasses.</desc>
+  <defs>
+    <linearGradient id="bg" x1="24" y1="18" x2="232" y2="238" gradientUnits="userSpaceOnUse"><stop stop-color="#171A24"/><stop offset="1" stop-color="#0C0E14"/></linearGradient>
+    <linearGradient id="fur" x1="80" y1="48" x2="172" y2="218" gradientUnits="userSpaceOnUse"><stop stop-color="#F4EADB"/><stop offset="1" stop-color="#D7C7B2"/></linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="58" fill="url(#bg)"/><circle cx="204" cy="52" r="20" fill="#D88A4B" opacity=".16"/>
+  <path d="M83 78 66 31c-2-7 6-13 12-8l32 28M173 78l17-47c2-7 10-13 12-8l-30 32" fill="#D7C7B2" stroke="#F4EADB" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M77 97c4-37 25-57 51-57s47 20 51 57l7 55c5 39-19 68-58 68s-63-29-58-68l7-55Z" fill="url(#fur)"/>
+  <path d="M97 128c8-12 18-18 31-18s23 6 31 18l7 30c4 20-10 36-38 36s-42-16-38-36l7-30Z" fill="#FFF9F0"/>
+  <path d="M73 114h48M135 114h48M121 114h14" stroke="#202532" stroke-width="8" stroke-linecap="round"/>
+  <rect x="80" y="96" width="42" height="36" rx="15" fill="#FFFFFF" fill-opacity=".08" stroke="#202532" stroke-width="7"/><rect x="134" y="96" width="42" height="36" rx="15" fill="#FFFFFF" fill-opacity=".08" stroke="#202532" stroke-width="7"/>
+  <circle cx="104" cy="114" r="5" fill="#202532"/><circle cx="152" cy="114" r="5" fill="#202532"/>
+  <path d="M119 153c4 4 14 4 18 0" stroke="#55483C" stroke-width="6" stroke-linecap="round"/><path d="M128 150v9" stroke="#55483C" stroke-width="6" stroke-linecap="round"/><path d="M111 175c10 8 24 8 34 0" stroke="#D88A4B" stroke-width="6" stroke-linecap="round"/>
+  <path d="M197 169v29l-16-8-16 8v-29c0-8 7-15 16-15s16 7 16 15Z" fill="#D88A4B"/><path d="M181 164v24" stroke="#FBE9D7" stroke-width="3" stroke-linecap="round"/>
+</svg>
