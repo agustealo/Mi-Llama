@@ -1,0 +1,59 @@
+name: Product Gallery
+
+on:
+  push:
+    branches:
+      - brand/product-imagery-v2
+    paths:
+      - "src/mi_llama/workspace.py"
+      - "src/mi_llama/workspace_assets/**"
+      - "docs/capture_screenshots.py"
+      - ".github/workflows/product-gallery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Mi-Llama and browser tooling
+        run: |
+          python -m pip install -e ".[dev]" playwright
+          python -m playwright install --with-deps chromium
+      - name: Start the real Mi-Llama workspace
+        env:
+          MI_LLAMA_HOST: 127.0.0.1
+          MI_LLAMA_PORT: 8765
+          MI_LLAMA_SUPABASE_URL: https://example.supabase.co
+          MI_LLAMA_SUPABASE_PUBLISHABLE_KEY: sb_publishable_docs_capture
+          MI_LLAMA_OLLAMA_BASE_URL: http://127.0.0.1:11434
+          MI_LLAMA_MINDSDB_ENABLED: "false"
+        run: |
+          mi-llama > /tmp/mi-llama.log 2>&1 &
+          echo $! > /tmp/mi-llama.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8765/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/mi-llama.log
+          exit 1
+      - name: Capture six real product screens
+        run: python docs/capture_screenshots.py
+      - name: Commit gallery
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/assets/screenshots/*.png
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Refresh real Mi-Llama product screenshots"
+          git push
