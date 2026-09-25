@@ -30,7 +30,7 @@ dev = [
 ]
 
 [project.scripts]
-mi-llama = "mi_llama.main:run"
+mi-llama = "mi_llama.workspace:run"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mi_llama"]

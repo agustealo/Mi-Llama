@@ -16,15 +16,26 @@ Project -> Sources -> Research -> Evidence -> Notebook -> Outline -> Manuscript 
 
 ![Mi-Llama wordmark](docs/assets/mi-llama-wordmark.svg)
 
-Mi-Llama's canonical visual identity lives in [`docs/assets/`](docs/assets/). The brand system, palette, and usage rules are documented in [`docs/BRAND.md`](docs/BRAND.md).
+Mi-Llama now uses a persona-led identity: a calm llama research companion with reading glasses and an evidence/bookmark accent. The canonical visual assets live in [`docs/assets/`](docs/assets/), with usage rules in [`docs/BRAND.md`](docs/BRAND.md).
 
-Product screenshots are treated as evidence, not decoration. The current repository is primarily a FastAPI research/writing engine, so generated pseudo-UI is deliberately excluded from the README. The truthful capture plan for the current API surface and the future consumer-shell gallery is defined in [`docs/PRODUCT_MEDIA.md`](docs/PRODUCT_MEDIA.md).
+## Product tour
+
+These are captures from the repository-owned Mi-Llama workspace shell, not generated UI mockups. The capture contract and refresh rules live in [`docs/PRODUCT_MEDIA.md`](docs/PRODUCT_MEDIA.md).
+
+| Project overview | Research Library |
+| --- | --- |
+| ![Mi-Llama project overview](docs/assets/screenshots/01-overview.png) | ![Mi-Llama Research Library](docs/assets/screenshots/02-library.png) |
+| **Evidence workspace** | **Notebook** |
+| ![Mi-Llama evidence workspace](docs/assets/screenshots/03-research.png) | ![Mi-Llama notebook](docs/assets/screenshots/04-notebook.png) |
+| **Manuscript** | **Writing Intelligence** |
+| ![Mi-Llama manuscript editor](docs/assets/screenshots/05-manuscript.png) | ![Mi-Llama Writing Intelligence](docs/assets/screenshots/06-intelligence.png) |
 
 ## Current foundation
 
 The current development line provides:
 
 - a typed Python/FastAPI application core
+- a repository-owned consumer workspace shell served by the normal Mi-Llama runtime
 - native Ollama model discovery, chat, and token streaming behind a provider contract
 - Supabase/Postgres as the canonical product-data authority
 - Supabase JWT propagation so Row Level Security evaluates the real caller
@@ -38,13 +49,16 @@ The current development line provides:
 - project-scoped MindsDB knowledge bases for derived semantic/hybrid research indexes
 - evidence hits that preserve source, source-version, chunk, ordinal, and location provenance
 - explicit research indexing state and reindexing
+- structured research questions, claims, notes, evidence relations, citation candidates, and gap reports
+- hierarchical outlines, immutable manuscript revisions, and revision-bound research links
+- evidence-aware manuscript analysis with explicit human review/promotion
 - automated formatting, lint, strict type-check, and test gates
 
 ## Authority map
 
 ### Supabase
 
-Supabase is durable truth for identity, projects, memberships, conversations, source metadata, source versions, extracted chunks, raw source objects, and learning signals.
+Supabase is durable truth for identity, projects, memberships, conversations, source metadata, source versions, extracted chunks, raw source objects, research structure, manuscript state, and learning signals.
 
 The normal application runtime uses a publishable key plus the user's bearer token. It does **not** use a privileged service-role key for ordinary user operations.
 
@@ -58,7 +72,7 @@ MindsDB never owns users, project permissions, manuscript persistence, billing, 
 
 ### Ollama
 
-Ollama is the first local model runtime. It powers chat and, when MindsDB research is enabled, can provide the embedding model used by the research index.
+Ollama is the first local model runtime. It powers chat and structured writing analysis and, when MindsDB research is enabled, can provide the embedding model used by the research index.
 
 ## Requirements
 
@@ -104,6 +118,8 @@ Then run:
 mi-llama
 ```
 
+The consumer workspace is served at `/`. The FastAPI developer surface remains available at `/docs`.
+
 ## Research Library lifecycle
 
 ```text
@@ -147,11 +163,13 @@ Research Library endpoints:
 - `POST /api/projects/{project_id}/sources/{source_id}/reindex`
 - `POST /api/projects/{project_id}/research/query`
 
-All project/source/research endpoints require `Authorization: Bearer <supabase-access-token>`.
+Structured research and writing routes are registered when the configured repository satisfies those capability contracts.
+
+All project/source/research/writing endpoints require `Authorization: Bearer <supabase-access-token>`.
 
 ## Security invariants
 
-- RLS is enabled on every exposed project/source table.
+- RLS is enabled on every exposed project/source/research/writing table.
 - anonymous table access is explicitly revoked.
 - raw source objects live in a private Supabase Storage bucket.
 - Storage reads/uploads are project-scoped through RLS.
@@ -161,10 +179,11 @@ All project/source/research endpoints require `Authorization: Bearer <supabase-a
 - ordinary application requests never use a Supabase secret/service-role key.
 - MindsDB is entered only after Supabase confirms Project access.
 - user content is SQL-escaped at the MindsDB boundary and Project/KB identifiers are generated internally.
+- research evidence and manuscript revisions retain immutable provenance rather than allowing model output to rewrite history.
 
 ## Learning-ready, not ML-heavy
 
-Mi-Llama captures meaningful decisions such as research-result saves/rejections, source trust choices, citation acceptance, AI-edit acceptance, and research-suggestion acceptance. These events are behavioral evidence, not unquestionable ground truth. They form a future training/evaluation substrate for targeted ranking, evidence-verification, recommendation, and personalization models.
+Mi-Llama captures meaningful decisions such as research-result saves/rejections, source trust choices, citation acceptance, AI-edit acceptance, writing-finding review, and research-suggestion acceptance. These events are behavioral evidence, not unquestionable ground truth. They form a future training/evaluation substrate for targeted ranking, evidence-verification, recommendation, and personalization models.
 
 ## Quality gate
 
@@ -186,9 +205,10 @@ No feature is considered complete until its exact PR head passes the gate.
 5. **Research Structure**: notebook, questions, claims, evidence, contradictions
 6. **Writing Studio**: outline and manuscript editor
 7. **Evidence-aware editing**: manuscript analysis, citation integrity, source-backed revision
-8. **Targeted ML**: ranking/evidence/recommendation models only where measured value justifies them
-9. **Collaboration**: realtime team and education workflows
-10. **Consumer release**: desktop packaging and clean-machine acceptance
+8. **Consumer workspace**: project-centered browser shell and real product gallery
+9. **Targeted ML**: ranking/evidence/recommendation models only where measured value justifies them
+10. **Collaboration**: realtime team and education workflows
+11. **Consumer release**: desktop packaging and clean-machine acceptance
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for architectural contracts.
 
