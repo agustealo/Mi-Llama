@@ -51,7 +51,9 @@ def register_writing_studio_routes(
                 document_id=document_id,
             )
         except WritingStructureNotFound as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Manuscript not found") from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Manuscript not found"
+            ) from exc
 
     @app.put(
         "/api/projects/{project_id}/writing/documents/{document_id}/draft",
@@ -94,7 +96,9 @@ def register_writing_studio_routes(
                 document_id=document_id,
             )
         except WritingStructureNotFound as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Manuscript not found") from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Manuscript not found"
+            ) from exc
 
     @app.post(
         "/api/projects/{project_id}/writing/documents/{document_id}/proposals",
@@ -115,7 +119,9 @@ def register_writing_studio_routes(
                 request=request,
             )
         except WritingStructureNotFound as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Manuscript not found") from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Manuscript not found"
+            ) from exc
         except DraftVersionConflict as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
         except WritingStudioValidationError as exc:
@@ -143,7 +149,10 @@ def register_writing_studio_routes(
                 request=request,
             )
         except WritingStructureNotFound as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Writing proposal not found") from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Writing proposal not found",
+            ) from exc
         except WritingProposalStale as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
         except WritingStudioValidationError as exc:
@@ -167,7 +176,10 @@ def register_writing_studio_routes(
                 proposal_id=proposal_id,
             )
         except WritingStructureNotFound as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Writing proposal not found") from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Writing proposal not found",
+            ) from exc
         except WritingProposalStale as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
         except WritingStudioValidationError as exc:

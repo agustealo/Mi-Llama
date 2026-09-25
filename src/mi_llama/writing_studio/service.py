@@ -331,9 +331,7 @@ class WritingStudioService:
             proposal_id=proposal_id,
         )
         if rejected is None:
-            raise WritingProposalStale(
-                "The proposal changed while the rejection was in flight"
-            )
+            raise WritingProposalStale("The proposal changed while the rejection was in flight")
         await self._repository.add_learning_signal(
             access_token=access_token,
             project_id=project_id,
@@ -478,9 +476,7 @@ class WritingStudioService:
         if selection_end <= selection_start:
             raise WritingStudioValidationError("Select a non-empty manuscript passage")
         if selection_start < 0 or selection_end > len(plain_text):
-            raise WritingStudioValidationError(
-                "The selected passage is outside the current draft"
-            )
+            raise WritingStudioValidationError("The selected passage is outside the current draft")
         if not plain_text[selection_start:selection_end].strip():
             raise WritingStudioValidationError(
                 "Select manuscript text before asking for an AI edit"
