@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
+from mi_llama.domain import ManuscriptConversationContextRequest
 from mi_llama.editor_state import EditorStateError, validate_editor_state
 from mi_llama.writing_structure.models import ManuscriptDocument, ManuscriptRevision
 
@@ -77,24 +78,6 @@ class CheckpointManuscriptDraftResult(BaseModel):
 class CreateDocumentConversationRequest(BaseModel):
     model: str = Field(min_length=1, max_length=200)
     title: str | None = Field(default=None, max_length=120)
-
-
-class ManuscriptConversationContextRequest(BaseModel):
-    draft_version: int = Field(ge=1)
-    character_start: int | None = Field(default=None, ge=0)
-    character_end: int | None = Field(default=None, ge=1)
-
-    @model_validator(mode="after")
-    def validate_range(self) -> Self:
-        if (self.character_start is None) != (self.character_end is None):
-            raise ValueError("character_start and character_end must be provided together")
-        if (
-            self.character_start is not None
-            and self.character_end is not None
-            and self.character_end <= self.character_start
-        ):
-            raise ValueError("character_end must be greater than character_start")
-        return self
 
 
 class SendDocumentConversationMessageRequest(BaseModel):
