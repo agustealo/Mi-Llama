@@ -1,0 +1,17 @@
+{
+  "name": "mi-llama-workspace-editor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:editor": "esbuild web/editor/tiptap_runtime.js --bundle --format=esm --platform=browser --target=es2022 --minify --legal-comments=none --outfile=src/mi_llama/workspace_assets/tiptap_editor.bundle.js",
+    "test:editor": "node --test web/editor/*.test.mjs"
+  },
+  "dependencies": {
+    "@tiptap/core": "3.31.3",
+    "@tiptap/pm": "3.31.3",
+    "@tiptap/starter-kit": "3.31.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}
