@@ -121,6 +121,21 @@ class WritingStudioRepository(WritingIntelligenceRepository, Repository, Protoco
 class SupabaseWritingStudioRepository(SupabaseWritingIntelligenceRepository):
     """Supabase repository extended with mutable draft and AI proposal authority."""
 
+    async def list_conversations(
+        self, *, access_token: str, project_id: UUID
+    ) -> list[Conversation]:
+        rows = await self._request_rows(
+            "GET",
+            "/conversation_activity",
+            access_token=access_token,
+            params={
+                "select": "*",
+                "project_id": f"eq.{project_id}",
+                "order": "activity_at.desc,created_at.desc",
+            },
+        )
+        return self._many(rows, Conversation)
+
     async def create_document_conversation(
         self,
         *,
