@@ -43,10 +43,18 @@ from mi_llama.writing_intelligence.service import (
     WritingIntelligenceUnavailableError,
     WritingIntelligenceValidationError,
 )
+from mi_llama.writing_studio.provenance_disposition import (
+    SupabaseProvenanceDispositionMixin,
+)
 from mi_llama.writing_studio.repository import WritingStudioRepository
 from mi_llama.writing_studio.routing import register_writing_studio_routes
 
-SupabaseWritingIntelligenceRepository = SupabaseStructuredCitationRepository
+
+class SupabaseWritingIntelligenceRepository(
+    SupabaseStructuredCitationRepository,
+    SupabaseProvenanceDispositionMixin,
+):
+    pass
 
 
 def register_writing_intelligence_routes(

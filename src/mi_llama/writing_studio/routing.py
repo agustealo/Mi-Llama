@@ -10,6 +10,10 @@ from mi_llama.writing_studio.proposal_grounding import (
     register_grounded_proposal_routes,
 )
 from mi_llama.writing_studio.proposal_iteration import register_proposal_iteration_routes
+from mi_llama.writing_studio.provenance_disposition import (
+    ProvenanceDispositionRepository,
+    register_provenance_disposition_routes,
+)
 from mi_llama.writing_studio.repository import WritingStudioRepository
 from mi_llama.writing_studio.routes import register_writing_studio_routes as register_core_routes
 
@@ -40,3 +44,9 @@ def register_writing_studio_routes(
         provider=provider,
         access_token_dependency=access_token_dependency,
     )
+    if isinstance(repository, ProvenanceDispositionRepository):
+        register_provenance_disposition_routes(
+            app=app,
+            repository=repository,
+            access_token_dependency=access_token_dependency,
+        )

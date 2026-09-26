@@ -34,7 +34,7 @@ def test_document_health_is_advisory_and_does_not_score_counterevidence() -> Non
 
     assert "Manuscript provenance health" in script
     assert "These are independent provenance facts, not a score." in script
-    assert "Counterevidence is surfaced as research context, not treated as a defect." in script
+    assert "Counterevidence remains research context, not a defect." in script
     assert "accepted wording moved · text still matches" in script
     assert "fullyCitedEdits" in contract
     assert "openCitationEdits" in contract

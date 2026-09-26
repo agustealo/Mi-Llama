@@ -9,6 +9,10 @@ function reviewedTime(proposal) {
   return proposal?.reviewed_at || proposal?.updated_at || proposal?.created_at || ''
 }
 
+function dispositionTime(disposition) {
+  return disposition?.created_at || ''
+}
+
 function citationClosureStatus(item, contexts, documentId) {
   const context = contextFor(contexts, item.citation_id)
   const insertedHere =
@@ -40,8 +44,27 @@ function manuscriptLocationFor(proposal, draftText) {
   return { state: 'changed', start: null, end: null }
 }
 
-export function acceptedGroundingObligations(proposals, draft) {
+export function latestProvenanceDispositions(dispositions) {
+  const latest = new Map()
+  if (!Array.isArray(dispositions)) return latest
+  for (const disposition of dispositions) {
+    if (!disposition?.accepted_proposal_id || !disposition?.disposition) continue
+    const key = String(disposition.accepted_proposal_id)
+    const current = latest.get(key)
+    if (!current) {
+      latest.set(key, disposition)
+      continue
+    }
+    const candidateKey = `${dispositionTime(disposition)}:${disposition.id || ''}`
+    const currentKey = `${dispositionTime(current)}:${current.id || ''}`
+    if (candidateKey > currentKey) latest.set(key, disposition)
+  }
+  return latest
+}
+
+export function acceptedGroundingObligations(proposals, draft, dispositions = []) {
   if (!Array.isArray(proposals) || typeof draft?.plain_text !== 'string') return []
+  const latestDispositions = latestProvenanceDispositions(dispositions)
 
   return proposals
     .filter((proposal) => proposal?.status === 'accepted')
@@ -58,6 +81,8 @@ export function acceptedGroundingObligations(proposals, draft) {
       }
 
       const location = manuscriptLocationFor(proposal, draft.plain_text)
+      const provenanceDisposition = latestDispositions.get(String(proposal.id)) || null
+      const dispositionKind = provenanceDisposition?.disposition || null
       return {
         proposalId: proposal.id,
         operation: proposal.operation,
@@ -70,16 +95,29 @@ export function acceptedGroundingObligations(proposals, draft) {
         originalSelectionEnd: proposal.selection_end,
         acceptedText: proposal.proposed_text,
         citations: unique,
+        provenanceDisposition,
+        provenanceResolved: dispositionKind === 'retired' || dispositionKind === 'superseded',
+        needsRegrounding: dispositionKind === 'needs_regrounding',
       }
     })
     .filter(Boolean)
     .sort((a, b) => b.reviewedAt.localeCompare(a.reviewedAt))
 }
 
+export function activeProvenanceObligations(obligations) {
+  if (!Array.isArray(obligations)) return []
+  return obligations.filter((item) => !item.provenanceResolved)
+}
+
+export function resolvedProvenanceObligations(obligations) {
+  if (!Array.isArray(obligations)) return []
+  return obligations.filter((item) => item.provenanceResolved)
+}
+
 export function provenanceRepairItems(obligations, draft) {
   if (!Array.isArray(obligations) || typeof draft?.plain_text !== 'string') return []
   return obligations
-    .filter((item) => item.manuscriptState === 'changed')
+    .filter((item) => item.manuscriptState === 'changed' && !item.provenanceResolved)
     .map((item) => {
       const start = Number.isInteger(item.originalSelectionStart) ? item.originalSelectionStart : null
       const acceptedText = typeof item.acceptedText === 'string' ? item.acceptedText : ''
@@ -99,6 +137,7 @@ export function provenanceRestoreProposalRequest(item, selection, draftVersion, 
   if (
     !item ||
     item.manuscriptState !== 'changed' ||
+    item.provenanceResolved ||
     typeof item.acceptedText !== 'string' ||
     item.acceptedText.length === 0 ||
     !Number.isInteger(selection?.start) ||
@@ -132,11 +171,12 @@ export function documentProvenanceHealth(obligations, contexts, documentId) {
       openCitationEdits: 0,
       changedAfterGrounding: 0,
       counterevidenceEdits: 0,
+      needsRegroundingEdits: 0,
       items: [],
     }
   }
 
-  const items = obligations.map((obligation) => {
+  const items = activeProvenanceObligations(obligations).map((obligation) => {
     const citations = obligation.citations.map((item) => ({
       ...item,
       closureStatus: citationClosureStatus(item, contexts, documentId),
@@ -157,6 +197,7 @@ export function documentProvenanceHealth(obligations, contexts, documentId) {
     openCitationEdits: items.filter((item) => !item.fullyCited).length,
     changedAfterGrounding: items.filter((item) => item.manuscriptState === 'changed').length,
     counterevidenceEdits: items.filter((item) => item.hasCounterevidence).length,
+    needsRegroundingEdits: items.filter((item) => item.needsRegrounding).length,
     items,
   }
 }
@@ -165,7 +206,7 @@ export function unresolvedCitationObligations(obligations, contexts, documentId)
   if (!Array.isArray(obligations) || !documentId) return []
 
   const unresolved = []
-  for (const obligation of obligations) {
+  for (const obligation of activeProvenanceObligations(obligations)) {
     const citations = obligation.citations.map((item) => ({
       ...item,
       closureStatus: citationClosureStatus(item, contexts, documentId),
@@ -203,6 +244,7 @@ export function documentProvenanceFingerprint(health, unresolved) {
     health.openCitationEdits,
     health.changedAfterGrounding,
     health.counterevidenceEdits,
+    health.needsRegroundingEdits,
   ].join(':')
   const itemIdentity = health.items
     .map((item) =>
@@ -213,6 +255,7 @@ export function documentProvenanceFingerprint(health, unresolved) {
         item.manuscriptEnd ?? 'none',
         item.openCitationCount,
         item.hasCounterevidence ? 'counter' : 'plain',
+        item.needsRegrounding ? 'reground' : 'active',
       ].join(':'),
     )
     .join('|')
