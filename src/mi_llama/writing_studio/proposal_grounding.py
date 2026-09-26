@@ -328,22 +328,28 @@ class GroundedProposalService(WritingStudioService):
     ) -> str:
         operation_instruction = {
             WritingProposalOperation.REWRITE: (
-                "Rewrite the selected passage while preserving its meaning and respecting the reviewed evidence."
+                "Rewrite the selected passage while preserving its meaning and respecting "
+                "the reviewed evidence."
             ),
             WritingProposalOperation.IMPROVE: (
-                "Improve clarity, precision, flow, and readability while grounding source-dependent claims in the reviewed evidence."
+                "Improve clarity, precision, flow, and readability while grounding "
+                "source-dependent claims in the reviewed evidence."
             ),
             WritingProposalOperation.EXPAND: (
-                "Expand the selected passage only where the reviewed evidence supports useful additions."
+                "Expand the selected passage only where the reviewed evidence supports "
+                "useful additions."
             ),
             WritingProposalOperation.CONDENSE: (
-                "Make the selected passage materially shorter while preserving the argument and evidence-supported facts."
+                "Make the selected passage materially shorter while preserving the "
+                "argument and evidence-supported facts."
             ),
             WritingProposalOperation.CONTINUE: (
-                "Continue the selected passage naturally using only source-dependent facts supported by the reviewed evidence."
+                "Continue the selected passage naturally using only source-dependent "
+                "facts supported by the reviewed evidence."
             ),
             WritingProposalOperation.CUSTOM: (
-                "Follow the writer's instruction while treating the reviewed evidence as the factual boundary."
+                "Follow the writer's instruction while treating the reviewed evidence "
+                "as the factual boundary."
             ),
         }[operation]
         user_instruction = custom_prompt.strip() if custom_prompt else "No additional instruction."
@@ -354,10 +360,16 @@ class GroundedProposalService(WritingStudioService):
                 ChatMessage(
                     role=Role.SYSTEM,
                     content=(
-                        "You are Mi-Llama's evidence-grounded manuscript collaborator. Produce only a replacement for the selected passage. "
-                        "The reviewed evidence packet is canonical for this request. Respect each source's supports, contradicts, or context stance. "
-                        "Do not convert contextual or contradictory evidence into support. Never invent sources, citations, quotations, statistics, names, dates, or factual claims outside the supplied manuscript context and reviewed evidence. "
-                        "Do not emit citation markup unless it already exists in the selected passage; citation insertion remains a separate writer-reviewed authority."
+                        "You are Mi-Llama's evidence-grounded manuscript collaborator. "
+                        "Produce only a replacement for the selected passage. "
+                        "The reviewed evidence packet is canonical for this request. "
+                        "Respect each source's supports, contradicts, or context stance. "
+                        "Do not convert contextual or contradictory evidence into support. "
+                        "Never invent sources, citations, quotations, statistics, names, "
+                        "dates, or factual claims outside the supplied manuscript context "
+                        "and reviewed evidence. Do not emit citation markup unless it already "
+                        "exists in the selected passage; citation insertion remains a separate "
+                        "writer-reviewed authority."
                     ),
                 ),
                 ChatMessage(
