@@ -30,6 +30,32 @@ function sourceLabel(item) {
   return item.location ? `${item.source_filename} · ${item.location}` : item.source_filename
 }
 
+function evidenceDetails(item) {
+  const details = document.createElement('details')
+  details.className = 'proposal-grounding-details'
+
+  const summary = document.createElement('summary')
+  summary.textContent = 'Inspect frozen passage'
+  details.appendChild(summary)
+
+  const passage = document.createElement('blockquote')
+  passage.textContent = item.content
+  details.appendChild(passage)
+
+  if (item.note) {
+    const note = document.createElement('p')
+    note.className = 'proposal-grounding-note'
+    note.textContent = item.note
+    details.appendChild(note)
+  }
+
+  const provenance = document.createElement('small')
+  provenance.className = 'proposal-grounding-provenance'
+  provenance.textContent = `Frozen citation ${item.citation_id} · SHA-256 ${item.content_sha256}`
+  details.appendChild(provenance)
+  return details
+}
+
 function renderGroundingReview(panel, proposal) {
   const summary = groundingSummary(proposal)
   const fingerprint = groundingFingerprint(proposal)
@@ -75,7 +101,7 @@ function renderGroundingReview(panel, proposal) {
     const integrity = item.content_sha256.slice(0, 10)
     meta.textContent = `${item.stance} · source integrity ${integrity}`
     copy.append(source, meta)
-    row.appendChild(copy)
+    row.append(copy, evidenceDetails(item))
     list.appendChild(row)
   }
   section.appendChild(list)
@@ -92,8 +118,7 @@ async function refreshGroundingReview() {
   const { projectId, documentId } = workspaceIds()
   if (!panel || !projectId || !documentId) return
   if (!panel.querySelector('.proposal-title')) {
-    delete panel.dataset.groundingFingerprint
-    panel.querySelector('.proposal-grounding-review')?.remove()
+    renderGroundingReview(panel, null)
     return
   }
 
@@ -108,7 +133,6 @@ async function refreshGroundingReview() {
     )
     if (generation !== refreshGeneration) return
     const proposal = activeProposalForDraft(proposals, draft.version)
-    if (!proposal) return
     renderGroundingReview(panel, proposal)
   } catch (_error) {
     // Proposal review remains usable if provenance hydration is temporarily unavailable.

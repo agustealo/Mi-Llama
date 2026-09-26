@@ -7,6 +7,8 @@ export function groundingItemsFromProposal(proposal) {
         typeof item.citation_id === 'string' &&
         typeof item.source_filename === 'string' &&
         typeof item.stance === 'string' &&
+        typeof item.content === 'string' &&
+        item.content.length > 0 &&
         typeof item.content_sha256 === 'string',
     )
   })
