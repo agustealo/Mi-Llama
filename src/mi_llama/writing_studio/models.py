@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
+from mi_llama.domain import ManuscriptConversationContextRequest
 from mi_llama.editor_state import EditorStateError, validate_editor_state
 from mi_llama.writing_structure.models import ManuscriptDocument, ManuscriptRevision
 
@@ -72,6 +73,16 @@ class CheckpointManuscriptDraftResult(BaseModel):
     document: ManuscriptDocument
     revision: ManuscriptRevision
     draft: ManuscriptDraft
+
+
+class CreateDocumentConversationRequest(BaseModel):
+    model: str = Field(min_length=1, max_length=200)
+    title: str | None = Field(default=None, max_length=120)
+
+
+class SendDocumentConversationMessageRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=32_000)
+    context: ManuscriptConversationContextRequest
 
 
 class WritingProposal(BaseModel):

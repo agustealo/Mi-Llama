@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Role(StrEnum):
@@ -88,16 +88,55 @@ class ChatMessage(BaseModel):
     content: str = Field(min_length=1)
 
 
+class ManuscriptConversationContextRequest(BaseModel):
+    draft_version: int = Field(ge=1)
+    character_start: int | None = Field(default=None, ge=0)
+    character_end: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_range(self) -> Self:
+        if (self.character_start is None) != (self.character_end is None):
+            raise ValueError("character_start and character_end must be provided together")
+        if (
+            self.character_start is not None
+            and self.character_end is not None
+            and self.character_end <= self.character_start
+        ):
+            raise ValueError("character_end must be greater than character_start")
+        return self
+
+
+class ManuscriptMessageContext(BaseModel):
+    kind: Literal["manuscript_draft"] = "manuscript_draft"
+    document_id: UUID
+    draft_version: int = Field(ge=1)
+    base_revision_id: UUID | None = None
+    character_start: int = Field(ge=0)
+    character_end: int = Field(ge=0)
+    excerpt: str = Field(max_length=16_000)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def validate_range(self) -> Self:
+        if self.character_end < self.character_start:
+            raise ValueError("character_end cannot precede character_start")
+        if self.character_end - self.character_start != len(self.excerpt):
+            raise ValueError("manuscript context range must match excerpt length")
+        return self
+
+
 class StoredMessage(ChatMessage):
     id: UUID
     conversation_id: UUID
     created_by: UUID
+    context: ManuscriptMessageContext | None = None
     created_at: datetime
 
 
 class Conversation(BaseModel):
     id: UUID
     project_id: UUID
+    document_id: UUID | None = None
     created_by: UUID
     title: str
     model: str
