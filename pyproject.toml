@@ -11,6 +11,8 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Agustealo Johnson" }]
 dependencies = [
+  "citeproc-py>=0.10.3,<0.11",
+  "citeproc-py-styles==0.1.5",
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
   "pydantic>=2.11,<3",
@@ -53,5 +55,5 @@ strict = true
 packages = ["mi_llama"]
 
 [[tool.mypy.overrides]]
-module = ["docx", "docx.*", "pypdf", "pypdf.*"]
+module = ["citeproc", "citeproc.*", "citeproc_styles", "docx", "docx.*", "pypdf", "pypdf.*"]
 ignore_missing_imports = true
