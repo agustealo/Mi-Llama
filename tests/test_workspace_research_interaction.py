@@ -65,20 +65,24 @@ def test_evidence_tray_is_fenced_against_stale_manuscript_state() -> None:
 
     assert "editor.getText() !== snapshot.fullText" in script
     assert (
-        "clearResearchState('The manuscript changed. Select the passage again to refresh evidence context.', true)"
+        "clearResearchState('The manuscript changed. Select the passage again "
+        "to refresh evidence context.', true)"
         in script
     )
     assert (
-        "clearEvidenceTray()\n    showResearchError('The manuscript changed after this evidence search."
+        "clearEvidenceTray()\n    showResearchError('The manuscript changed "
+        "after this evidence search."
         in script
     )
     assert (
-        "clearEvidenceTray()\n      showResearchError('The saved manuscript changed after this evidence search."
+        "clearEvidenceTray()\n      showResearchError('The saved manuscript changed "
+        "after this evidence search."
         in script
     )
     assert "draft.version !== target.draftVersion" in script
     assert (
-        "draft.plain_text.slice(target.selectionStart, target.selectionEnd) !== target.selectionText"
+        "draft.plain_text.slice(target.selectionStart, target.selectionEnd) "
+        "!== target.selectionText"
         in script
     )
 
