@@ -176,6 +176,9 @@ class SupabaseWritingStudioRepository(SupabaseWritingIntelligenceRepository):
         editor_state: dict[str, Any],
         plain_text: str,
     ) -> ManuscriptDraft | None:
+        # Ordinary autosave is not allowed to move revision authority. Only the
+        # checkpoint/evidence/citation transactions may advance base_revision_id.
+        del base_revision_id
         rows = await self._request_rows(
             "PATCH",
             "/manuscript_drafts",
@@ -186,7 +189,6 @@ class SupabaseWritingStudioRepository(SupabaseWritingIntelligenceRepository):
                 "version": f"eq.{expected_version}",
             },
             json={
-                "base_revision_id": None if base_revision_id is None else str(base_revision_id),
                 "editor_state": editor_state,
                 "plain_text": plain_text,
                 "version": expected_version + 1,
