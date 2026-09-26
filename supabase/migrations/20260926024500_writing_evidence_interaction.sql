@@ -22,8 +22,8 @@ returns table (
     evidence_link jsonb
 )
 language plpgsql
-security definer
-set search_path = public
+security invoker
+set search_path = ''
 as $$
 declare
     caller uuid;
@@ -274,6 +274,9 @@ $$;
 revoke all on function public.promote_writing_evidence(
     uuid, uuid, uuid, uuid, bigint, integer, integer, uuid, text, text
 ) from public;
+revoke all on function public.promote_writing_evidence(
+    uuid, uuid, uuid, uuid, bigint, integer, integer, uuid, text, text
+) from anon;
 grant execute on function public.promote_writing_evidence(
     uuid, uuid, uuid, uuid, bigint, integer, integer, uuid, text, text
 ) to authenticated;
