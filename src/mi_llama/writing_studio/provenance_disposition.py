@@ -3,14 +3,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Protocol, runtime_checkable
+from typing import Annotated, Any, Protocol, runtime_checkable
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
 
 from mi_llama.repositories import RepositoryError
-from mi_llama.structured_citations import SupabaseStructuredCitationRepository
 from mi_llama.writing_studio.models import ManuscriptDraft, WritingProposal, WritingProposalStatus
 
 
@@ -87,7 +86,7 @@ class ProvenanceDispositionRepository(Protocol):
     ) -> ProvenanceDisposition: ...
 
 
-class SupabaseProvenanceDispositionRepository(SupabaseStructuredCitationRepository):
+class SupabaseProvenanceDispositionMixin:
     async def list_provenance_dispositions(
         self,
         *,
@@ -95,7 +94,9 @@ class SupabaseProvenanceDispositionRepository(SupabaseStructuredCitationReposito
         project_id: UUID,
         document_id: UUID,
     ) -> list[ProvenanceDisposition]:
-        rows = await self._request_rows(
+        request_rows = getattr(self, "_request_rows")
+        many = getattr(self, "_many")
+        rows: list[dict[str, Any]] = await request_rows(
             "GET",
             "/provenance_dispositions",
             access_token=access_token,
@@ -106,7 +107,7 @@ class SupabaseProvenanceDispositionRepository(SupabaseStructuredCitationReposito
                 "order": "created_at.desc,id.desc",
             },
         )
-        return self._many(rows, ProvenanceDisposition)
+        return many(rows, ProvenanceDisposition)
 
     async def create_provenance_disposition(
         self,
@@ -117,7 +118,9 @@ class SupabaseProvenanceDispositionRepository(SupabaseStructuredCitationReposito
         accepted_proposal_id: UUID,
         request: CreateProvenanceDispositionRequest,
     ) -> ProvenanceDisposition:
-        rows = await self._request_rows(
+        request_rows = getattr(self, "_request_rows")
+        one = getattr(self, "_one")
+        rows: list[dict[str, Any]] = await request_rows(
             "POST",
             "/provenance_dispositions",
             access_token=access_token,
@@ -136,7 +139,7 @@ class SupabaseProvenanceDispositionRepository(SupabaseStructuredCitationReposito
             },
             prefer="return=representation",
         )
-        return self._one(rows, ProvenanceDisposition)
+        return one(rows, ProvenanceDisposition)
 
 
 class ProvenanceDispositionConflict(RuntimeError):
