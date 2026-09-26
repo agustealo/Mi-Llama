@@ -23,7 +23,7 @@ def test_provenance_repair_preserves_proposal_authority() -> None:
     assert "operation: 'rewrite'" in contract
     assert "item.manuscriptState !== 'changed'" in contract
     assert "item.provenanceResolved" in contract
-    assert "overwrite changed text" in script
+    assert "never overwrites changed text" in script
     assert "replaceRange(" not in script
     assert "setText(" not in script
 
