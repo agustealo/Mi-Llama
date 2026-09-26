@@ -9,6 +9,7 @@ from mi_llama.citation_authority import (
 )
 from mi_llama.providers.base import StructuredModelProvider
 from mi_llama.research import AuthorizedResearchService
+from mi_llama.structured_writing import register_structured_writing_routes
 from mi_llama.writing_evidence import (
     WritingEvidenceRepository,
     register_writing_evidence_routes,
@@ -40,7 +41,6 @@ from mi_llama.writing_intelligence.service import (
 )
 from mi_llama.writing_studio.repository import WritingStudioRepository
 from mi_llama.writing_studio.routes import register_writing_studio_routes
-from mi_llama.structured_writing import register_structured_writing_routes
 
 SupabaseWritingIntelligenceRepository = SupabaseCitationAuthorityRepository
 
