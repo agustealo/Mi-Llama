@@ -44,7 +44,7 @@ from mi_llama.writing_intelligence.service import (
     WritingIntelligenceValidationError,
 )
 from mi_llama.writing_studio.repository import WritingStudioRepository
-from mi_llama.writing_studio.routes import register_writing_studio_routes
+from mi_llama.writing_studio.routing import register_writing_studio_routes
 
 SupabaseWritingIntelligenceRepository = SupabaseStructuredCitationRepository
 

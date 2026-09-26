@@ -100,3 +100,24 @@ def test_default_runtime_mounts_writing_studio_authority() -> None:
     assert (f"{document}/conversations", "GET") in routes
     assert (f"{document}/conversations", "POST") in routes
     assert (f"{document}/conversations/{{conversation_id}}/messages", "POST") in routes
+
+    assert (f"{document}/research/promotions", "POST") in routes
+    assert (
+        "/api/projects/{project_id}/sources/{source_id}/citation-metadata",
+        "GET",
+    ) in routes
+    assert (
+        "/api/projects/{project_id}/sources/{source_id}/citation-metadata",
+        "PUT",
+    ) in routes
+    assert (
+        "/api/projects/{project_id}/research/citations/{citation_id}/context",
+        "GET",
+    ) in routes
+    assert (
+        "/api/projects/{project_id}/research/citations/{citation_id}/preview",
+        "POST",
+    ) in routes
+    assert (f"{document}/citations/{{citation_id}}/insert", "POST") in routes
+    assert (f"{document}/citations/{{citation_id}}/plan", "POST") in routes
+    assert (f"{document}/citations/{{citation_id}}/insert-structured", "POST") in routes

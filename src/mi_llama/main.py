@@ -55,17 +55,13 @@ from mi_llama.research_structure import (
 from mi_llama.sources import SourceIngestError, SourceProcessingError, SourceService
 from mi_llama.storage import SOURCE_BUCKET, ObjectStorage, SupabaseStorage
 from mi_llama.writing_intelligence import (
+    SupabaseWritingIntelligenceRepository,
     WritingIntelligenceRepository,
     register_writing_intelligence_routes,
 )
 from mi_llama.writing_structure import (
     WritingRepository,
     register_writing_structure_routes,
-)
-from mi_llama.writing_studio import (
-    SupabaseWritingStudioRepository,
-    WritingStudioRepository,
-    register_writing_studio_routes,
 )
 
 _bearer = HTTPBearer(auto_error=False)
@@ -97,7 +93,7 @@ def create_app(
     if repository is None:
         configured_supabase = runtime_settings.require_supabase()
         supabase_url, publishable_key = configured_supabase
-        runtime_repository: Repository = SupabaseWritingStudioRepository(
+        runtime_repository: Repository = SupabaseWritingIntelligenceRepository(
             supabase_url=supabase_url,
             publishable_key=publishable_key,
             timeout_seconds=runtime_settings.request_timeout_seconds,
@@ -209,16 +205,6 @@ def create_app(
                 runtime_provider if isinstance(runtime_provider, StructuredModelProvider) else None
             ),
             research=research_service,
-            access_token_dependency=require_access_token,
-        )
-
-    if isinstance(runtime_repository, WritingStudioRepository) and isinstance(
-        runtime_provider, StructuredModelProvider
-    ):
-        register_writing_studio_routes(
-            app=app,
-            repository=runtime_repository,
-            provider=runtime_provider,
             access_token_dependency=require_access_token,
         )
 
