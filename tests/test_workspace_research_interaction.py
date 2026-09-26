@@ -58,3 +58,40 @@ def test_evidence_tray_remains_interaction_state_not_a_second_authority() -> Non
     assert "selectionEnd: snapshot.end" in script
     assert "selectionText: snapshot.text" in script
     assert "draftVersion: result.draft.version" in script
+
+
+def test_evidence_tray_is_fenced_against_stale_manuscript_state() -> None:
+    script = _research_script()
+
+    assert "editor.getText() !== snapshot.fullText" in script
+    assert (
+        "clearResearchState('The manuscript changed. Select the passage again "
+        "to refresh evidence context.', true)" in script
+    )
+    assert (
+        "clearEvidenceTray()\n    showResearchError('The manuscript changed "
+        "after this evidence search." in script
+    )
+    assert (
+        "clearEvidenceTray()\n      showResearchError('The saved manuscript changed "
+        "after this evidence search." in script
+    )
+    assert "draft.version !== target.draftVersion" in script
+    assert (
+        "draft.plain_text.slice(target.selectionStart, target.selectionEnd) "
+        "!== target.selectionText" in script
+    )
+
+
+def test_evidence_tray_supports_removal_and_readdition_without_mutating_canonical_research() -> (
+    None
+):
+    script = _research_script()
+
+    assert "removeTrayCitation" in script
+    assert "tray.items.filter((item) => item.citationId !== citationId)" in script
+    assert "addPromotionToTray" in script
+    assert "existingIndex = tray.items.findIndex" in script
+    assert "tray.items[existingIndex] = item" in script
+    assert "tray.items.push(item)" in script
+    assert "Remove one before adding another" in script

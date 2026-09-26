@@ -1,0 +1,135 @@
+import { AuthClient } from './auth.js'
+import {
+  activeProposalForDraft,
+  groundingFingerprint,
+  groundingSummary,
+} from './grounding_review_contract.js'
+
+let authPromise = null
+let refreshQueued = false
+let refreshGeneration = 0
+
+function authClient() {
+  if (!authPromise) authPromise = AuthClient.create()
+  return authPromise
+}
+
+async function apiJson(path) {
+  const auth = await authClient()
+  return auth.apiJson(path)
+}
+
+function workspaceIds() {
+  return {
+    projectId: document.querySelector('#project-select')?.value || null,
+    documentId: document.querySelector('#document-select')?.value || null,
+  }
+}
+
+function sourceLabel(item) {
+  return item.location ? `${item.source_filename} · ${item.location}` : item.source_filename
+}
+
+function renderGroundingReview(panel, proposal) {
+  const summary = groundingSummary(proposal)
+  const fingerprint = groundingFingerprint(proposal)
+  if (!fingerprint || summary.items.length === 0) {
+    delete panel.dataset.groundingFingerprint
+    panel.querySelector('.proposal-grounding-review')?.remove()
+    return
+  }
+  if (
+    panel.dataset.groundingFingerprint === fingerprint &&
+    panel.querySelector('.proposal-grounding-review')
+  ) {
+    return
+  }
+
+  panel.querySelector('.proposal-grounding-review')?.remove()
+  const section = document.createElement('section')
+  section.className = 'proposal-grounding-review'
+
+  const head = document.createElement('div')
+  head.className = 'proposal-grounding-head'
+  const title = document.createElement('b')
+  title.textContent = `Reviewed evidence · ${summary.items.length}`
+  const balance = document.createElement('span')
+  balance.textContent = summary.label
+  head.append(title, balance)
+  section.appendChild(head)
+
+  const note = document.createElement('p')
+  note.textContent = 'This immutable source packet constrained the grounded proposal. Refinements keep the same packet unless you return to the manuscript and review evidence again.'
+  section.appendChild(note)
+
+  const list = document.createElement('div')
+  list.className = 'proposal-grounding-list'
+  for (const item of summary.items) {
+    const row = document.createElement('div')
+    row.className = 'proposal-grounding-item'
+
+    const copy = document.createElement('div')
+    const source = document.createElement('strong')
+    source.textContent = sourceLabel(item)
+    const meta = document.createElement('small')
+    const integrity = item.content_sha256.slice(0, 10)
+    meta.textContent = `${item.stance} · source integrity ${integrity}`
+    copy.append(source, meta)
+    row.appendChild(copy)
+    list.appendChild(row)
+  }
+  section.appendChild(list)
+
+  const actions = panel.querySelector('.proposal-actions')
+  if (actions) panel.insertBefore(section, actions)
+  else panel.appendChild(section)
+  panel.dataset.groundingFingerprint = fingerprint
+}
+
+async function refreshGroundingReview() {
+  if ((location.hash || '#overview').slice(1) !== 'manuscript') return
+  const panel = document.querySelector('#proposal-panel')
+  const { projectId, documentId } = workspaceIds()
+  if (!panel || !projectId || !documentId) return
+  if (!panel.querySelector('.proposal-title')) {
+    delete panel.dataset.groundingFingerprint
+    panel.querySelector('.proposal-grounding-review')?.remove()
+    return
+  }
+
+  const generation = ++refreshGeneration
+  try {
+    const draft = await apiJson(
+      `/api/projects/${projectId}/writing/documents/${documentId}/draft`,
+    )
+    if (generation !== refreshGeneration || !draft?.version) return
+    const proposals = await apiJson(
+      `/api/projects/${projectId}/writing/documents/${documentId}/proposals`,
+    )
+    if (generation !== refreshGeneration) return
+    const proposal = activeProposalForDraft(proposals, draft.version)
+    if (!proposal) return
+    renderGroundingReview(panel, proposal)
+  } catch (_error) {
+    // Proposal review remains usable if provenance hydration is temporarily unavailable.
+  }
+}
+
+function queueGroundingReview() {
+  if (refreshQueued) return
+  refreshQueued = true
+  queueMicrotask(() => {
+    refreshQueued = false
+    void refreshGroundingReview()
+  })
+}
+
+const content = document.querySelector('#content')
+if (content) {
+  new MutationObserver(queueGroundingReview).observe(content, {
+    childList: true,
+    subtree: true,
+  })
+}
+window.addEventListener('hashchange', queueGroundingReview)
+queueGroundingReview()
