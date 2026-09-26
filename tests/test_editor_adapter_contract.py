@@ -37,9 +37,10 @@ def test_tiptap_annotations_are_browser_highlights_not_document_mutations() -> N
     assert "new globalThis.Highlight" in annotation_section
     assert "editor.commands" not in annotation_section
     assert "insertContent" not in annotation_section
-    assert "this.clearAnnotations()" in adapter.split("onUpdate: () => {", 1)[1].split(
-        "onSelectionUpdate", 1
-    )[0]
+    assert (
+        "this.clearAnnotations()"
+        in adapter.split("onUpdate: () => {", 1)[1].split("onSelectionUpdate", 1)[0]
+    )
     assert "this.clearAnnotations()\n    this.muted = true" in adapter
     assert "this.clearAnnotations()\n    for (const unsubscribe" in adapter
 
