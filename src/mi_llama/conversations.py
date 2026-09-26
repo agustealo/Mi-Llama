@@ -322,7 +322,9 @@ class ConversationService:
         start = request.character_start
         end = request.character_end
         if end > len(plain_text):
-            raise ConversationContextError("The selected manuscript range is outside the current draft")
+            raise ConversationContextError(
+                "The selected manuscript range is outside the current draft"
+            )
         if end - start > _MAX_MANUSCRIPT_CONTEXT_CHARS:
             raise ConversationContextError(
                 f"Manuscript context is limited to {_MAX_MANUSCRIPT_CONTEXT_CHARS} characters"
@@ -359,7 +361,9 @@ class ConversationService:
         excerpt = draft.plain_text[context.character_start : context.character_end]
         digest = hashlib.sha256(excerpt.encode("utf-8")).hexdigest()
         if excerpt != context.excerpt or digest != context.sha256:
-            raise ConversationContextConflict("The manuscript passage changed before the reply began")
+            raise ConversationContextConflict(
+                "The manuscript passage changed before the reply began"
+            )
 
     @staticmethod
     def _provider_messages(stored_messages: list[StoredMessage]) -> list[ChatMessage]:
