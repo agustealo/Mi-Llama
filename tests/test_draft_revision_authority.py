@@ -19,10 +19,7 @@ NOW = datetime(2026, 9, 26, 9, 25, tzinfo=UTC).isoformat()
 
 def test_authenticated_autosave_cannot_advance_revision_ancestry() -> None:
     sql = MIGRATION.read_text()
-    assert (
-        "revoke update (base_revision_id) on public.manuscript_drafts from authenticated;"
-        in sql
-    )
+    assert "revoke update (base_revision_id) on public.manuscript_drafts from authenticated;" in sql
 
 
 def test_repository_autosave_omits_base_revision_id_from_patch() -> None:
