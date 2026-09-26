@@ -215,7 +215,7 @@ class ProvenanceDispositionService:
             document_id=document_id,
             proposal_id=proposal_id,
         )
-        self._validate_grounded_accepted(proposal, label="Historical proposal")
+        proposal = self._validate_grounded_accepted(proposal, label="Historical proposal")
 
         if request.disposition is ProvenanceDispositionKind.SUPERSEDED:
             superseding_proposal_id = request.superseding_proposal_id
@@ -231,7 +231,10 @@ class ProvenanceDispositionService:
                 document_id=document_id,
                 proposal_id=superseding_proposal_id,
             )
-            self._validate_grounded_accepted(replacement, label="Superseding proposal")
+            replacement = self._validate_grounded_accepted(
+                replacement,
+                label="Superseding proposal",
+            )
             if replacement.base_draft_version <= proposal.base_draft_version:
                 raise ProvenanceDispositionValidationError(
                     "Superseding proposal must target a later manuscript draft"
@@ -308,7 +311,7 @@ class ProvenanceDispositionService:
         proposal: WritingProposal | None,
         *,
         label: str,
-    ) -> None:
+    ) -> WritingProposal:
         if proposal is None:
             raise ProvenanceDispositionValidationError(f"{label} not found")
         if proposal.status is not WritingProposalStatus.ACCEPTED:
@@ -316,6 +319,7 @@ class ProvenanceDispositionService:
         grounding = proposal.context_manifest.get("grounding")
         if not isinstance(grounding, dict) or not grounding.get("citations"):
             raise ProvenanceDispositionValidationError(f"{label} must be grounded")
+        return proposal
 
 
 def register_provenance_disposition_routes(
