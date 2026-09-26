@@ -23,6 +23,7 @@ const state = {
   saveQueued: false,
   savePromise: null,
   saveTimer: null,
+  saveError: null,
   conflict: false,
   status: '',
 }
@@ -43,7 +44,7 @@ function setStored(key, value) {
     if (value) window.sessionStorage.setItem(key, value)
     else window.sessionStorage.removeItem(key)
   } catch (_error) {
-    // Session storage is convenience state only. Product authority remains server-side.
+    // Convenience only. Product authority remains server-side.
   }
 }
 
@@ -65,18 +66,16 @@ function setStudioStatus(message, tone = '') {
 
 function showError(message) {
   const node = $('#studio-error')
-  if (node) {
-    node.hidden = false
-    node.textContent = message
-  }
+  if (!node) return
+  node.hidden = false
+  node.textContent = message
 }
 
 function clearError() {
   const node = $('#studio-error')
-  if (node) {
-    node.hidden = true
-    node.textContent = ''
-  }
+  if (!node) return
+  node.hidden = true
+  node.textContent = ''
 }
 
 async function readJson(response) {
@@ -142,9 +141,7 @@ function openAuthDialog() {
   dialog.querySelector('#auth-signed-in').hidden = !signedIn
   dialog.querySelector('#auth-error').hidden = true
   dialog.querySelector('#auth-session-error').hidden = true
-  if (signedIn) {
-    dialog.querySelector('#auth-user').textContent = state.auth.user?.email || 'Authenticated user'
-  }
+  if (signedIn) dialog.querySelector('#auth-user').textContent = state.auth.user?.email || 'Authenticated user'
   if (!dialog.open) dialog.showModal()
 }
 
@@ -177,10 +174,9 @@ async function signOutFromDialog() {
   const dialog = ensureAuthDialog()
   const errorNode = dialog.querySelector('#auth-session-error')
   errorNode.hidden = true
-  await flushDraft()
-  if (state.dirty || state.conflict || state.saving) {
+  if (!(await flushDraft())) {
     errorNode.hidden = false
-    errorNode.textContent = 'Resolve or save the current manuscript draft before signing out.'
+    errorNode.textContent = 'Save, reload, or resolve the current manuscript draft before signing out.'
     return
   }
   try {
@@ -194,6 +190,7 @@ async function signOutFromDialog() {
 }
 
 function resetProjectState() {
+  if (state.saveTimer) window.clearTimeout(state.saveTimer)
   state.projects = []
   state.projectId = null
   state.documents = []
@@ -204,6 +201,11 @@ function resetProjectState() {
   state.proposal = null
   state.canEdit = true
   state.dirty = false
+  state.saving = false
+  state.saveQueued = false
+  state.savePromise = null
+  state.saveTimer = null
+  state.saveError = null
   state.conflict = false
   setStored(PROJECT_KEY, null)
   setStored(DOCUMENT_KEY, null)
@@ -218,8 +220,7 @@ function syncProfile() {
   const detail = profile.querySelector('div small')
   if (state.auth?.signedIn) {
     const email = state.auth.user?.email || 'Signed in'
-    const initials = email.slice(0, 2).toUpperCase()
-    avatar.textContent = initials
+    avatar.textContent = email.slice(0, 2).toUpperCase()
     title.textContent = 'Studio session'
     detail.textContent = email
   } else {
@@ -256,10 +257,11 @@ function syncProjectSwitcher() {
   }
   select.value = state.projectId || ''
   select.addEventListener('change', async () => {
+    const previous = state.projectId
     const nextProjectId = select.value || null
-    await flushDraft()
-    if (state.dirty || state.conflict || state.saving) {
-      select.value = state.projectId || ''
+    if (!(await flushDraft())) {
+      select.value = previous || ''
+      showError('The current manuscript has an unconfirmed save. Retry or reload before switching projects.')
       return
     }
     state.projectId = nextProjectId
@@ -291,9 +293,7 @@ async function loadModels() {
     })
     if (!response.ok) throw new Error('models unavailable')
     state.models = await response.json()
-    if (!state.models.some((item) => item.name === state.model)) {
-      state.model = state.models[0]?.name || null
-    }
+    if (!state.models.some((item) => item.name === state.model)) state.model = state.models[0]?.name || null
   } catch (_error) {
     state.models = []
     state.model = null
@@ -323,6 +323,7 @@ async function hydrateWorkspace() {
 }
 
 async function loadWritingWorkspace() {
+  if (state.saveTimer) window.clearTimeout(state.saveTimer)
   state.documents = []
   state.documentId = null
   state.outline = []
@@ -331,6 +332,11 @@ async function loadWritingWorkspace() {
   state.proposal = null
   state.canEdit = true
   state.dirty = false
+  state.saving = false
+  state.saveQueued = false
+  state.savePromise = null
+  state.saveTimer = null
+  state.saveError = null
   state.conflict = false
   if (!state.projectId || !state.auth?.signedIn) return
 
@@ -392,19 +398,20 @@ async function loadDocumentDraft() {
       }
     }
   }
+
   state.draft = draft
   state.localText = draft.plain_text || ''
   state.dirty = false
+  state.saveError = null
   state.conflict = false
 
   if (draft.version) {
     const proposals = await apiJson(
       `/api/projects/${state.projectId}/writing/documents/${document.id}/proposals`,
     )
-    state.proposal =
-      proposals.find(
-        (item) => item.status === 'proposed' && item.base_draft_version === draft.version,
-      ) || null
+    state.proposal = proposals.find(
+      (item) => item.status === 'proposed' && item.base_draft_version === draft.version,
+    ) || null
   }
 }
 
@@ -484,10 +491,11 @@ function renderDocumentSelector() {
   }
   select.value = state.documentId || ''
   select.addEventListener('change', async () => {
+    const previous = state.documentId
     const nextDocumentId = select.value
-    await flushDraft()
-    if (state.dirty || state.conflict || state.saving) {
-      select.value = state.documentId || ''
+    if (!(await flushDraft())) {
+      select.value = previous || ''
+      showError('The current manuscript has an unconfirmed save. Retry or reload before switching manuscripts.')
       return
     }
     state.documentId = nextDocumentId
@@ -497,10 +505,19 @@ function renderDocumentSelector() {
   })
 }
 
+function saveAttentionVisible() {
+  return Boolean(state.conflict || state.saveError)
+}
+
 function editorView() {
   const words = wordCount(state.localText)
   const version = state.draft?.version ? `Draft v${state.draft.version}` : 'Read only'
   const permission = state.canEdit ? '' : ' readonly'
+  const attention = saveAttentionVisible()
+  const attentionTitle = state.conflict ? 'Draft changed elsewhere.' : 'Draft save could not be confirmed.'
+  const attentionText = state.conflict
+    ? 'Your local text has not been overwritten.'
+    : 'Your local text is still here. Retry the save or reload the server draft before using AI or leaving this manuscript.'
   return `
     <div class="page-heading studio-heading">
       <div>
@@ -532,9 +549,12 @@ function editorView() {
           <button data-operation="expand">Expand</button>
           <button data-operation="condense">Condense</button>
         </div>
-        <div id="conflict-bar" class="conflict-bar"${state.conflict ? '' : ' hidden'}>
-          <div><b>Draft changed elsewhere.</b><span>Your local text has not been overwritten.</span></div>
-          <button id="reload-server-draft" class="secondary">Reload server draft</button>
+        <div id="conflict-bar" class="conflict-bar"${attention ? '' : ' hidden'}>
+          <div><b>${attentionTitle}</b><span>${attentionText}</span></div>
+          <div class="proposal-actions">
+            <button id="retry-draft-save" class="secondary"${state.conflict || !state.canEdit ? ' disabled' : ''}>Retry save</button>
+            <button id="reload-server-draft" class="secondary">Reload server draft</button>
+          </div>
         </div>
       </section>
       <aside class="card collaborator-panel">
@@ -590,6 +610,7 @@ function renderManuscriptStudio() {
   })
   $('#custom-proposal').addEventListener('click', () => requestProposal('custom'))
   $('#checkpoint-revision').addEventListener('click', checkpointRevision)
+  $('#retry-draft-save')?.addEventListener('click', retryDraftSave)
   $('#reload-server-draft')?.addEventListener('click', reloadServerDraft)
   renderProposalPanel()
   updateSelectionToolbar()
@@ -627,15 +648,16 @@ function updateSelectionToolbar() {
   const start = editor.selectionStart
   const end = editor.selectionEnd
   const selected = end > start ? editor.value.slice(start, end) : ''
-  toolbar.hidden = !selected.trim() || !state.canEdit || state.conflict
+  toolbar.hidden = !selected.trim() || !state.canEdit || state.conflict || Boolean(state.saveError)
   const count = $('#selection-count')
   if (count) count.textContent = selected ? `${selected.length} chars` : ''
 }
 
 function onEditorInput(event) {
   state.localText = event.currentTarget.value
-  state.dirty = true
+  state.dirty = state.localText !== (state.draft?.plain_text || '')
   state.proposal = null
+  state.saveError = null
   const count = $('#studio-word-count')
   if (count) count.textContent = `${wordCount(state.localText)} words`
   setStudioStatus('Unsaved', 'pending')
@@ -645,7 +667,7 @@ function onEditorInput(event) {
 }
 
 function scheduleSave(delay = AUTOSAVE_DELAY) {
-  if (!state.canEdit || state.conflict) return
+  if (!state.canEdit || state.conflict || !state.dirty) return
   if (state.saveTimer) window.clearTimeout(state.saveTimer)
   state.saveTimer = window.setTimeout(() => {
     state.saveTimer = null
@@ -654,61 +676,70 @@ function scheduleSave(delay = AUTOSAVE_DELAY) {
 }
 
 async function saveDraftNow() {
-  if (!state.canEdit || state.conflict || !state.draft?.version || !state.dirty) return
+  if (!state.canEdit || state.conflict || !state.draft?.version || !state.dirty) {
+    return !state.dirty && !state.conflict && !state.saveError
+  }
   if (state.saving) {
     state.saveQueued = true
-    return state.savePromise
+    if (state.savePromise) await state.savePromise
+    return !state.dirty && !state.conflict && !state.saveError
   }
 
   const documentId = state.documentId
+  const projectId = state.projectId
   const expectedVersion = state.draft.version
+  const baseRevisionId = state.draft.base_revision_id
   const text = state.localText
   state.saving = true
-  state.dirty = false
+  state.saveError = null
   setStudioStatus('Saving…', 'pending')
+
   state.savePromise = (async () => {
     try {
       const updated = await apiJson(
-        `/api/projects/${state.projectId}/writing/documents/${documentId}/draft`,
+        `/api/projects/${projectId}/writing/documents/${documentId}/draft`,
         {
           method: 'PUT',
           body: JSON.stringify({
             expected_version: expectedVersion,
-            base_revision_id: state.draft.base_revision_id,
+            base_revision_id: baseRevisionId,
             editor_state: { schema: 'plain_text_v1', text },
             plain_text: text,
           }),
         },
       )
-      if (state.documentId !== documentId) return
+      if (state.documentId !== documentId || state.projectId !== projectId) return false
       state.draft = updated
+      state.saveError = null
+      state.conflict = false
+      state.dirty = state.localText !== text
       setStudioStatus(`Saved · v${updated.version}`, 'saved')
-      if (state.localText !== text) state.dirty = true
+      if (state.dirty) scheduleSave()
+      return true
     } catch (error) {
       state.dirty = true
+      state.saveError = error.message || 'Save failed'
       if (error instanceof AuthError && error.status === 409) {
         state.conflict = true
         setStudioStatus('Conflict detected', 'danger')
-        const bar = $('#conflict-bar')
-        if (bar) bar.hidden = false
-        updateSelectionToolbar()
       } else if (error instanceof AuthError && error.status === 403) {
         state.canEdit = false
-        setStudioStatus('Read only', 'danger')
+        setStudioStatus('Write access denied', 'danger')
         const editor = $('#manuscript-editor')
         if (editor) editor.readOnly = true
       } else {
-        setStudioStatus(error.message || 'Save failed', 'danger')
+        setStudioStatus('Save failed · retry required', 'danger')
       }
+      syncSaveAttention()
+      updateSelectionToolbar()
+      return false
     } finally {
       state.saving = false
       state.savePromise = null
-      if (state.saveQueued || state.dirty) {
-        state.saveQueued = false
-        if (!state.conflict) scheduleSave(0)
-      }
+      state.saveQueued = false
     }
   })()
+
   return state.savePromise
 }
 
@@ -718,8 +749,39 @@ async function flushDraft() {
     state.saveTimer = null
   }
   if (state.saving && state.savePromise) await state.savePromise
-  if (state.dirty && !state.conflict) await saveDraftNow()
+  if (state.dirty && !state.conflict && state.canEdit) await saveDraftNow()
   if (state.saving && state.savePromise) await state.savePromise
+  return !state.dirty && !state.saving && !state.conflict && !state.saveError
+}
+
+function syncSaveAttention() {
+  const bar = $('#conflict-bar')
+  if (!bar) return
+  if (!saveAttentionVisible()) {
+    bar.hidden = true
+    return
+  }
+  bar.hidden = false
+  const title = bar.querySelector('b')
+  const detail = bar.querySelector('span')
+  const retry = $('#retry-draft-save')
+  if (state.conflict) {
+    title.textContent = 'Draft changed elsewhere.'
+    detail.textContent = 'Your local text has not been overwritten.'
+    if (retry) retry.disabled = true
+  } else {
+    title.textContent = 'Draft save could not be confirmed.'
+    detail.textContent = 'Your local text is still here. Retry the save or reload the server draft before using AI or leaving this manuscript.'
+    if (retry) retry.disabled = !state.canEdit
+  }
+}
+
+async function retryDraftSave() {
+  clearError()
+  if (state.conflict || !state.canEdit) return
+  const ok = await flushDraft()
+  syncSaveAttention()
+  if (!ok) showError(state.saveError || 'The draft save still could not be confirmed.')
 }
 
 async function reloadServerDraft() {
@@ -731,6 +793,7 @@ async function reloadServerDraft() {
     state.draft = draft
     state.localText = draft.plain_text || ''
     state.dirty = false
+    state.saveError = null
     state.conflict = false
     state.proposal = null
     renderManuscriptStudio()
@@ -743,9 +806,11 @@ async function reloadServerDraft() {
 async function requestProposal(operation) {
   clearError()
   const editor = $('#manuscript-editor')
-  if (!editor || !state.canEdit || state.conflict) return
-  await flushDraft()
-  if (state.conflict || !state.draft?.version) return
+  if (!editor || !state.canEdit || state.conflict || state.saveError) return
+  if (!(await flushDraft())) {
+    showError('Mi-Llama cannot edit from an unconfirmed draft. Retry the save or reload the server copy first.')
+    return
+  }
 
   const selectionStart = editor.selectionStart
   const selectionEnd = editor.selectionEnd
@@ -795,9 +860,8 @@ function setProposalBusy(busy, message = '') {
     node.textContent = message
     panel.appendChild(node)
   }
-  const buttons = document.querySelectorAll('[data-operation], #custom-proposal')
-  buttons.forEach((button) => {
-    button.disabled = busy || !state.canEdit || state.conflict
+  document.querySelectorAll('[data-operation], #custom-proposal').forEach((button) => {
+    button.disabled = busy || !state.canEdit || state.conflict || Boolean(state.saveError)
   })
 }
 
@@ -852,7 +916,7 @@ function renderProposalPanel() {
 async function acceptProposal() {
   if (!state.proposal || !state.draft?.version) return
   clearError()
-  if (state.dirty || state.localText !== state.draft.plain_text) {
+  if (state.dirty || state.saveError || state.localText !== state.draft.plain_text) {
     showError('The manuscript changed after this proposal was created. Save and ask Mi-Llama again.')
     return
   }
@@ -868,6 +932,7 @@ async function acceptProposal() {
     state.localText = result.draft.plain_text
     state.proposal = null
     state.dirty = false
+    state.saveError = null
     const editor = $('#manuscript-editor')
     if (editor) editor.value = state.localText
     const count = $('#studio-word-count')
@@ -903,37 +968,40 @@ async function rejectProposal() {
 }
 
 async function checkpointRevision() {
-  if (!state.canEdit || state.conflict || !state.draft?.version) return
+  if (!state.canEdit || state.conflict || state.saveError || !state.draft?.version) return
   clearError()
-  await flushDraft()
-  if (state.conflict || state.dirty) return
+  if (!(await flushDraft())) {
+    showError('The draft must be saved before an immutable revision can be checkpointed.')
+    return
+  }
   const button = $('#checkpoint-revision')
   if (button) button.disabled = true
   setStudioStatus('Creating revision…', 'pending')
   try {
     const result = await apiJson(
-      `/api/projects/${state.projectId}/writing/documents/${state.documentId}/revisions`,
-      { method: 'POST', body: JSON.stringify({ content: state.localText }) },
-    )
-    const updatedDraft = await apiJson(
-      `/api/projects/${state.projectId}/writing/documents/${state.documentId}/draft`,
+      `/api/projects/${state.projectId}/writing/documents/${state.documentId}/draft/checkpoint`,
       {
-        method: 'PUT',
-        body: JSON.stringify({
-          expected_version: state.draft.version,
-          base_revision_id: result.revision.id,
-          editor_state: { schema: 'plain_text_v1', text: state.localText },
-          plain_text: state.localText,
-        }),
+        method: 'POST',
+        body: JSON.stringify({ expected_draft_version: state.draft.version }),
       },
     )
-    state.draft = updatedDraft
+    state.draft = result.draft
+    state.localText = result.draft.plain_text
+    state.dirty = false
+    state.saveError = null
+    state.conflict = false
+    state.proposal = null
     const index = state.documents.findIndex((item) => item.id === state.documentId)
     if (index >= 0) state.documents[index] = result.document
-    state.proposal = null
-    setStudioStatus(`Revision ${result.revision.revision_number} checkpointed`, 'saved')
+    setStudioStatus(`Revision ${result.revision.revision_number} checkpointed · v${result.draft.version}`, 'saved')
     renderProposalPanel()
+    updateSelectionToolbar()
   } catch (error) {
+    if (error instanceof AuthError && error.status === 409) {
+      state.conflict = true
+      state.saveError = error.message || 'Checkpoint raced with another draft write'
+      syncSaveAttention()
+    }
     showError(error.message || 'Could not create the revision checkpoint')
     setStudioStatus('Checkpoint failed', 'danger')
   } finally {
@@ -984,7 +1052,7 @@ async function createDocument(event) {
 
 function bindShellActions() {
   window.addEventListener('beforeunload', (event) => {
-    if (!state.dirty && !state.saving) return
+    if (!state.dirty && !state.saving && !state.saveError) return
     event.preventDefault()
     event.returnValue = ''
   })
