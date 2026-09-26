@@ -1,4 +1,7 @@
 from mi_llama.domain import ManuscriptConversationContextRequest
+from mi_llama.structured_citations import (
+    SupabaseStructuredCitationRepository as SupabaseWritingStudioRepository,
+)
 from mi_llama.writing_studio.models import (
     ApplyWritingProposalRequest,
     CheckpointManuscriptDraftRequest,
@@ -15,10 +18,7 @@ from mi_llama.writing_studio.models import (
     WritingProposalOperation,
     WritingProposalStatus,
 )
-from mi_llama.writing_studio.repository import (
-    SupabaseWritingStudioRepository,
-    WritingStudioRepository,
-)
+from mi_llama.writing_studio.repository import WritingStudioRepository
 from mi_llama.writing_studio.routing import register_writing_studio_routes
 from mi_llama.writing_studio.service import (
     DraftVersionConflict,
