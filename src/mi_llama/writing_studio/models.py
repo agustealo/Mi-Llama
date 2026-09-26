@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Self
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from mi_llama.editor_state import EditorStateError, validate_editor_state
 from mi_llama.writing_structure.models import ManuscriptDocument, ManuscriptRevision
 
 
@@ -39,12 +40,28 @@ class ManuscriptDraft(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @model_validator(mode="after")
+    def validate_editor_projection(self) -> Self:
+        try:
+            validate_editor_state(self.editor_state, self.plain_text)
+        except EditorStateError as exc:
+            raise ValueError(str(exc)) from exc
+        return self
+
 
 class SaveManuscriptDraftRequest(BaseModel):
     expected_version: int | None = Field(default=None, ge=1)
     base_revision_id: UUID | None = None
     editor_state: dict[str, Any]
     plain_text: str = Field(max_length=2_000_000)
+
+    @model_validator(mode="after")
+    def validate_editor_projection(self) -> Self:
+        try:
+            validate_editor_state(self.editor_state, self.plain_text)
+        except EditorStateError as exc:
+            raise ValueError(str(exc)) from exc
+        return self
 
 
 class CheckpointManuscriptDraftRequest(BaseModel):
