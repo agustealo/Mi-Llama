@@ -112,14 +112,14 @@ class ManuscriptMessageContext(BaseModel):
     draft_version: int = Field(ge=1)
     base_revision_id: UUID | None = None
     character_start: int = Field(ge=0)
-    character_end: int = Field(ge=1)
-    excerpt: str = Field(min_length=1, max_length=16_000)
+    character_end: int = Field(ge=0)
+    excerpt: str = Field(max_length=16_000)
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
     @model_validator(mode="after")
     def validate_range(self) -> Self:
-        if self.character_end <= self.character_start:
-            raise ValueError("character_end must be greater than character_start")
+        if self.character_end < self.character_start:
+            raise ValueError("character_end cannot precede character_start")
         if self.character_end - self.character_start != len(self.excerpt):
             raise ValueError("manuscript context range must match excerpt length")
         return self
