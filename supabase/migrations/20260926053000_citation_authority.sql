@@ -99,6 +99,10 @@ revoke all on public.citation_insertions from anon;
 revoke all on public.citation_insertions from authenticated;
 
 grant select on public.source_citation_metadata to authenticated;
+grant insert (source_id, project_id, created_by, updated_by, version, csl)
+    on public.source_citation_metadata to authenticated;
+grant update (version, csl, updated_by)
+    on public.source_citation_metadata to authenticated;
 grant select on public.citation_insertions to authenticated;
 
 create policy source_citation_metadata_select_project
@@ -106,6 +110,23 @@ on public.source_citation_metadata
 for select
 to authenticated
 using (public.can_access_project(project_id));
+
+create policy source_citation_metadata_insert_editor
+on public.source_citation_metadata
+for insert
+to authenticated
+with check (
+    created_by = auth.uid()
+    and updated_by = auth.uid()
+    and public.can_edit_project(project_id)
+);
+
+create policy source_citation_metadata_update_editor
+on public.source_citation_metadata
+for update
+to authenticated
+using (public.can_edit_project(project_id))
+with check (public.can_edit_project(project_id));
 
 create policy citation_insertions_select_project
 on public.citation_insertions
@@ -121,7 +142,7 @@ create or replace function public.save_source_citation_metadata(
 )
 returns setof public.source_citation_metadata
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 declare

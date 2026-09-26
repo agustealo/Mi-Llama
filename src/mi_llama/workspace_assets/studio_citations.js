@@ -354,13 +354,19 @@ function renderCitationForm(context) {
   save.type = 'submit'
   save.className = 'secondary'
   save.textContent = 'Save & preview'
+  const reject = document.createElement('button')
+  reject.type = 'button'
+  reject.className = 'secondary citation-reject'
+  reject.textContent = 'Reject citation'
+  reject.hidden = context.citation.status !== 'proposed'
+  reject.addEventListener('click', () => rejectCitation(form, reject))
   const insert = document.createElement('button')
   insert.type = 'button'
   insert.className = 'primary'
   insert.textContent = 'Accept & insert citation'
   insert.disabled = !context.metadata || !state.preview
   insert.addEventListener('click', () => insertCitation(form, insert))
-  actions.append(back, save, insert)
+  actions.append(back, save, reject, insert)
   form.appendChild(actions)
 
   form.addEventListener('submit', (event) => saveAndPreview(event, form, insert))
@@ -457,6 +463,27 @@ async function previewCitation(style, form, insertButton) {
     insertButton.disabled = false
   } catch (error) {
     setFormError(form, error.message || 'The selected citation style could not render this metadata.')
+  }
+}
+
+async function rejectCitation(form, button) {
+  const { projectId } = manuscriptContext()
+  if (!projectId || !state.activeContext) return
+  button.disabled = true
+  setFormError(form)
+  try {
+    await apiJson(
+      `/api/projects/${projectId}/research/citations/${state.activeContext.citation.id}`,
+      { method: 'PATCH', body: JSON.stringify({ status: 'rejected' }) },
+    )
+    const rejectedId = state.activeContext.citation.id
+    state.citations = state.citations.filter((citation) => citation.id !== rejectedId)
+    state.activeContext = null
+    state.preview = null
+    renderQueue()
+  } catch (error) {
+    setFormError(form, error.message || 'Citation rejection failed.')
+    button.disabled = false
   }
 }
 
