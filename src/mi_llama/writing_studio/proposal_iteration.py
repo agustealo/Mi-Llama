@@ -18,6 +18,7 @@ from mi_llama.writing_studio.models import (
     WritingProposalExplanation,
     WritingProposalStatus,
 )
+from mi_llama.writing_studio.proposal_grounding import grounding_prompt_from_manifest
 from mi_llama.writing_studio.repository import WritingStudioRepository
 from mi_llama.writing_studio.service import WritingProposalStale, WritingStudioValidationError
 
@@ -53,6 +54,7 @@ class ProposalIterationService:
 
         before = draft.plain_text[max(0, proposal.selection_start - 800) : proposal.selection_start]
         after = draft.plain_text[proposal.selection_end : proposal.selection_end + 800]
+        grounding_context = grounding_prompt_from_manifest(proposal.context_manifest)
         proposed_text = await self._generate_refinement(
             model=proposal.model,
             operation=proposal.operation.value,
@@ -61,6 +63,7 @@ class ProposalIterationService:
             before_context=before,
             after_context=after,
             instruction=instruction,
+            grounding_context=grounding_context,
         )
         proposed_text = proposed_text.strip()
         if not proposed_text:
@@ -113,6 +116,14 @@ class ProposalIterationService:
             document_id=document_id,
             proposal_id=proposal_id,
         )
+        grounding_context = grounding_prompt_from_manifest(proposal.context_manifest)
+        grounding_note = (
+            "\n\nThis proposal was generated from a writer-reviewed evidence packet. "
+            "Assess whether the visible proposed wording stays within that supplied evidence; "
+            "do not claim independent source verification."
+            if grounding_context
+            else ""
+        )
         payload = await self._provider.chat_json(
             model=proposal.model,
             messages=[
@@ -133,6 +144,7 @@ class ProposalIterationService:
                         f"Writer instruction: {proposal.prompt or 'None'}\n\n"
                         f"Original passage:\n{proposal.original_text}\n\n"
                         f"Proposed passage:\n{proposal.proposed_text}"
+                        f"{grounding_note}"
                     ),
                 ),
             ],
@@ -206,7 +218,18 @@ class ProposalIterationService:
         before_context: str,
         after_context: str,
         instruction: str,
+        grounding_context: str,
     ) -> str:
+        grounding_rule = (
+            " The reviewed evidence packet remains the factual boundary for this refinement. "
+            "Respect supports, contradicts, and context stances and do not add source-dependent "
+            "claims outside that packet."
+            if grounding_context
+            else ""
+        )
+        grounding_block = (
+            f"\n\nReviewed evidence packet:\n{grounding_context}" if grounding_context else ""
+        )
         payload = await self._provider.chat_json(
             model=model,
             messages=[
@@ -218,6 +241,7 @@ class ProposalIterationService:
                         "replacement for the same selected passage. Preserve factual uncertainty. "
                         "Never invent sources, citations, quotations, statistics, names, dates, or "
                         "factual claims not present in the supplied text or context."
+                        f"{grounding_rule}"
                     ),
                 ),
                 ChatMessage(
@@ -229,6 +253,7 @@ class ProposalIterationService:
                         f"Original selected passage:\n{original_text}\n\n"
                         f"Existing proposal:\n{previous_proposal}\n\n"
                         f"Context after:\n{after_context}"
+                        f"{grounding_block}"
                     ),
                 ),
             ],

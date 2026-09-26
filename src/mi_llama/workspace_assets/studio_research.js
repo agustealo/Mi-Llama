@@ -217,9 +217,97 @@ async function findEvidence() {
   }
 }
 
+function groundingTarget(result, snapshot) {
+  return {
+    citationId: result.citation.id,
+    draftVersion: result.draft.version,
+    selectionStart: snapshot.start,
+    selectionEnd: snapshot.end,
+    selectionText: snapshot.text,
+  }
+}
+
+function renderGroundedProposalControls(host, target) {
+  const wrap = document.createElement('div')
+  wrap.className = 'research-grounding-actions'
+
+  const label = document.createElement('label')
+  label.className = 'research-grounding-operation'
+  const text = document.createElement('span')
+  text.textContent = 'Evidence-grounded edit'
+  const operation = document.createElement('select')
+  for (const [value, title] of [
+    ['improve', 'Improve'],
+    ['rewrite', 'Rewrite'],
+    ['expand', 'Expand'],
+    ['condense', 'Condense'],
+  ]) {
+    const option = document.createElement('option')
+    option.value = value
+    option.textContent = title
+    operation.appendChild(option)
+  }
+  label.append(text, operation)
+
+  const button = document.createElement('button')
+  button.className = 'primary research-grounded-proposal'
+  button.textContent = 'Generate from reviewed evidence'
+  button.addEventListener('click', () => generateGroundedProposal(target, operation.value, button))
+  wrap.append(label, button)
+  host.appendChild(wrap)
+}
+
+async function generateGroundedProposal(target, operation, button) {
+  if (researchState.busy) return
+  const { projectId, documentId, editor } = manuscriptContext()
+  if (!projectId || !documentId || !editor) return
+  if (editor.getText().slice(target.selectionStart, target.selectionEnd) !== target.selectionText) {
+    showResearchError('The reviewed manuscript passage changed. Find and promote evidence again before grounding a proposal.')
+    return
+  }
+  const model = $('#studio-model')?.value || null
+  if (!model) {
+    showResearchError('Select an available Ollama model before generating an evidence-grounded proposal.')
+    return
+  }
+  const prompt = $('#studio-instruction')?.value.trim() || null
+
+  researchState.busy = true
+  button.disabled = true
+  button.textContent = 'Generating grounded proposal…'
+  try {
+    const draft = await apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/draft`)
+    if (!draft || draft.version !== target.draftVersion) {
+      throw new Error('The saved manuscript advanced after evidence review. Review the passage again before generating.')
+    }
+    if (draft.plain_text.slice(target.selectionStart, target.selectionEnd) !== target.selectionText) {
+      throw new Error('The saved manuscript passage no longer matches the evidence-bound selection.')
+    }
+    await apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/grounded-proposals`, {
+      method: 'POST',
+      body: JSON.stringify({
+        expected_draft_version: draft.version,
+        operation,
+        model,
+        selection_start: target.selectionStart,
+        selection_end: target.selectionEnd,
+        prompt,
+        citation_ids: [target.citationId],
+      }),
+    })
+    window.location.reload()
+  } catch (error) {
+    showResearchError(error.message || 'Mi-Llama could not generate an evidence-grounded proposal.')
+  } finally {
+    researchState.busy = false
+    button.disabled = false
+    button.textContent = 'Generate from reviewed evidence'
+  }
+}
+
 function renderPromotion(result, hit, stance, checkpointed) {
   const panel = researchPanel()
-  if (!panel) return
+  if (!panel || !researchState.snapshot) return
   panel.replaceChildren()
 
   const card = document.createElement('article')
@@ -234,6 +322,7 @@ function renderPromotion(result, hit, stance, checkpointed) {
   const revision = document.createElement('small')
   revision.textContent = `${checkpointed ? 'Created' : 'Reused'} revision ${result.revision.revision_number} · citation ${result.citation.status}`
   card.append(badge, title, text, revision)
+  renderGroundedProposalControls(card, groundingTarget(result, researchState.snapshot))
 
   const again = document.createElement('button')
   again.className = 'secondary research-again'
@@ -243,7 +332,7 @@ function renderPromotion(result, hit, stance, checkpointed) {
   panel.append(card, again)
 }
 
-function savePromotionFlash(result, hit, stance) {
+function savePromotionFlash(result, hit, stance, snapshot) {
   try {
     window.sessionStorage.setItem(
       PROMOTION_FLASH_KEY,
@@ -253,6 +342,11 @@ function savePromotionFlash(result, hit, stance) {
         stance,
         revision_number: result.revision.revision_number,
         citation_status: result.citation.status,
+        citation_id: result.citation.id,
+        draft_version: result.draft.version,
+        selection_start: snapshot.start,
+        selection_end: snapshot.end,
+        selection_text: snapshot.text,
       }),
     )
   } catch (_error) {
@@ -290,6 +384,13 @@ function renderPromotionFlash() {
   const revision = document.createElement('small')
   revision.textContent = `Revision ${flash.revision_number} · citation ${flash.citation_status}`
   card.append(badge, title, text, revision)
+  renderGroundedProposalControls(card, {
+    citationId: flash.citation_id,
+    draftVersion: flash.draft_version,
+    selectionStart: flash.selection_start,
+    selectionEnd: flash.selection_end,
+    selectionText: flash.selection_text,
+  })
   panel.appendChild(card)
   return true
 }
@@ -337,7 +438,7 @@ async function promoteEvidence(hit, stance, button) {
     }
 
     if (checkpointed) {
-      savePromotionFlash(result, hit, stance)
+      savePromotionFlash(result, hit, stance, researchState.snapshot)
       window.location.reload()
       return
     }
