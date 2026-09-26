@@ -32,7 +32,7 @@ If the current draft already exactly matches its immutable base revision, Mi-Lla
 
 ## Idempotency
 
-Each promotion attempt owns a UUID. Repeating the same request cannot create a second claim for that operation. Existing `(claim, chunk, stance)` evidence is reused, and a unique passage/entity index prevents duplicate manuscript research links.
+Each promotion attempt owns a UUID. Repeating the same request cannot create a second claim for that operation. Existing `(claim, chunk, stance)` evidence is reused. The promotion RPC locks the manuscript document before checking and creating passage/entity links, so concurrent retries on the same manuscript serialize without requiring a schema migration that could reject historical duplicate rows.
 
 ## Deliberate exclusions
 
