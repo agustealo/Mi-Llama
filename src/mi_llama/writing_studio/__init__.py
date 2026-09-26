@@ -1,10 +1,10 @@
+from mi_llama.domain import ManuscriptConversationContextRequest
 from mi_llama.writing_studio.models import (
     ApplyWritingProposalRequest,
     CheckpointManuscriptDraftRequest,
     CheckpointManuscriptDraftResult,
     CreateDocumentConversationRequest,
     CreateWritingProposalRequest,
-    ManuscriptConversationContextRequest,
     ManuscriptDraft,
     SaveManuscriptDraftRequest,
     SendDocumentConversationMessageRequest,
