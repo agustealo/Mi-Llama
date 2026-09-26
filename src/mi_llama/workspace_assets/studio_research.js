@@ -2,8 +2,7 @@ import { AuthClient, AuthError } from './auth.js'
 
 const SEARCH_LIMIT = 6
 const SEARCH_MAX_CHARS = 4000
-const POLL_DELAY_MS = 180
-const CHECKPOINT_TIMEOUT_MS = 12000
+const PROMOTION_FLASH_KEY = 'mi-llama.research-promotion.v1'
 
 let authError = null
 const authPromise = AuthClient.create().catch((error) => {
@@ -19,7 +18,6 @@ const researchState = {
 }
 
 const $ = (selector) => document.querySelector(selector)
-const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
 async function apiJson(path, options = {}) {
   const auth = await authPromise
@@ -159,7 +157,7 @@ function renderSearchResults() {
     const source = document.createElement('b')
     source.textContent = sourceLabel(hit)
     const relevance = document.createElement('span')
-    relevance.textContent = `relevance ${Number(hit.relevance || 0).toFixed(3)}`
+    relevance.textContent = `retrieval score ${Number(hit.relevance || 0).toFixed(3)}`
     head.append(source, relevance)
 
     const excerpt = document.createElement('p')
@@ -218,63 +216,6 @@ async function findEvidence() {
   }
 }
 
-async function latestDraft(projectId, documentId) {
-  return apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/draft`)
-}
-
-async function reusableBaseRevision(snapshot, draft) {
-  if (!draft?.base_revision_id) return null
-  const revisions = await apiJson(
-    `/api/projects/${snapshot.projectId}/writing/documents/${snapshot.documentId}/revisions`,
-  )
-  const revision = revisions.find((item) => item.id === draft.base_revision_id)
-  if (!revision || revision.content !== draft.plain_text) return null
-  if (revision.content.slice(snapshot.start, snapshot.end) !== snapshot.text) return null
-  return revision
-}
-
-async function checkpointSelection(snapshot, draft) {
-  const reusable = await reusableBaseRevision(snapshot, draft)
-  if (reusable) return { draft, revision: reusable, checkpointed: false }
-
-  const button = $('#checkpoint-revision')
-  const editor = $('#manuscript-editor')
-  if (!button || !editor || button.disabled) {
-    throw new Error('The manuscript cannot create an immutable revision right now.')
-  }
-
-  const originalReadOnly = editor.readOnly
-  editor.readOnly = true
-  button.click()
-  const deadline = Date.now() + CHECKPOINT_TIMEOUT_MS
-  try {
-    while (Date.now() < deadline) {
-      await sleep(POLL_DELAY_MS)
-      const current = await latestDraft(snapshot.projectId, snapshot.documentId)
-      if (
-        current?.version > draft.version &&
-        current.base_revision_id &&
-        current.plain_text === snapshot.fullText
-      ) {
-        const revisions = await apiJson(
-          `/api/projects/${snapshot.projectId}/writing/documents/${snapshot.documentId}/revisions`,
-        )
-        const revision = revisions.find((item) => item.id === current.base_revision_id)
-        if (revision?.content === snapshot.fullText) {
-          return { draft: current, revision, checkpointed: true }
-        }
-      }
-      const studioError = $('#studio-error')
-      if (studioError && !studioError.hidden && studioError.textContent.trim()) {
-        throw new Error(studioError.textContent.trim())
-      }
-    }
-    throw new Error('Revision checkpoint did not complete before the evidence operation timed out.')
-  } finally {
-    editor.readOnly = originalReadOnly
-  }
-}
-
 function renderPromotion(result, hit, stance, checkpointed) {
   const panel = researchPanel()
   if (!panel) return
@@ -301,6 +242,57 @@ function renderPromotion(result, hit, stance, checkpointed) {
   panel.append(card, again)
 }
 
+function savePromotionFlash(result, hit, stance) {
+  try {
+    window.sessionStorage.setItem(
+      PROMOTION_FLASH_KEY,
+      JSON.stringify({
+        document_id: result.draft.document_id,
+        source: sourceLabel(hit),
+        stance,
+        revision_number: result.revision.revision_number,
+        citation_status: result.citation.status,
+      }),
+    )
+  } catch (_error) {
+    // The database promotion is already authoritative; flash UI is optional.
+  }
+}
+
+function takePromotionFlash() {
+  try {
+    const raw = window.sessionStorage.getItem(PROMOTION_FLASH_KEY)
+    if (!raw) return null
+    window.sessionStorage.removeItem(PROMOTION_FLASH_KEY)
+    return JSON.parse(raw)
+  } catch (_error) {
+    return null
+  }
+}
+
+function renderPromotionFlash() {
+  const flash = takePromotionFlash()
+  const { documentId } = manuscriptContext()
+  if (!flash || flash.document_id !== documentId) return false
+  const panel = researchPanel()
+  if (!panel) return false
+  panel.replaceChildren()
+  const card = document.createElement('article')
+  card.className = 'research-promotion'
+  const badge = document.createElement('span')
+  badge.className = 'research-promoted-badge'
+  badge.textContent = `${flash.stance} · linked`
+  const title = document.createElement('b')
+  title.textContent = flash.source
+  const text = document.createElement('p')
+  text.textContent = 'Evidence was committed atomically and the studio reloaded the authoritative manuscript checkpoint.'
+  const revision = document.createElement('small')
+  revision.textContent = `Revision ${flash.revision_number} · citation ${flash.citation_status}`
+  card.append(badge, title, text, revision)
+  panel.appendChild(card)
+  return true
+}
+
 async function promoteEvidence(hit, stance, button) {
   if (researchState.busy || !researchState.snapshot) return
   const snapshot = researchState.snapshot
@@ -315,19 +307,9 @@ async function promoteEvidence(hit, stance, button) {
     return
   }
 
-  setResearchBusy(true, 'Binding evidence to an immutable manuscript passage…')
+  setResearchBusy(true, 'Committing evidence against an immutable manuscript passage…')
   button.disabled = true
   try {
-    const currentDraft = await latestDraft(snapshot.projectId, snapshot.documentId)
-    if (
-      !currentDraft ||
-      currentDraft.version !== snapshot.draftVersion ||
-      currentDraft.plain_text !== snapshot.fullText
-    ) {
-      throw new Error('The saved draft changed after this evidence search. Search the passage again.')
-    }
-
-    const immutable = await checkpointSelection(snapshot, currentDraft)
     const promotionId = hit.promotionId || crypto.randomUUID()
     hit.promotionId = promotionId
     const result = await apiJson(
@@ -336,8 +318,7 @@ async function promoteEvidence(hit, stance, button) {
         method: 'POST',
         body: JSON.stringify({
           promotion_id: promotionId,
-          revision_id: immutable.revision.id,
-          expected_draft_version: immutable.draft.version,
+          expected_draft_version: snapshot.draftVersion,
           selection_start: snapshot.start,
           selection_end: snapshot.end,
           chunk_id: hit.chunk_id,
@@ -347,14 +328,25 @@ async function promoteEvidence(hit, stance, button) {
       },
     )
     researchState.promotion = result
+    const checkpointed = result.draft.version !== snapshot.draftVersion
     researchState.snapshot = {
       ...snapshot,
-      draftVersion: immutable.draft.version,
-      baseRevisionId: immutable.revision.id,
+      draftVersion: result.draft.version,
+      baseRevisionId: result.revision.id,
     }
-    renderPromotion(result, hit, stance, immutable.checkpointed)
+
+    if (checkpointed) {
+      savePromotionFlash(result, hit, stance)
+      window.location.reload()
+      return
+    }
+    renderPromotion(result, hit, stance, false)
   } catch (error) {
-    showResearchError(error.message || 'Evidence promotion failed.')
+    if (error instanceof AuthError && error.status === 409) {
+      showResearchError('The saved manuscript changed after this evidence search. Select the passage again and refresh the candidates.')
+    } else {
+      showResearchError(error.message || 'Evidence promotion failed.')
+    }
   } finally {
     button.disabled = false
     setResearchBusy(false)
@@ -377,6 +369,7 @@ function installResearchInteraction() {
     toolbar.appendChild(button)
   }
 
+  let createdPanel = false
   if (!researchPanel()) {
     const section = document.createElement('section')
     section.id = 'research-evidence-panel'
@@ -384,8 +377,9 @@ function installResearchInteraction() {
     const proposal = $('#proposal-panel')
     if (proposal) proposal.insertAdjacentElement('afterend', section)
     else collaborator.appendChild(section)
-    clearResearchState()
+    createdPanel = true
   }
+  if (createdPanel && !renderPromotionFlash()) clearResearchState()
 
   if (editor.dataset.researchBound !== 'true') {
     editor.dataset.researchBound = 'true'

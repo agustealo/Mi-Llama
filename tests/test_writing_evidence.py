@@ -29,7 +29,7 @@ EVIDENCE_ID = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
 CITATION_ID = UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
 CLAIM_LINK_ID = UUID("cccccccc-cccc-4ccc-8ccc-cccccccccccc")
 EVIDENCE_LINK_ID = UUID("dddddddd-dddd-4ddd-8ddd-dddddddddddd")
-NOW = datetime(2026, 9, 26, 2, 45, tzinfo=UTC).isoformat()
+NOW = datetime(2026, 9, 26, 3, 10, tzinfo=UTC).isoformat()
 
 
 def promotion_payload() -> dict[str, object]:
@@ -40,7 +40,7 @@ def promotion_payload() -> dict[str, object]:
         "created_by": str(USER_ID),
         "updated_by": str(USER_ID),
         "base_revision_id": str(REVISION_ID),
-        "version": 8,
+        "version": 9,
         "editor_state": {"schema": "plain_text_v1", "text": "Evidence matters."},
         "plain_text": "Evidence matters.",
         "created_at": NOW,
@@ -50,7 +50,7 @@ def promotion_payload() -> dict[str, object]:
         "id": str(REVISION_ID),
         "document_id": str(DOCUMENT_ID),
         "project_id": str(PROJECT_ID),
-        "revision_number": 4,
+        "revision_number": 5,
         "created_by": str(USER_ID),
         "content": "Evidence matters.",
         "word_count": 2,
@@ -121,7 +121,6 @@ def test_promotion_request_rejects_reversed_selection() -> None:
     with pytest.raises(ValidationError):
         PromoteWritingEvidenceRequest(
             promotion_id=PROMOTION_ID,
-            revision_id=REVISION_ID,
             expected_draft_version=8,
             selection_start=10,
             selection_end=4,
@@ -130,24 +129,30 @@ def test_promotion_request_rejects_reversed_selection() -> None:
         )
 
 
-def test_promotion_migration_preserves_caller_rls() -> None:
+def test_atomic_promotion_migration_fences_authority_and_supports_retry() -> None:
     migration = (
         Path(__file__).parents[1]
         / "supabase"
         / "migrations"
-        / "20260926024500_writing_evidence_interaction.sql"
+        / "20260926031000_atomic_writing_evidence_promotion.sql"
     ).read_text()
 
-    assert "security invoker" in migration
-    assert "set search_path = ''" in migration
-    assert "security definer" not in migration
-    assert ") from public;" in migration
-    assert ") from anon;" in migration
-    assert ") to authenticated;" in migration
+    assert "drop function if exists public.promote_writing_evidence" in migration
+    assert "security definer" in migration
+    assert "caller := auth.uid()" in migration
+    assert "public.can_edit_project(p_project_id)" in migration
     assert "for update;" in migration
+    assert "chunk_row.project_id = p_project_id" in migration
+    assert "version = target_draft.version + 1" in migration
+    assert "set status = 'stale'" in migration
+    assert "grant execute on function public.promote_writing_evidence" in migration
+
+    idempotent_lookup = migration.index("where claim_row.id = p_promotion_id")
+    stale_fence = migration.index("target_draft.version <> p_expected_draft_version")
+    assert idempotent_lookup < stale_fence
 
 
-def test_supabase_promotion_uses_one_atomic_rpc() -> None:
+def test_supabase_promotion_uses_one_atomic_rpc_without_revision_choreography() -> None:
     seen: list[dict[str, object]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -171,7 +176,6 @@ def test_supabase_promotion_uses_one_atomic_rpc() -> None:
                 document_id=DOCUMENT_ID,
                 request=PromoteWritingEvidenceRequest(
                     promotion_id=PROMOTION_ID,
-                    revision_id=REVISION_ID,
                     expected_draft_version=8,
                     selection_start=0,
                     selection_end=17,
@@ -182,6 +186,7 @@ def test_supabase_promotion_uses_one_atomic_rpc() -> None:
         finally:
             await repository.close()
 
+        assert result.draft.version == 9
         assert result.claim.id == PROMOTION_ID
         assert result.evidence.chunk_id == CHUNK_ID
         assert result.citation.status.value == "proposed"
@@ -194,7 +199,6 @@ def test_supabase_promotion_uses_one_atomic_rpc() -> None:
             "p_project_id": str(PROJECT_ID),
             "p_document_id": str(DOCUMENT_ID),
             "p_promotion_id": str(PROMOTION_ID),
-            "p_revision_id": str(REVISION_ID),
             "p_expected_draft_version": 8,
             "p_selection_start": 0,
             "p_selection_end": 17,

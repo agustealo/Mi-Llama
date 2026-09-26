@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Annotated, Protocol, runtime_checkable
+from typing import Annotated, Protocol, Self, runtime_checkable
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -21,7 +21,6 @@ from mi_llama.writing_studio.repository import SupabaseWritingStudioRepository
 
 class PromoteWritingEvidenceRequest(BaseModel):
     promotion_id: UUID
-    revision_id: UUID
     expected_draft_version: int = Field(ge=1)
     selection_start: int = Field(ge=0)
     selection_end: int = Field(ge=1)
@@ -30,7 +29,7 @@ class PromoteWritingEvidenceRequest(BaseModel):
     note: str | None = Field(default=None, max_length=8000)
 
     @model_validator(mode="after")
-    def validate_selection(self) -> PromoteWritingEvidenceRequest:
+    def validate_selection(self) -> Self:
         if self.selection_end <= self.selection_start:
             raise ValueError("selection_end must be greater than selection_start")
         return self
@@ -47,7 +46,7 @@ class WritingEvidencePromotionResult(BaseModel):
 
 
 class WritingEvidenceConflict(RuntimeError):
-    """The draft/revision identity changed before evidence could be promoted."""
+    """The draft identity changed before evidence could be promoted."""
 
 
 class WritingEvidenceValidationError(RuntimeError):
@@ -89,7 +88,6 @@ class SupabaseWritingEvidenceRepository(SupabaseWritingStudioRepository):
                 "p_project_id": str(project_id),
                 "p_document_id": str(document_id),
                 "p_promotion_id": str(request.promotion_id),
-                "p_revision_id": str(request.revision_id),
                 "p_expected_draft_version": request.expected_draft_version,
                 "p_selection_start": request.selection_start,
                 "p_selection_end": request.selection_end,
@@ -109,8 +107,6 @@ def _map_repository_error(exc: RepositoryError) -> RuntimeError | None:
         for marker in (
             "version is stale",
             "draft version",
-            "current draft base",
-            "revision no longer matches",
         )
     ):
         return WritingEvidenceConflict(message)
@@ -124,6 +120,8 @@ def _map_repository_error(exc: RepositoryError) -> RuntimeError | None:
             "stance",
             "promotion id",
             "maximum",
+            "evidence link",
+            "citation candidate",
         )
     ):
         return WritingEvidenceValidationError(message)
