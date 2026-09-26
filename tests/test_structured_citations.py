@@ -56,6 +56,7 @@ def _revision(text: str) -> ManuscriptRevision:
         revision_number=7,
         created_by=USER_ID,
         content=text,
+        editor_state={"schema": "plain_text_v1", "text": text},
         word_count=2,
         created_at=_now(),
     )
