@@ -46,6 +46,24 @@ def test_revision_model_exposes_structured_editor_snapshot() -> None:
     assert revision.content == "Immutable formatting"
 
 
+def test_revision_model_truthfully_accepts_legacy_payload_during_rollout() -> None:
+    revision = ManuscriptRevision(
+        id=REVISION_ID,
+        document_id=DOCUMENT_ID,
+        project_id=PROJECT_ID,
+        revision_number=7,
+        created_by=USER_ID,
+        content="Legacy immutable text",
+        word_count=3,
+        created_at=datetime.now(UTC),
+    )
+
+    assert revision.editor_state == {
+        "schema": "plain_text_v1",
+        "text": "Legacy immutable text",
+    }
+
+
 def test_revision_snapshot_migration_backfills_and_requires_editor_state() -> None:
     sql = MIGRATION.read_text()
 
