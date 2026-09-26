@@ -151,7 +151,10 @@ class GroundedRepositoryFake:
             project_id=PROJECT_ID,
             ordinal=2,
             location="p. 14",
-            content="Measured photovoltaic output increased as irradiance increased under controlled conditions.",
+            content=(
+                "Measured photovoltaic output increased as irradiance increased "
+                "under controlled conditions."
+            ),
             character_start=200,
             character_end=292,
             created_at=now,
