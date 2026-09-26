@@ -6,10 +6,12 @@ from mi_llama.writing_studio.models import (
     CreateDocumentConversationRequest,
     CreateWritingProposalRequest,
     ManuscriptDraft,
+    RefineWritingProposalRequest,
     SaveManuscriptDraftRequest,
     SendDocumentConversationMessageRequest,
     WritingProposal,
     WritingProposalApplicationResult,
+    WritingProposalExplanation,
     WritingProposalOperation,
     WritingProposalStatus,
 )
@@ -17,7 +19,7 @@ from mi_llama.writing_studio.repository import (
     SupabaseWritingStudioRepository,
     WritingStudioRepository,
 )
-from mi_llama.writing_studio.routes import register_writing_studio_routes
+from mi_llama.writing_studio.routing import register_writing_studio_routes
 from mi_llama.writing_studio.service import (
     DraftVersionConflict,
     WritingProposalStale,
@@ -35,11 +37,13 @@ __all__ = [
     "DraftVersionConflict",
     "ManuscriptConversationContextRequest",
     "ManuscriptDraft",
+    "RefineWritingProposalRequest",
     "SaveManuscriptDraftRequest",
     "SendDocumentConversationMessageRequest",
     "SupabaseWritingStudioRepository",
     "WritingProposal",
     "WritingProposalApplicationResult",
+    "WritingProposalExplanation",
     "WritingProposalOperation",
     "WritingProposalStale",
     "WritingProposalStatus",
