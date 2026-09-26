@@ -248,7 +248,10 @@ async def test_grounded_proposal_resolves_canonical_evidence_and_freezes_provena
     model_prompt = provider.calls[-1][-1].content
     assert "Stance: supports" in model_prompt
     assert repository.chunk.content in model_prompt
-    assert "citation insertion remains a separate writer-reviewed authority" in provider.calls[-1][0].content
+    assert (
+        "citation insertion remains a separate writer-reviewed authority"
+        in provider.calls[-1][0].content
+    )
 
 
 @pytest.mark.asyncio
