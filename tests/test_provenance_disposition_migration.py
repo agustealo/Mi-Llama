@@ -24,7 +24,9 @@ def test_provenance_disposition_is_revision_fenced_and_grounded() -> None:
     sql = MIGRATION.read_text()
     assert "if current_version <> new.draft_version" in sql
     assert "target_proposal.status <> 'accepted'" in sql
-    assert "jsonb_array_length(target_proposal.context_manifest->'grounding'->'citations') = 0" in sql
+    assert (
+        "jsonb_array_length(target_proposal.context_manifest->'grounding'->'citations') = 0" in sql
+    )
     assert "replacement.status <> 'accepted'" in sql
     assert "replacement.base_draft_version <= target_proposal.base_draft_version" in sql
     assert "superseding proposal must be accepted after the historical proposal" in sql
