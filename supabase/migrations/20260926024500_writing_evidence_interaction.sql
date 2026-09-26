@@ -1,16 +1,5 @@
 begin;
 
-create unique index if not exists uq_writing_research_links_passage_entity
-on public.writing_research_links (
-    project_id,
-    document_id,
-    revision_id,
-    kind,
-    entity_id,
-    coalesce(character_start, -1),
-    coalesce(character_end, -1)
-);
-
 create or replace function public.promote_writing_evidence(
     p_project_id uuid,
     p_document_id uuid,
@@ -198,27 +187,6 @@ begin
         raise exception 'citation candidate could not be materialized';
     end if;
 
-    insert into public.writing_research_links (
-        project_id,
-        document_id,
-        revision_id,
-        created_by,
-        kind,
-        entity_id,
-        character_start,
-        character_end
-    ) values (
-        p_project_id,
-        p_document_id,
-        p_revision_id,
-        caller,
-        'claim',
-        target_claim.id,
-        p_selection_start,
-        p_selection_end
-    )
-    on conflict do nothing;
-
     select *
     into target_claim_link
     from public.writing_research_links link_row
@@ -232,26 +200,28 @@ begin
     order by link_row.created_at
     limit 1;
 
-    insert into public.writing_research_links (
-        project_id,
-        document_id,
-        revision_id,
-        created_by,
-        kind,
-        entity_id,
-        character_start,
-        character_end
-    ) values (
-        p_project_id,
-        p_document_id,
-        p_revision_id,
-        caller,
-        'evidence',
-        target_evidence.id,
-        p_selection_start,
-        p_selection_end
-    )
-    on conflict do nothing;
+    if not found then
+        insert into public.writing_research_links (
+            project_id,
+            document_id,
+            revision_id,
+            created_by,
+            kind,
+            entity_id,
+            character_start,
+            character_end
+        ) values (
+            p_project_id,
+            p_document_id,
+            p_revision_id,
+            caller,
+            'claim',
+            target_claim.id,
+            p_selection_start,
+            p_selection_end
+        )
+        returning * into target_claim_link;
+    end if;
 
     select *
     into target_evidence_link
@@ -266,8 +236,27 @@ begin
     order by link_row.created_at
     limit 1;
 
-    if target_claim_link.id is null or target_evidence_link.id is null then
-        raise exception 'writing evidence links could not be materialized';
+    if not found then
+        insert into public.writing_research_links (
+            project_id,
+            document_id,
+            revision_id,
+            created_by,
+            kind,
+            entity_id,
+            character_start,
+            character_end
+        ) values (
+            p_project_id,
+            p_document_id,
+            p_revision_id,
+            caller,
+            'evidence',
+            target_evidence.id,
+            p_selection_start,
+            p_selection_end
+        )
+        returning * into target_evidence_link;
     end if;
 
     return query
