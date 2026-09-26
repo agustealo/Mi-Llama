@@ -88,6 +88,24 @@ class ChatMessage(BaseModel):
     content: str = Field(min_length=1)
 
 
+class ManuscriptConversationContextRequest(BaseModel):
+    draft_version: int = Field(ge=1)
+    character_start: int | None = Field(default=None, ge=0)
+    character_end: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_range(self) -> Self:
+        if (self.character_start is None) != (self.character_end is None):
+            raise ValueError("character_start and character_end must be provided together")
+        if (
+            self.character_start is not None
+            and self.character_end is not None
+            and self.character_end <= self.character_start
+        ):
+            raise ValueError("character_end must be greater than character_start")
+        return self
+
+
 class ManuscriptMessageContext(BaseModel):
     kind: Literal["manuscript_draft"] = "manuscript_draft"
     document_id: UUID
