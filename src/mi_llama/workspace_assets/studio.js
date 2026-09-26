@@ -1,4 +1,5 @@
 import { AuthClient, AuthError } from './auth.js'
+import { bindTextareaEditor, clearEditorAdapter, documentStateForText, getEditorAdapter } from './editor_adapter.js'
 
 const PROJECT_KEY = 'mi-llama.project.v1'
 const DOCUMENT_KEY = 'mi-llama.document.v1'
@@ -379,7 +380,7 @@ async function loadDocumentDraft() {
           body: JSON.stringify({
             expected_version: null,
             base_revision_id: document.current_revision_id,
-            editor_state: { schema: 'plain_text_v1', text },
+            editor_state: documentStateForText(text),
             plain_text: text,
           }),
         },
@@ -391,7 +392,7 @@ async function loadDocumentDraft() {
           version: null,
           base_revision_id: document.current_revision_id,
           plain_text: text,
-          editor_state: { schema: 'plain_text_v1', text },
+          editor_state: documentStateForText(text),
         }
       } else {
         throw error
@@ -575,6 +576,7 @@ function editorView() {
 }
 
 function renderManuscriptStudio() {
+  clearEditorAdapter()
   const content = $('#content')
   if (!content || currentView() !== 'manuscript') return
   if (!state.auth?.signedIn) {
@@ -598,12 +600,11 @@ function renderManuscriptStudio() {
   renderDocumentSelector()
   renderModelSelector()
 
-  const editor = $('#manuscript-editor')
-  editor.value = state.localText
-  editor.addEventListener('input', onEditorInput)
-  editor.addEventListener('select', updateSelectionToolbar)
-  editor.addEventListener('keyup', updateSelectionToolbar)
-  editor.addEventListener('mouseup', updateSelectionToolbar)
+  const editorElement = $('#manuscript-editor')
+  const editor = bindTextareaEditor(editorElement)
+  editor.setText(state.localText)
+  editor.onChange(onEditorInput)
+  editor.onSelectionChange(updateSelectionToolbar)
   $('#selection-toolbar').addEventListener('mousedown', (event) => event.preventDefault())
   $('#selection-toolbar').querySelectorAll('[data-operation]').forEach((button) => {
     button.addEventListener('click', () => requestProposal(button.dataset.operation))
@@ -642,19 +643,19 @@ function renderModelSelector() {
 }
 
 function updateSelectionToolbar() {
-  const editor = $('#manuscript-editor')
+  const editor = getEditorAdapter()
   const toolbar = $('#selection-toolbar')
   if (!editor || !toolbar) return
-  const start = editor.selectionStart
-  const end = editor.selectionEnd
-  const selected = end > start ? editor.value.slice(start, end) : ''
-  toolbar.hidden = !selected.trim() || !state.canEdit || state.conflict || Boolean(state.saveError)
+  const selection = editor.getSelection()
+  toolbar.hidden = !selection.text.trim() || !state.canEdit || state.conflict || Boolean(state.saveError)
   const count = $('#selection-count')
-  if (count) count.textContent = selected ? `${selected.length} chars` : ''
+  if (count) count.textContent = selection.text ? `${selection.text.length} chars` : ''
 }
 
-function onEditorInput(event) {
-  state.localText = event.currentTarget.value
+function onEditorInput() {
+  const editor = getEditorAdapter()
+  if (!editor) return
+  state.localText = editor.getText()
   state.dirty = state.localText !== (state.draft?.plain_text || '')
   state.proposal = null
   state.saveError = null
@@ -703,7 +704,7 @@ async function saveDraftNow() {
           body: JSON.stringify({
             expected_version: expectedVersion,
             base_revision_id: baseRevisionId,
-            editor_state: { schema: 'plain_text_v1', text },
+            editor_state: documentStateForText(text),
             plain_text: text,
           }),
         },
@@ -725,8 +726,7 @@ async function saveDraftNow() {
       } else if (error instanceof AuthError && error.status === 403) {
         state.canEdit = false
         setStudioStatus('Write access denied', 'danger')
-        const editor = $('#manuscript-editor')
-        if (editor) editor.readOnly = true
+        getEditorAdapter()?.setReadOnly(true)
       } else {
         setStudioStatus('Save failed · retry required', 'danger')
       }
@@ -805,16 +805,17 @@ async function reloadServerDraft() {
 
 async function requestProposal(operation) {
   clearError()
-  const editor = $('#manuscript-editor')
+  const editor = getEditorAdapter()
   if (!editor || !state.canEdit || state.conflict || state.saveError) return
   if (!(await flushDraft())) {
     showError('Mi-Llama cannot edit from an unconfirmed draft. Retry the save or reload the server copy first.')
     return
   }
 
-  const selectionStart = editor.selectionStart
-  const selectionEnd = editor.selectionEnd
-  if (selectionEnd <= selectionStart || !editor.value.slice(selectionStart, selectionEnd).trim()) {
+  const selection = editor.getSelection()
+  const selectionStart = selection.start
+  const selectionEnd = selection.end
+  if (selectionEnd <= selectionStart || !selection.text.trim()) {
     showError('Select manuscript text before asking Mi-Llama to edit it.')
     return
   }
@@ -933,8 +934,7 @@ async function acceptProposal() {
     state.proposal = null
     state.dirty = false
     state.saveError = null
-    const editor = $('#manuscript-editor')
-    if (editor) editor.value = state.localText
+    getEditorAdapter()?.setText(state.localText)
     const count = $('#studio-word-count')
     if (count) count.textContent = `${wordCount(state.localText)} words`
     setStudioStatus(`AI edit accepted · v${state.draft.version}`, 'saved')

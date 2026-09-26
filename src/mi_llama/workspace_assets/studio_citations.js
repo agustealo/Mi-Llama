@@ -1,4 +1,5 @@
 import { AuthClient, AuthError } from './auth.js'
+import { getEditorAdapter } from './editor_adapter.js'
 
 const INSERTION_FLASH_KEY = 'mi-llama.citation-insertion.v1'
 const STYLES = [
@@ -45,7 +46,7 @@ function manuscriptContext() {
   return {
     projectId: $('#project-select')?.value || null,
     documentId: $('#document-select')?.value || null,
-    editor: $('#manuscript-editor'),
+    editor: getEditorAdapter(),
     collaborator: $('.collaborator-panel'),
   }
 }
@@ -466,7 +467,7 @@ async function insertCitation(form, button) {
   setFormError(form)
   try {
     const draft = await apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/draft`)
-    if (!draft?.version || draft.plain_text !== editor.value) {
+    if (!draft?.version || draft.plain_text !== editor.getText()) {
       throw new Error('The manuscript has an unconfirmed edit. Save it before inserting a citation.')
     }
     const insertionId = button.dataset.insertionId || crypto.randomUUID()

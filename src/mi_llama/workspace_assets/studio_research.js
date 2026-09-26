@@ -1,4 +1,5 @@
 import { AuthClient, AuthError } from './auth.js'
+import { getEditorAdapter } from './editor_adapter.js'
 
 const SEARCH_LIMIT = 6
 const SEARCH_MAX_CHARS = 4000
@@ -17,6 +18,9 @@ const researchState = {
   promotion: null,
 }
 
+let boundEditor = null
+let unbindEditorChange = null
+
 const $ = (selector) => document.querySelector(selector)
 
 async function apiJson(path, options = {}) {
@@ -29,25 +33,22 @@ function manuscriptContext() {
   return {
     projectId: $('#project-select')?.value || null,
     documentId: $('#document-select')?.value || null,
-    editor: $('#manuscript-editor'),
+    editor: getEditorAdapter(),
   }
 }
 
 function currentSelection() {
   const { projectId, documentId, editor } = manuscriptContext()
   if (!projectId || !documentId || !editor) return null
-  const start = editor.selectionStart
-  const end = editor.selectionEnd
-  if (end <= start) return null
-  const text = editor.value.slice(start, end)
-  if (!text.trim()) return null
+  const selection = editor.getSelection()
+  if (selection.end <= selection.start || !selection.text.trim()) return null
   return {
     projectId,
     documentId,
-    start,
-    end,
-    text,
-    fullText: editor.value,
+    start: selection.start,
+    end: selection.end,
+    text: selection.text,
+    fullText: editor.getText(),
   }
 }
 
@@ -301,7 +302,7 @@ async function promoteEvidence(hit, stance, button) {
     projectId !== snapshot.projectId ||
     documentId !== snapshot.documentId ||
     !editor ||
-    editor.value !== snapshot.fullText
+    editor.getText() !== snapshot.fullText
   ) {
     showResearchError('The manuscript changed after this evidence search. Search the passage again before promoting evidence.')
     return
@@ -357,7 +358,7 @@ function installResearchInteraction() {
   if ((location.hash || '#overview').slice(1) !== 'manuscript') return
   const toolbar = $('#selection-toolbar')
   const collaborator = $('.collaborator-panel')
-  const editor = $('#manuscript-editor')
+  const editor = getEditorAdapter()
   if (!toolbar || !collaborator || !editor) return
 
   if (!$('#find-evidence-action')) {
@@ -381,9 +382,10 @@ function installResearchInteraction() {
   }
   if (createdPanel && !renderPromotionFlash()) clearResearchState()
 
-  if (editor.dataset.researchBound !== 'true') {
-    editor.dataset.researchBound = 'true'
-    editor.addEventListener('input', () => {
+  if (editor !== boundEditor) {
+    if (unbindEditorChange) unbindEditorChange()
+    boundEditor = editor
+    unbindEditorChange = editor.onChange(() => {
       if (researchState.snapshot || researchState.hits.length || researchState.promotion) {
         clearResearchState('The manuscript changed. Select the passage again to refresh evidence context.')
       }
