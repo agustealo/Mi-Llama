@@ -9,6 +9,15 @@ function reviewedTime(proposal) {
   return proposal?.reviewed_at || proposal?.updated_at || proposal?.created_at || ''
 }
 
+function citationClosureStatus(item, contexts, documentId) {
+  const context = contextFor(contexts, item.citation_id)
+  const insertedHere =
+    context?.insertion && String(context.insertion.document_id) === String(documentId)
+  if (insertedHere) return 'inserted'
+  if (context?.citation?.status === 'rejected') return 'rejected'
+  return 'pending'
+}
+
 export function acceptedGroundingObligations(proposals, draft) {
   if (!Array.isArray(proposals) || typeof draft?.plain_text !== 'string') return []
 
@@ -48,22 +57,52 @@ export function acceptedGroundingObligations(proposals, draft) {
     .sort((a, b) => b.reviewedAt.localeCompare(a.reviewedAt))
 }
 
+export function documentProvenanceHealth(obligations, contexts, documentId) {
+  if (!Array.isArray(obligations) || !documentId) {
+    return {
+      totalGroundedEdits: 0,
+      fullyCitedEdits: 0,
+      openCitationEdits: 0,
+      changedAfterGrounding: 0,
+      counterevidenceEdits: 0,
+      items: [],
+    }
+  }
+
+  const items = obligations.map((obligation) => {
+    const citations = obligation.citations.map((item) => ({
+      ...item,
+      closureStatus: citationClosureStatus(item, contexts, documentId),
+    }))
+    const openCitations = citations.filter((item) => item.closureStatus !== 'inserted')
+    return {
+      ...obligation,
+      citations,
+      openCitationCount: openCitations.length,
+      fullyCited: openCitations.length === 0,
+      hasCounterevidence: citations.some((item) => item.stance === 'contradicts'),
+    }
+  })
+
+  return {
+    totalGroundedEdits: items.length,
+    fullyCitedEdits: items.filter((item) => item.fullyCited).length,
+    openCitationEdits: items.filter((item) => !item.fullyCited).length,
+    changedAfterGrounding: items.filter((item) => item.manuscriptState === 'changed').length,
+    counterevidenceEdits: items.filter((item) => item.hasCounterevidence).length,
+    items,
+  }
+}
+
 export function unresolvedCitationObligations(obligations, contexts, documentId) {
   if (!Array.isArray(obligations) || !documentId) return []
 
   const unresolved = []
   for (const obligation of obligations) {
-    const citations = obligation.citations.map((item) => {
-      const context = contextFor(contexts, item.citation_id)
-      const insertedHere =
-        context?.insertion && String(context.insertion.document_id) === String(documentId)
-      const status = insertedHere
-        ? 'inserted'
-        : context?.citation?.status === 'rejected'
-          ? 'rejected'
-          : 'pending'
-      return { ...item, closureStatus: status }
-    })
+    const citations = obligation.citations.map((item) => ({
+      ...item,
+      closureStatus: citationClosureStatus(item, contexts, documentId),
+    }))
     const openCitations = citations.filter((item) => item.closureStatus !== 'inserted')
     if (openCitations.length === 0) continue
     unresolved.push({
@@ -87,4 +126,16 @@ export function citationClosureFingerprint(obligations) {
       return `${obligation.proposalId}:${obligation.manuscriptState}:${citations}`
     })
     .join('||')
+}
+
+export function documentProvenanceFingerprint(health, unresolved) {
+  if (!health?.totalGroundedEdits) return null
+  const summary = [
+    health.totalGroundedEdits,
+    health.fullyCitedEdits,
+    health.openCitationEdits,
+    health.changedAfterGrounding,
+    health.counterevidenceEdits,
+  ].join(':')
+  return `${summary}::${citationClosureFingerprint(unresolved) || 'closed'}`
 }
