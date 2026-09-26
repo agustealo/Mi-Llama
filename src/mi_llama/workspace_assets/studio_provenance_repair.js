@@ -4,6 +4,7 @@ import {
   acceptedGroundingObligations,
   provenanceRepairItems,
   provenanceRestoreProposalRequest,
+  resolvedProvenanceObligations,
 } from './citation_closure_contract.js'
 
 let authPromise = null
@@ -65,6 +66,41 @@ function reGroundSelection() {
   return true
 }
 
+function proposalTimestamp(proposal) {
+  return proposal?.reviewed_at || proposal?.updated_at || proposal?.created_at || ''
+}
+
+function isGroundedAccepted(proposal) {
+  return (
+    proposal?.status === 'accepted' &&
+    Array.isArray(proposal?.context_manifest?.grounding?.citations) &&
+    proposal.context_manifest.grounding.citations.length > 0
+  )
+}
+
+function supersedingCandidates(item, proposals) {
+  return proposals
+    .filter(
+      (proposal) =>
+        isGroundedAccepted(proposal) &&
+        proposal.id !== item.proposalId &&
+        Number(proposal.base_draft_version) > Number(item.baseDraftVersion) &&
+        proposalTimestamp(proposal) > item.reviewedAt,
+    )
+    .sort((a, b) => proposalTimestamp(b).localeCompare(proposalTimestamp(a)))
+}
+
+async function currentSavedDraft() {
+  const { projectId, documentId } = ids()
+  const editor = getEditorAdapter()
+  if (!projectId || !documentId || !editor) throw new Error('The manuscript editor is unavailable.')
+  const draft = await apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/draft`)
+  if (!draft?.version || editor.getText() !== draft.plain_text) {
+    throw new Error('Save the current manuscript before changing provenance state.')
+  }
+  return draft
+}
+
 async function prepareRestore(item) {
   const { projectId, documentId } = ids()
   const editor = getEditorAdapter()
@@ -72,10 +108,7 @@ async function prepareRestore(item) {
   if (!projectId || !documentId || !editor || !selection?.text) {
     throw new Error('Select the current passage you want to repair first.')
   }
-  const draft = await apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/draft`)
-  if (!draft?.version || editor.getText() !== draft.plain_text) {
-    throw new Error('Save the current manuscript before preparing a repair proposal.')
-  }
+  const draft = await currentSavedDraft()
   const model = document.querySelector('#studio-model')?.value || ''
   const body = provenanceRestoreProposalRequest(item, selection, draft.version, model)
   if (!body) throw new Error('This repair cannot be prepared from the current selection.')
@@ -86,71 +119,243 @@ async function prepareRestore(item) {
   window.location.reload()
 }
 
-function render(panel, items) {
+async function saveDisposition(item, disposition, supersedingProposalId, reason) {
+  const { projectId, documentId } = ids()
+  if (!projectId || !documentId) throw new Error('Select a manuscript first.')
+  const draft = await currentSavedDraft()
+  const body = {
+    expected_draft_version: draft.version,
+    disposition,
+    superseding_proposal_id: supersedingProposalId || null,
+    reason: reason.trim() || null,
+  }
+  await apiJson(
+    `/api/projects/${projectId}/writing/documents/${documentId}/proposals/${item.proposalId}/provenance-dispositions`,
+    { method: 'POST', body: JSON.stringify(body) },
+  )
+  window.location.reload()
+}
+
+function dispositionLabel(value) {
+  if (value === 'retired') return 'No longer applicable'
+  if (value === 'superseded') return 'Superseded'
+  if (value === 'needs_regrounding') return 'Needs re-grounding'
+  return value || 'Resolved'
+}
+
+function dispositionControls(item, proposals, status) {
+  const form = document.createElement('div')
+  form.className = 'provenance-disposition-form'
+
+  const label = document.createElement('b')
+  label.textContent = 'Grounding disposition'
+  form.appendChild(label)
+
+  const select = document.createElement('select')
+  select.setAttribute('aria-label', 'Grounding disposition')
+  const options = [
+    ['', 'Choose an explicit disposition…'],
+    ['needs_regrounding', 'Needs re-grounding'],
+    ['retired', 'No longer applicable'],
+    ['superseded', 'Superseded by a later grounded edit'],
+  ]
+  for (const [value, text] of options) {
+    const option = document.createElement('option')
+    option.value = value
+    option.textContent = text
+    select.appendChild(option)
+  }
+
+  const replacements = supersedingCandidates(item, proposals)
+  const superseding = document.createElement('select')
+  superseding.className = 'provenance-superseding-select'
+  superseding.setAttribute('aria-label', 'Superseding grounded proposal')
+  const placeholder = document.createElement('option')
+  placeholder.value = ''
+  placeholder.textContent = replacements.length
+    ? 'Choose the later accepted grounded edit…'
+    : 'No later accepted grounded edit is available'
+  superseding.appendChild(placeholder)
+  for (const proposal of replacements) {
+    const option = document.createElement('option')
+    option.value = proposal.id
+    option.textContent = `${proposal.operation} · draft ${proposal.base_draft_version} · ${proposal.id.slice(0, 8)}`
+    superseding.appendChild(option)
+  }
+  superseding.hidden = true
+
+  const reason = document.createElement('textarea')
+  reason.rows = 2
+  reason.maxLength = 1000
+  reason.placeholder = 'Optional reason for the provenance record'
+
+  const save = document.createElement('button')
+  save.className = 'secondary'
+  save.textContent = 'Record disposition'
+  save.disabled = true
+
+  select.addEventListener('change', () => {
+    superseding.hidden = select.value !== 'superseded'
+    save.disabled = !select.value || (select.value === 'superseded' && replacements.length === 0)
+  })
+  superseding.addEventListener('change', () => {
+    if (select.value === 'superseded') save.disabled = !superseding.value
+  })
+
+  save.addEventListener('click', async () => {
+    if (!select.value) return
+    if (select.value === 'superseded' && !superseding.value) {
+      status.textContent = 'Choose the later accepted grounded edit that supersedes this one.'
+      return
+    }
+    const resolving = select.value === 'retired' || select.value === 'superseded'
+    if (
+      resolving &&
+      !window.confirm(
+        'This preserves the historical evidence but removes this grounding relationship from active provenance health. Record this disposition?',
+      )
+    ) {
+      return
+    }
+    save.disabled = true
+    status.textContent = 'Recording durable provenance state…'
+    try {
+      await saveDisposition(item, select.value, superseding.value, reason.value)
+    } catch (error) {
+      status.textContent = error.message || 'Could not record provenance state.'
+      save.disabled = false
+    }
+  })
+
+  form.append(select, superseding, reason, save)
+  return form
+}
+
+function repairCard(item, proposals) {
+  const card = document.createElement('article')
+  card.className = 'provenance-repair-card'
+  card.dataset.proposalId = item.proposalId
+
+  const compare = document.createElement('div')
+  compare.className = 'provenance-repair-compare'
+  compare.append(
+    compareBlock('Previously accepted grounded wording', item.acceptedText),
+    compareBlock('Current text at the original range', item.currentAtOriginalRange),
+  )
+  card.appendChild(compare)
+
+  const source = document.createElement('small')
+  source.textContent = `${item.citationIds.length} grounding citation${item.citationIds.length === 1 ? '' : 's'} remain historically attached to this accepted proposal.`
+  card.appendChild(source)
+
+  if (item.needsRegrounding) {
+    const durable = document.createElement('p')
+    durable.className = 'provenance-repair-status'
+    durable.textContent = 'Durable state: needs re-grounding. This remains active provenance work.'
+    card.appendChild(durable)
+  }
+
+  const status = document.createElement('div')
+  status.className = 'provenance-repair-status'
+  const actions = document.createElement('div')
+  actions.className = 'provenance-repair-actions'
+
+  const reground = document.createElement('button')
+  reground.className = 'secondary'
+  reground.textContent = 'Re-ground selected text'
+  reground.addEventListener('click', () => {
+    status.textContent = reGroundSelection()
+      ? 'Current selection is ready for evidence review.'
+      : 'Select the current passage in the manuscript first.'
+  })
+
+  const restore = document.createElement('button')
+  restore.className = 'primary'
+  restore.textContent = 'Prepare restore proposal'
+  restore.addEventListener('click', async () => {
+    restore.disabled = true
+    status.textContent = 'Preparing reviewable grounded proposal…'
+    try {
+      await prepareRestore(item)
+    } catch (error) {
+      status.textContent = error.message || 'Could not prepare repair proposal.'
+      restore.disabled = false
+    }
+  })
+
+  actions.append(reground, restore)
+  card.append(actions, dispositionControls(item, proposals, status), status)
+  return card
+}
+
+function resolvedCard(item) {
+  const record = item.provenanceDisposition
+  const card = document.createElement('article')
+  card.className = 'provenance-repair-card provenance-resolved-card'
+  card.dataset.proposalId = item.proposalId
+
+  const head = document.createElement('div')
+  head.className = 'provenance-resolved-head'
+  const title = document.createElement('b')
+  title.textContent = dispositionLabel(record?.disposition)
+  const date = document.createElement('span')
+  date.textContent = record?.created_at ? new Date(record.created_at).toLocaleString() : 'Recorded'
+  head.append(title, date)
+
+  const historical = compareBlock('Historical accepted grounded wording', item.acceptedText)
+  const meta = document.createElement('small')
+  const superseding = record?.superseding_proposal_id
+    ? ` · superseding proposal ${record.superseding_proposal_id.slice(0, 8)}`
+    : ''
+  meta.textContent = `${item.citations.length} frozen grounding citation${item.citations.length === 1 ? '' : 's'} preserved${superseding}`
+
+  card.append(head, historical, meta)
+  if (record?.reason) {
+    const reason = document.createElement('p')
+    reason.className = 'provenance-repair-status'
+    reason.textContent = `Reason: ${record.reason}`
+    card.appendChild(reason)
+  }
+  const review = document.createElement('button')
+  review.className = 'secondary'
+  review.textContent = 'Review historical evidence'
+  review.addEventListener('click', () => {
+    document.querySelector('#grounding-review-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+  card.appendChild(review)
+  return card
+}
+
+function render(panel, repairs, resolved, proposals) {
   panel.replaceChildren()
   const head = document.createElement('div')
   head.className = 'provenance-repair-head'
   const title = document.createElement('b')
   title.textContent = 'Provenance repair'
   const meta = document.createElement('span')
-  meta.textContent = `${items.length} changed grounded edit${items.length === 1 ? '' : 's'}`
+  meta.textContent = `${repairs.length} active · ${resolved.length} resolved`
   head.append(title, meta)
   panel.appendChild(head)
 
   const policy = document.createElement('p')
   policy.className = 'provenance-repair-policy'
   policy.textContent =
-    'Repair is explicit. Mi-Llama will not overwrite changed text or guess its new location. Select the current passage before re-grounding or preparing a restore proposal.'
+    'Repair and disposition are explicit. Mi-Llama never overwrites changed text or erases historical evidence. Retired and superseded relationships leave active health but remain auditable here.'
   panel.appendChild(policy)
 
-  for (const item of items) {
-    const card = document.createElement('article')
-    card.className = 'provenance-repair-card'
-    card.dataset.proposalId = item.proposalId
+  for (const item of repairs) panel.appendChild(repairCard(item, proposals))
 
-    const compare = document.createElement('div')
-    compare.className = 'provenance-repair-compare'
-    compare.append(
-      compareBlock('Previously accepted grounded wording', item.acceptedText),
-      compareBlock('Current text at the original range', item.currentAtOriginalRange),
-    )
-    card.appendChild(compare)
-
-    const source = document.createElement('small')
-    source.textContent = `${item.citationIds.length} grounding citation${item.citationIds.length === 1 ? '' : 's'} will be re-resolved by the server if you prepare a restore proposal.`
-    card.appendChild(source)
-
-    const status = document.createElement('div')
-    status.className = 'provenance-repair-status'
-    const actions = document.createElement('div')
-    actions.className = 'provenance-repair-actions'
-
-    const reground = document.createElement('button')
-    reground.className = 'secondary'
-    reground.textContent = 'Re-ground selected text'
-    reground.addEventListener('click', () => {
-      status.textContent = reGroundSelection()
-        ? 'Current selection is ready for evidence review.'
-        : 'Select the current passage in the manuscript first.'
-    })
-
-    const restore = document.createElement('button')
-    restore.className = 'primary'
-    restore.textContent = 'Prepare restore proposal'
-    restore.addEventListener('click', async () => {
-      restore.disabled = true
-      status.textContent = 'Preparing reviewable grounded proposal…'
-      try {
-        await prepareRestore(item)
-      } catch (error) {
-        status.textContent = error.message || 'Could not prepare repair proposal.'
-        restore.disabled = false
-      }
-    })
-
-    actions.append(reground, restore)
-    card.append(actions, status)
-    panel.appendChild(card)
+  if (resolved.length) {
+    const history = document.createElement('details')
+    history.className = 'provenance-resolved-history'
+    const summary = document.createElement('summary')
+    summary.textContent = `Resolved provenance history · ${resolved.length}`
+    history.appendChild(summary)
+    const list = document.createElement('div')
+    list.className = 'provenance-resolved-list'
+    for (const item of resolved) list.appendChild(resolvedCard(item))
+    history.appendChild(list)
+    panel.appendChild(history)
   }
 }
 
@@ -163,19 +368,22 @@ async function refresh() {
   if (!projectId || !documentId) return
   const generation = ++refreshGeneration
   try {
-    const [draft, proposals] = await Promise.all([
+    const [draft, proposals, dispositions] = await Promise.all([
       apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/draft`),
       apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/proposals`),
+      apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/provenance-dispositions`),
     ])
     if (generation !== refreshGeneration || !draft) return
-    const repairs = provenanceRepairItems(acceptedGroundingObligations(proposals, draft), draft)
-    if (repairs.length === 0) {
+    const obligations = acceptedGroundingObligations(proposals, draft, dispositions)
+    const repairs = provenanceRepairItems(obligations, draft)
+    const resolved = resolvedProvenanceObligations(obligations)
+    if (repairs.length === 0 && resolved.length === 0) {
       removePanel()
       return
     }
-    render(ensurePanel(), repairs)
+    render(ensurePanel(), repairs, resolved, proposals)
   } catch (_error) {
-    // Repair is advisory until the writer explicitly creates a normal proposal.
+    // Provenance repair/disposition is advisory until the writer explicitly records an action.
   }
 }
 
