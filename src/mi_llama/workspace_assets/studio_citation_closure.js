@@ -68,6 +68,12 @@ function sourceLabel(item) {
   return item.location ? `${item.source_filename} · ${item.location}` : item.source_filename
 }
 
+function manuscriptStateLabel(value) {
+  if (value === 'exact') return 'accepted wording still matches'
+  if (value === 'relocated') return 'accepted wording moved · text still matches'
+  return 'manuscript changed · re-review'
+}
+
 function healthMetric(label, value, tone = '') {
   const metric = document.createElement('div')
   metric.className = 'provenance-health-metric'
@@ -161,8 +167,7 @@ function renderClosure(panel, health, obligations) {
     const label = document.createElement('b')
     label.textContent = `${obligation.operation} · accepted grounded edit`
     const state = document.createElement('span')
-    state.textContent =
-      obligation.manuscriptState === 'exact' ? 'accepted wording still matches' : 'manuscript changed · re-review'
+    state.textContent = manuscriptStateLabel(obligation.manuscriptState)
     heading.append(label, state)
     card.appendChild(heading)
 
