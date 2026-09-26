@@ -121,9 +121,9 @@ class ProposalIterationService:
                     content=(
                         "You are reviewing a proposed manuscript edit. Explain only the visible "
                         "changes, likely writing benefits, tradeoffs, and uncertainties. Do not "
-                        "claim access to hidden reasoning or chain of thought. Do not invent facts, "
-                        "sources, citations, or author intent that is not present in the supplied "
-                        "text."
+                        "claim access to hidden reasoning or chain of thought. Do not invent "
+                        "facts, sources, citations, or author intent that is not present in the "
+                        "supplied text."
                     ),
                 ),
                 ChatMessage(
