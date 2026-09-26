@@ -94,6 +94,7 @@ class CheckpointRepository:
             revision_number=1,
             created_by=USER_ID,
             content=self.draft.plain_text,
+            editor_state=self.draft.editor_state,
             word_count=3,
             created_at=_now(),
         )
@@ -130,6 +131,7 @@ async def test_checkpoint_returns_one_coherent_document_revision_and_draft_state
     )
 
     assert result.revision.content == "One two three"
+    assert result.revision.editor_state == result.draft.editor_state
     assert result.document.current_revision_id == result.revision.id
     assert result.draft.base_revision_id == result.revision.id
     assert result.draft.version == 5
