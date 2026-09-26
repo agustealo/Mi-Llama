@@ -146,7 +146,6 @@ function dispositionLabel(value) {
 function dispositionControls(item, proposals, status) {
   const form = document.createElement('div')
   form.className = 'provenance-disposition-form'
-
   const label = document.createElement('b')
   label.textContent = 'Grounding disposition'
   form.appendChild(label)
@@ -288,6 +287,30 @@ function repairCard(item, proposals) {
   return card
 }
 
+function frozenEvidenceHistory(citations) {
+  const details = document.createElement('details')
+  details.className = 'provenance-resolved-evidence'
+  const summary = document.createElement('summary')
+  summary.textContent = `Frozen grounding evidence · ${citations.length}`
+  details.appendChild(summary)
+
+  for (const citation of citations) {
+    const source = document.createElement('div')
+    source.className = 'provenance-repair-copy'
+    const label = document.createElement('b')
+    label.textContent = citation.location
+      ? `${citation.source_filename} · ${citation.location} · ${citation.stance}`
+      : `${citation.source_filename} · ${citation.stance}`
+    const passage = document.createElement('blockquote')
+    passage.textContent = citation.content
+    const identity = document.createElement('small')
+    identity.textContent = `citation ${citation.citation_id} · sha256 ${citation.content_sha256}`
+    source.append(label, passage, identity)
+    details.appendChild(source)
+  }
+  return details
+}
+
 function resolvedCard(item) {
   const record = item.provenanceDisposition
   const card = document.createElement('article')
@@ -316,13 +339,7 @@ function resolvedCard(item) {
     reason.textContent = `Reason: ${record.reason}`
     card.appendChild(reason)
   }
-  const review = document.createElement('button')
-  review.className = 'secondary'
-  review.textContent = 'Review historical evidence'
-  review.addEventListener('click', () => {
-    document.querySelector('#grounding-review-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  })
-  card.appendChild(review)
+  card.appendChild(frozenEvidenceHistory(item.citations))
   return card
 }
 
