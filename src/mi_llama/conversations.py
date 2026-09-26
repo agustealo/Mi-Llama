@@ -13,14 +13,16 @@ from mi_llama.domain import (
     ChatMessage,
     Conversation,
     ConversationWithMessages,
-    ManuscriptContextRequest,
     ManuscriptMessageContext,
     Role,
     StoredMessage,
 )
 from mi_llama.providers.base import ModelProvider
 from mi_llama.repositories import Repository, RepositoryError
-from mi_llama.writing_studio.models import ManuscriptDraft
+from mi_llama.writing_studio.models import (
+    ManuscriptConversationContextRequest,
+    ManuscriptDraft,
+)
 
 _REPLY_LEASE_SECONDS = 600
 _REPLY_LEASE_RENEW_INTERVAL_SECONDS = 120
@@ -157,7 +159,7 @@ class ConversationService:
         *,
         access_token: str,
         conversation: Conversation,
-        request: ManuscriptContextRequest | None,
+        request: ManuscriptConversationContextRequest | None,
     ) -> ManuscriptMessageContext | None:
         if conversation.document_id is None:
             if request is not None:
@@ -305,7 +307,7 @@ class ConversationService:
     @staticmethod
     def _resolve_context_range(
         plain_text: str,
-        request: ManuscriptContextRequest,
+        request: ManuscriptConversationContextRequest,
     ) -> tuple[int, int]:
         if request.character_start is None or request.character_end is None:
             if len(plain_text) > _MAX_MANUSCRIPT_CONTEXT_CHARS:
