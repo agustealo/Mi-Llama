@@ -175,7 +175,9 @@ class StructuredCitationService:
             style=request.style,
         )
         if plan.expected_draft_version != request.expected_draft_version:
-            raise CitationAuthorityConflict("Manuscript draft version changed after the citation plan")
+            raise CitationAuthorityConflict(
+                "Manuscript draft version changed after the citation plan"
+            )
         if plan.metadata_version != request.metadata_version:
             raise CitationAuthorityConflict("Citation metadata changed; refresh the citation plan")
         if request.plain_text != next_content:
@@ -300,9 +302,13 @@ def build_citation_insertion_plan(
     start = evidence_link.character_start
     end = evidence_link.character_end
     if start is None or end is None or evidence_link.revision_id is None:
-        raise CitationAuthorityConflict("Citation evidence link is missing a stable manuscript range")
+        raise CitationAuthorityConflict(
+            "Citation evidence link is missing a stable manuscript range"
+        )
     if start < 0 or end <= start or end > len(revision.content):
-        raise CitationAuthorityConflict("Citation evidence range is outside the manuscript revision")
+        raise CitationAuthorityConflict(
+            "Citation evidence range is outside the manuscript revision"
+        )
 
     insertion_position = end
     if insertion_position > start and revision.content[insertion_position - 1] in ".!?":
@@ -319,9 +325,7 @@ def build_citation_insertion_plan(
     citation_start = insertion_position + len(fragment) - len(citation_text)
     citation_end = citation_start + len(citation_text)
     next_content = (
-        revision.content[:insertion_position]
-        + fragment
-        + revision.content[insertion_position:]
+        revision.content[:insertion_position] + fragment + revision.content[insertion_position:]
     )
     if len(next_content) > 2_000_000:
         raise CitationAuthorityConflict("Manuscript draft exceeds maximum size")
