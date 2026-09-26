@@ -10,7 +10,6 @@ from mi_llama.providers.base import StructuredModelProvider
 from mi_llama.research import AuthorizedResearchService
 from mi_llama.structured_citations import (
     StructuredCitationRepository,
-    SupabaseStructuredCitationRepository,
     register_structured_citation_routes,
 )
 from mi_llama.structured_writing import register_structured_writing_routes
@@ -43,10 +42,13 @@ from mi_llama.writing_intelligence.service import (
     WritingIntelligenceUnavailableError,
     WritingIntelligenceValidationError,
 )
+from mi_llama.writing_studio.provenance_disposition import (
+    SupabaseProvenanceDispositionRepository,
+)
 from mi_llama.writing_studio.repository import WritingStudioRepository
 from mi_llama.writing_studio.routing import register_writing_studio_routes
 
-SupabaseWritingIntelligenceRepository = SupabaseStructuredCitationRepository
+SupabaseWritingIntelligenceRepository = SupabaseProvenanceDispositionRepository
 
 
 def register_writing_intelligence_routes(
