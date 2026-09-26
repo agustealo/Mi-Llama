@@ -159,6 +159,16 @@ function currentManuscriptContext() {
   return { projectId, documentId, editor }
 }
 
+function lockStudioEditing() {
+  document
+    .querySelectorAll(
+      '#checkpoint-revision, #custom-proposal, [data-operation], #retry-draft-save, [data-format]',
+    )
+    .forEach((button) => {
+      button.disabled = true
+    })
+}
+
 function ensureFormattingToolbar(editor, readOnly) {
   if (document.querySelector('#rich-formatting-toolbar')) return
   const source = editor.sourceElement()
@@ -197,6 +207,14 @@ function ensureFormattingToolbar(editor, readOnly) {
     toolbar.appendChild(button)
   }
   source.insertAdjacentElement('beforebegin', toolbar)
+  if (readOnly) lockStudioEditing()
+}
+
+function activateReadOnlyDraft(editor, draft) {
+  const source = editor.sourceElement()
+  if (source instanceof HTMLTextAreaElement) source.readOnly = true
+  const richEditor = activateTiptapEditor(draft.editor_state, true)
+  ensureFormattingToolbar(richEditor, true)
 }
 
 async function activateCurrentManuscript() {
@@ -240,7 +258,11 @@ async function activateCurrentManuscript() {
       )
       window.location.reload()
     } catch (error) {
-      if (error instanceof AuthError && (error.status === 409 || error.status === 403)) {
+      if (error instanceof AuthError && error.status === 403) {
+        activateReadOnlyDraft(context.editor, draft)
+        return
+      }
+      if (error instanceof AuthError && error.status === 409) {
         window.location.reload()
         return
       }
