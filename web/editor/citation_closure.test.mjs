@@ -4,6 +4,8 @@ import test from 'node:test'
 import {
   acceptedGroundingObligations,
   citationClosureFingerprint,
+  documentProvenanceFingerprint,
+  documentProvenanceHealth,
   unresolvedCitationObligations,
 } from '../../src/mi_llama/workspace_assets/citation_closure_contract.js'
 
@@ -103,6 +105,44 @@ test('fully inserted grounded packets leave no open citation closure card', () =
   assert.deepEqual(unresolvedCitationObligations(obligations, contexts, 'doc-1'), [])
 })
 
+test('document provenance health keeps citation, drift, and counterevidence as separate facts', () => {
+  const obligations = acceptedGroundingObligations([proposal()], exactDraft)
+  const contexts = new Map([
+    ['citation-a', { citation: { status: 'accepted' }, insertion: { document_id: 'doc-1' } }],
+    ['citation-b', { citation: { status: 'accepted' }, insertion: null }],
+  ])
+  const health = documentProvenanceHealth(obligations, contexts, 'doc-1')
+  assert.equal(health.totalGroundedEdits, 1)
+  assert.equal(health.fullyCitedEdits, 0)
+  assert.equal(health.openCitationEdits, 1)
+  assert.equal(health.changedAfterGrounding, 0)
+  assert.equal(health.counterevidenceEdits, 1)
+  assert.equal(health.items[0].hasCounterevidence, true)
+})
+
+test('fully cited counterevidence remains visible as context rather than a defect', () => {
+  const obligations = acceptedGroundingObligations([proposal()], exactDraft)
+  const contexts = new Map([
+    ['citation-a', { citation: { status: 'accepted' }, insertion: { document_id: 'doc-1' } }],
+    ['citation-b', { citation: { status: 'accepted' }, insertion: { document_id: 'doc-1' } }],
+  ])
+  const health = documentProvenanceHealth(obligations, contexts, 'doc-1')
+  assert.equal(health.fullyCitedEdits, 1)
+  assert.equal(health.openCitationEdits, 0)
+  assert.equal(health.counterevidenceEdits, 1)
+})
+
+test('changed accepted wording is counted even when all original citations were inserted', () => {
+  const obligations = acceptedGroundingObligations([proposal()], { plain_text: 'Start edited claim end' })
+  const contexts = new Map([
+    ['citation-a', { citation: { status: 'accepted' }, insertion: { document_id: 'doc-1' } }],
+    ['citation-b', { citation: { status: 'accepted' }, insertion: { document_id: 'doc-1' } }],
+  ])
+  const health = documentProvenanceHealth(obligations, contexts, 'doc-1')
+  assert.equal(health.fullyCitedEdits, 1)
+  assert.equal(health.changedAfterGrounding, 1)
+})
+
 test('closure fingerprint changes when manuscript or citation status changes', () => {
   const obligations = acceptedGroundingObligations([proposal()], exactDraft)
   const pending = unresolvedCitationObligations(obligations, new Map(), 'doc-1')
@@ -112,4 +152,15 @@ test('closure fingerprint changes when manuscript or citation status changes', (
     'doc-1',
   )
   assert.notEqual(citationClosureFingerprint(pending), citationClosureFingerprint(changed))
+})
+
+test('document provenance fingerprint remains present when citation closure is complete', () => {
+  const obligations = acceptedGroundingObligations([proposal()], exactDraft)
+  const contexts = new Map([
+    ['citation-a', { citation: { status: 'accepted' }, insertion: { document_id: 'doc-1' } }],
+    ['citation-b', { citation: { status: 'accepted' }, insertion: { document_id: 'doc-1' } }],
+  ])
+  const health = documentProvenanceHealth(obligations, contexts, 'doc-1')
+  const unresolved = unresolvedCitationObligations(obligations, contexts, 'doc-1')
+  assert.match(documentProvenanceFingerprint(health, unresolved), /closed$/)
 })
