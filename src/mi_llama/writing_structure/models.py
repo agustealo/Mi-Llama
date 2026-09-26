@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class OutlineNodeKind(StrEnum):
@@ -95,8 +96,25 @@ class ManuscriptRevision(BaseModel):
     revision_number: int = Field(ge=1)
     created_by: UUID
     content: str
+    editor_state: dict[str, Any]
     word_count: int = Field(ge=0)
     created_at: datetime
+
+    @model_validator(mode="before")
+    @classmethod
+    def fill_legacy_editor_state(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or "editor_state" in data:
+            return data
+        content = data.get("content")
+        if not isinstance(content, str):
+            return data
+        return {
+            **data,
+            "editor_state": {
+                "schema": "plain_text_v1",
+                "text": content,
+            },
+        }
 
 
 class CreateManuscriptRevisionRequest(BaseModel):

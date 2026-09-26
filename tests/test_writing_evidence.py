@@ -33,6 +33,7 @@ NOW = datetime(2026, 9, 26, 3, 10, tzinfo=UTC).isoformat()
 
 
 def promotion_payload() -> dict[str, object]:
+    editor_state = {"schema": "plain_text_v1", "text": "Evidence matters."}
     draft = {
         "id": str(DRAFT_ID),
         "project_id": str(PROJECT_ID),
@@ -41,7 +42,7 @@ def promotion_payload() -> dict[str, object]:
         "updated_by": str(USER_ID),
         "base_revision_id": str(REVISION_ID),
         "version": 9,
-        "editor_state": {"schema": "plain_text_v1", "text": "Evidence matters."},
+        "editor_state": editor_state,
         "plain_text": "Evidence matters.",
         "created_at": NOW,
         "updated_at": NOW,
@@ -53,6 +54,7 @@ def promotion_payload() -> dict[str, object]:
         "revision_number": 5,
         "created_by": str(USER_ID),
         "content": "Evidence matters.",
+        "editor_state": editor_state,
         "word_count": 2,
         "created_at": NOW,
     }
@@ -190,6 +192,7 @@ def test_supabase_promotion_uses_one_atomic_rpc_without_revision_choreography() 
         assert result.claim.id == PROMOTION_ID
         assert result.evidence.chunk_id == CHUNK_ID
         assert result.citation.status.value == "proposed"
+        assert result.revision.editor_state == result.draft.editor_state
         assert result.claim_link.revision_id == REVISION_ID
         assert result.evidence_link.character_end == 17
 

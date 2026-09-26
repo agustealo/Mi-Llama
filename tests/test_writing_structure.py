@@ -109,6 +109,7 @@ class FakeWritingRepository:
             revision_number=len(self.revisions) + 1,
             created_by=USER_ID,
             content=content,
+            editor_state={"schema": "plain_text_v1", "text": content},
             word_count=len(content.split()),
             created_at=_now(),
         )
@@ -212,6 +213,10 @@ async def test_revision_write_returns_authoritative_document_word_count() -> Non
 
     assert result.revision.revision_number == 1
     assert result.revision.word_count == 4
+    assert result.revision.editor_state == {
+        "schema": "plain_text_v1",
+        "text": "One two three four.",
+    }
     assert result.document.current_revision_id == result.revision.id
     assert result.document.current_word_count == 4
 
