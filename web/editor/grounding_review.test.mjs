@@ -22,6 +22,8 @@ function groundedProposal(overrides = {}) {
             source_filename: 'support.pdf',
             location: 'p. 4',
             stance: 'supports',
+            note: 'Primary result.',
+            content: 'Frozen support passage.',
             content_sha256: 'a'.repeat(64),
           },
           {
@@ -29,6 +31,8 @@ function groundedProposal(overrides = {}) {
             source_filename: 'challenge.pdf',
             location: 'p. 9',
             stance: 'contradicts',
+            note: null,
+            content: 'Frozen contradictory passage.',
             content_sha256: 'b'.repeat(64),
           },
           {
@@ -36,6 +40,8 @@ function groundedProposal(overrides = {}) {
             source_filename: 'context.pdf',
             location: null,
             stance: 'context',
+            note: null,
+            content: 'Frozen context passage.',
             content_sha256: 'c'.repeat(64),
           },
         ],
@@ -52,14 +58,32 @@ test('summarizes mixed reviewed evidence without collapsing contradictory stance
   assert.equal(summary.label, 'support 1 · contradict 1 · context 1')
 })
 
+test('requires the frozen passage before evidence can appear in proposal review', () => {
+  const proposal = groundedProposal()
+  delete proposal.context_manifest.grounding.citations[0].content
+  const items = groundingItemsFromProposal(proposal)
+  assert.equal(items.length, 2)
+  assert.equal(items.some((item) => item.citation_id === 'citation-support'), false)
+})
+
 test('rejects malformed or legacy grounding manifests from the visible review contract', () => {
-  assert.deepEqual(groundingItemsFromProposal({ context_manifest: { grounding: { version: 2, citations: [] } } }), [])
+  assert.deepEqual(
+    groundingItemsFromProposal({ context_manifest: { grounding: { version: 2, citations: [] } } }),
+    [],
+  )
   assert.deepEqual(
     groundingItemsFromProposal({
       context_manifest: {
         grounding: {
           version: 1,
-          citations: [{ citation_id: 'citation', source_filename: 'source.pdf', stance: 'supports' }],
+          citations: [
+            {
+              citation_id: 'citation',
+              source_filename: 'source.pdf',
+              stance: 'supports',
+              content: 'Frozen passage.',
+            },
+          ],
         },
       },
     }),
