@@ -83,6 +83,8 @@ jobs:
               "tiptap_editor.bundle.js",
               "studio.css",
               "studio.js",
+              "rich_editor.css",
+              "rich_editor_activation.js",
               "studio_research.css",
               "studio_research.js",
               "studio_citations.css",
