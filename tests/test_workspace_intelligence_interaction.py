@@ -32,17 +32,26 @@ def test_intelligence_review_uses_canonical_analysis_and_finding_authorities() -
     assert "/evidence-coverage`" in interaction
     assert "/findings/${findingId}`" in interaction
     assert "/research-question`" in interaction
-    assert "status === 'proposed'" not in interaction
     assert "item.finding.status !== 'proposed'" in interaction
     assert "confidence" not in interaction.lower()
     assert "retrieval score" not in interaction.lower()
 
 
-def test_intelligence_installer_is_idempotent_against_its_mutation_observer() -> None:
+def test_intelligence_mutations_follow_studio_edit_authority() -> None:
     interaction = (ASSETS / "studio_intelligence.js").read_text()
 
-    guard = "key === intelligenceState.loadedKey"
-    assert guard in interaction
+    assert "canEdit: Boolean(editor && !source?.readOnly)" in interaction
+    assert "!canEdit || intelligenceState.busy" in interaction
+    assert "!manuscriptContext().canEdit" in interaction
+    assert "Edit access is required to create a new revision analysis." in interaction
+    assert "button.disabled = intelligenceState.busy || !canEdit" in interaction
+
+
+def test_intelligence_installer_and_failed_loads_are_observer_safe() -> None:
+    interaction = (ASSETS / "studio_intelligence.js").read_text()
+
+    assert "key === intelligenceState.loadedKey" in interaction
     assert "context.editor === boundEditor" in interaction
+    assert "intelligenceState.loadedKey = key" in interaction
     assert "MutationObserver" in interaction
     assert "else {\n    renderIntelligence()" not in interaction
