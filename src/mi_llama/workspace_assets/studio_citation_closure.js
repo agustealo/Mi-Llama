@@ -1,7 +1,8 @@
 import { AuthClient } from './auth.js'
 import {
   acceptedGroundingObligations,
-  citationClosureFingerprint,
+  documentProvenanceFingerprint,
+  documentProvenanceHealth,
   unresolvedCitationObligations,
 } from './citation_closure_contract.js'
 
@@ -67,8 +68,55 @@ function sourceLabel(item) {
   return item.location ? `${item.source_filename} · ${item.location}` : item.source_filename
 }
 
-function renderClosure(panel, obligations) {
-  const fingerprint = citationClosureFingerprint(obligations)
+function healthMetric(label, value, tone = '') {
+  const metric = document.createElement('div')
+  metric.className = 'provenance-health-metric'
+  if (tone) metric.dataset.tone = tone
+  const count = document.createElement('b')
+  count.textContent = String(value)
+  const copy = document.createElement('span')
+  copy.textContent = label
+  metric.append(count, copy)
+  return metric
+}
+
+function renderHealth(panel, health) {
+  const section = document.createElement('div')
+  section.className = 'provenance-health'
+
+  const head = document.createElement('div')
+  head.className = 'citation-closure-head'
+  const title = document.createElement('b')
+  title.textContent = 'Manuscript provenance health'
+  const meta = document.createElement('span')
+  meta.textContent = `${health.totalGroundedEdits} accepted grounded edit${health.totalGroundedEdits === 1 ? '' : 's'}`
+  head.append(title, meta)
+  section.appendChild(head)
+
+  const metrics = document.createElement('div')
+  metrics.className = 'provenance-health-grid'
+  metrics.append(
+    healthMetric('fully cited', health.fullyCitedEdits, 'clear'),
+    healthMetric('citation review open', health.openCitationEdits, health.openCitationEdits ? 'attention' : 'clear'),
+    healthMetric(
+      'changed after grounding',
+      health.changedAfterGrounding,
+      health.changedAfterGrounding ? 'attention' : 'clear',
+    ),
+    healthMetric('include counterevidence', health.counterevidenceEdits, 'context'),
+  )
+  section.appendChild(metrics)
+
+  const note = document.createElement('p')
+  note.className = 'citation-closure-policy'
+  note.textContent =
+    'These are independent provenance facts, not a score. Counterevidence is surfaced as research context, not treated as a defect.'
+  section.appendChild(note)
+  panel.appendChild(section)
+}
+
+function renderClosure(panel, health, obligations) {
+  const fingerprint = documentProvenanceFingerprint(health, obligations)
   if (!fingerprint) {
     removePanel()
     return
@@ -77,6 +125,15 @@ function renderClosure(panel, obligations) {
 
   panel.replaceChildren()
   panel.dataset.closureFingerprint = fingerprint
+  renderHealth(panel, health)
+
+  if (obligations.length === 0) {
+    const complete = document.createElement('div')
+    complete.className = 'citation-closure-complete'
+    complete.textContent = 'No open citation actions for accepted grounded edits in this manuscript.'
+    panel.appendChild(complete)
+    return
+  }
 
   const head = document.createElement('div')
   head.className = 'citation-closure-head'
@@ -187,14 +244,11 @@ async function refreshCitationClosure() {
     )
     if (generation !== refreshGeneration) return
 
+    const health = documentProvenanceHealth(obligations, contexts, documentId)
     const unresolved = unresolvedCitationObligations(obligations, contexts, documentId)
-    if (unresolved.length === 0) {
-      removePanel()
-      return
-    }
-    renderClosure(ensurePanel(), unresolved)
+    renderClosure(ensurePanel(), health, unresolved)
   } catch (_error) {
-    // Citation closure is advisory UI. Manuscript and citation authorities remain usable independently.
+    // Provenance health is advisory UI. Manuscript and citation authorities remain usable independently.
   }
 }
 
