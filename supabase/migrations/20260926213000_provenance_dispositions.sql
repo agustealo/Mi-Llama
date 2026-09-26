@@ -23,6 +23,13 @@ create index idx_provenance_dispositions_document_created
     on public.provenance_dispositions(project_id, document_id, created_at desc, id desc);
 create index idx_provenance_dispositions_proposal_created
     on public.provenance_dispositions(accepted_proposal_id, created_at desc, id desc);
+create unique index idx_provenance_dispositions_idempotent
+    on public.provenance_dispositions(
+        accepted_proposal_id,
+        draft_version,
+        disposition,
+        coalesce(superseding_proposal_id, '00000000-0000-0000-0000-000000000000'::uuid)
+    );
 
 create or replace function public.validate_provenance_disposition()
 returns trigger
@@ -66,7 +73,9 @@ begin
     if target_proposal.status <> 'accepted' then
         raise exception 'provenance disposition requires an accepted proposal';
     end if;
-    if not (target_proposal.context_manifest ? 'grounding') then
+    if jsonb_typeof(target_proposal.context_manifest->'grounding') <> 'object'
+        or jsonb_typeof(target_proposal.context_manifest->'grounding'->'citations') <> 'array'
+        or jsonb_array_length(target_proposal.context_manifest->'grounding'->'citations') = 0 then
         raise exception 'provenance disposition requires a grounded proposal';
     end if;
 
@@ -85,8 +94,13 @@ begin
         if replacement.status <> 'accepted' then
             raise exception 'superseding proposal must be accepted';
         end if;
-        if not (replacement.context_manifest ? 'grounding') then
+        if jsonb_typeof(replacement.context_manifest->'grounding') <> 'object'
+            or jsonb_typeof(replacement.context_manifest->'grounding'->'citations') <> 'array'
+            or jsonb_array_length(replacement.context_manifest->'grounding'->'citations') = 0 then
             raise exception 'superseding proposal must be grounded';
+        end if;
+        if replacement.base_draft_version <= target_proposal.base_draft_version then
+            raise exception 'superseding proposal must target a later manuscript draft';
         end if;
         if coalesce(replacement.reviewed_at, replacement.updated_at, replacement.created_at)
             <= coalesce(target_proposal.reviewed_at, target_proposal.updated_at, target_proposal.created_at) then
