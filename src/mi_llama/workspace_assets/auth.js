@@ -1,6 +1,7 @@
 const SESSION_KEY = 'mi-llama.supabase.session.v1'
 const REFRESH_SKEW_SECONDS = 60
 let sharedClientPromise = null
+let apiFetchInterceptor = null
 
 export class AuthError extends Error {
   constructor(message, status = 0) {
@@ -8,6 +9,16 @@ export class AuthError extends Error {
     this.name = 'AuthError'
     this.status = status
   }
+}
+
+export function installApiFetchInterceptor(interceptor) {
+  if (interceptor !== null && typeof interceptor !== 'function') {
+    throw new TypeError('API fetch interceptor must be a function or null')
+  }
+  if (apiFetchInterceptor && interceptor && apiFetchInterceptor !== interceptor) {
+    throw new Error('An API fetch interceptor is already installed')
+  }
+  apiFetchInterceptor = interceptor
 }
 
 function readStoredSession() {
@@ -165,6 +176,20 @@ export class AuthClient {
   }
 
   async apiFetch(path, options = {}, retry = true) {
+    if (apiFetchInterceptor) {
+      return apiFetchInterceptor({
+        client: this,
+        path,
+        options,
+        retry,
+        next: (nextPath = path, nextOptions = options, nextRetry = retry) =>
+          this._apiFetchDirect(nextPath, nextOptions, nextRetry),
+      })
+    }
+    return this._apiFetchDirect(path, options, retry)
+  }
+
+  async _apiFetchDirect(path, options = {}, retry = true) {
     const token = await this.accessToken()
     const headers = new Headers(options.headers || {})
     headers.set('Authorization', `Bearer ${token}`)
@@ -174,7 +199,7 @@ export class AuthClient {
     let response = await fetch(path, { ...options, headers })
     if (response.status === 401 && retry) {
       await this.refresh()
-      response = await this.apiFetch(path, options, false)
+      response = await this._apiFetchDirect(path, options, false)
     }
     return response
   }
