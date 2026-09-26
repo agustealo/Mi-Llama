@@ -57,6 +57,7 @@ jobs:
               "app.css",
               "app.js",
               "auth.js",
+              "editor_adapter.js",
               "studio.css",
               "studio.js",
               "studio_research.css",

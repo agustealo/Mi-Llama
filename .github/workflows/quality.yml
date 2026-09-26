@@ -42,6 +42,7 @@ jobs:
         run: |
           node --check src/mi_llama/workspace_assets/app.js
           node --check src/mi_llama/workspace_assets/auth.js
+          node --check src/mi_llama/workspace_assets/editor_adapter.js
           node --check src/mi_llama/workspace_assets/studio.js
           node --check src/mi_llama/workspace_assets/studio_research.js
           node --check src/mi_llama/workspace_assets/studio_citations.js
