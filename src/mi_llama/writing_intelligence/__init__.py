@@ -4,11 +4,15 @@ from fastapi import FastAPI
 
 from mi_llama.citation_authority import (
     CitationAuthorityRepository,
-    SupabaseCitationAuthorityRepository,
     register_citation_authority_routes,
 )
 from mi_llama.providers.base import StructuredModelProvider
 from mi_llama.research import AuthorizedResearchService
+from mi_llama.structured_citations import (
+    StructuredCitationRepository,
+    SupabaseStructuredCitationRepository,
+    register_structured_citation_routes,
+)
 from mi_llama.structured_writing import register_structured_writing_routes
 from mi_llama.writing_evidence import (
     WritingEvidenceRepository,
@@ -42,7 +46,7 @@ from mi_llama.writing_intelligence.service import (
 from mi_llama.writing_studio.repository import WritingStudioRepository
 from mi_llama.writing_studio.routes import register_writing_studio_routes
 
-SupabaseWritingIntelligenceRepository = SupabaseCitationAuthorityRepository
+SupabaseWritingIntelligenceRepository = SupabaseStructuredCitationRepository
 
 
 def register_writing_intelligence_routes(
@@ -68,6 +72,12 @@ def register_writing_intelligence_routes(
         )
     if isinstance(repository, CitationAuthorityRepository):
         register_citation_authority_routes(
+            app=app,
+            repository=repository,
+            access_token_dependency=access_token_dependency,
+        )
+    if isinstance(repository, StructuredCitationRepository):
+        register_structured_citation_routes(
             app=app,
             repository=repository,
             access_token_dependency=access_token_dependency,
