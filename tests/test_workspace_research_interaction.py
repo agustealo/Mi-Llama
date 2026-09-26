@@ -1,10 +1,16 @@
 from pathlib import Path
 
 
+def _research_script() -> str:
+    return (
+        Path(__file__).parents[1] / "src" / "mi_llama" / "workspace_assets" / "studio_research.js"
+    ).read_text()
+
+
 def test_workspace_loads_research_interaction_assets() -> None:
     root = Path(__file__).parents[1] / "src" / "mi_llama" / "workspace_assets"
     index = (root / "index.html").read_text()
-    script = (root / "studio_research.js").read_text()
+    script = _research_script()
 
     assert 'href="studio_research.css"' in index
     assert 'src="studio_research.js"' in index
@@ -17,9 +23,7 @@ def test_workspace_loads_research_interaction_assets() -> None:
 
 
 def test_research_promotion_does_not_drive_checkpoint_ui_or_poll_server() -> None:
-    script = (
-        Path(__file__).parents[1] / "src" / "mi_llama" / "workspace_assets" / "studio_research.js"
-    ).read_text()
+    script = _research_script()
 
     assert "checkpoint-revision" not in script
     assert "CHECKPOINT_TIMEOUT_MS" not in script
@@ -27,3 +31,30 @@ def test_research_promotion_does_not_drive_checkpoint_ui_or_poll_server() -> Non
     assert "expected_draft_version: snapshot.draftVersion" in script
     assert "window.location.reload()" in script
     assert "PROMOTION_FLASH_KEY" in script
+
+
+def test_reviewed_evidence_can_form_a_bounded_multi_source_grounding_packet() -> None:
+    script = _research_script()
+
+    assert "MAX_GROUNDING_CITATIONS = 8" in script
+    assert "EVIDENCE_TRAY_KEY" in script
+    assert "Evidence tray" in script
+    assert "stanceSummary" in script
+    assert "Find more evidence for this passage" in script
+    assert "citation_ids: target.citationIds" in script
+    assert "citation_ids: [target.citationId]" not in script
+    assert "clearEvidenceTray()" in script
+    assert "The manuscript changed. Select the passage again to refresh evidence context." in script
+
+
+def test_evidence_tray_remains_interaction_state_not_a_second_authority() -> None:
+    script = _research_script()
+
+    assert "sessionStorage.setItem(EVIDENCE_TRAY_KEY" in script
+    assert "The server remains authoritative" in script
+    assert "projectId: snapshot.projectId" in script
+    assert "documentId: snapshot.documentId" in script
+    assert "selectionStart: snapshot.start" in script
+    assert "selectionEnd: snapshot.end" in script
+    assert "selectionText: snapshot.text" in script
+    assert "draftVersion: result.draft.version" in script
