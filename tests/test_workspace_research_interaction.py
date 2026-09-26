@@ -13,3 +13,17 @@ def test_workspace_loads_research_interaction_assets() -> None:
     assert "/research/promotions" in script
     assert "candidate-only" in script
     assert "crypto.randomUUID()" in script
+    assert "retrieval score" in script
+
+
+def test_research_promotion_does_not_drive_checkpoint_ui_or_poll_server() -> None:
+    script = (
+        Path(__file__).parents[1] / "src" / "mi_llama" / "workspace_assets" / "studio_research.js"
+    ).read_text()
+
+    assert "checkpoint-revision" not in script
+    assert "CHECKPOINT_TIMEOUT_MS" not in script
+    assert "POLL_DELAY_MS" not in script
+    assert "expected_draft_version: snapshot.draftVersion" in script
+    assert "window.location.reload()" in script
+    assert "PROMOTION_FLASH_KEY" in script
