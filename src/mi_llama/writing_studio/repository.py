@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
+from mi_llama.domain import Conversation, ManuscriptMessageContext, Role, StoredMessage
 from mi_llama.repositories import Repository
 from mi_llama.writing_intelligence.repository import (
     SupabaseWritingIntelligenceRepository,
@@ -119,6 +120,52 @@ class WritingStudioRepository(WritingIntelligenceRepository, Repository, Protoco
 
 class SupabaseWritingStudioRepository(SupabaseWritingIntelligenceRepository):
     """Supabase repository extended with mutable draft and AI proposal authority."""
+
+    async def create_document_conversation(
+        self,
+        *,
+        access_token: str,
+        project_id: UUID,
+        document_id: UUID,
+        model: str,
+        title: str | None,
+    ) -> Conversation:
+        rows = await self._request_rows(
+            "POST",
+            "/conversations",
+            access_token=access_token,
+            json={
+                "project_id": str(project_id),
+                "document_id": str(document_id),
+                "model": model,
+                "title": (title or "New conversation").strip() or "New conversation",
+            },
+            prefer="return=representation",
+        )
+        return self._one(rows, Conversation)
+
+    async def add_context_message(
+        self,
+        *,
+        access_token: str,
+        conversation_id: UUID,
+        role: Role,
+        content: str,
+        context: ManuscriptMessageContext,
+    ) -> StoredMessage:
+        rows = await self._request_rows(
+            "POST",
+            "/messages",
+            access_token=access_token,
+            json={
+                "conversation_id": str(conversation_id),
+                "role": role.value,
+                "content": content,
+                "context": context.model_dump(mode="json"),
+            },
+            prefer="return=representation",
+        )
+        return self._one(rows, StoredMessage)
 
     async def get_manuscript_draft(
         self,
