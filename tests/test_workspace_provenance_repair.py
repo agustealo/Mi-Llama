@@ -39,7 +39,9 @@ def test_provenance_disposition_is_explicit_durable_and_auditable() -> None:
     assert "superseded" in script
     assert "window.confirm(" in script
     assert "Resolved provenance history" in script
-    assert "Review historical evidence" in script
+    assert "Frozen grounding evidence" in script
+    assert "citation.content" in script
+    assert "citation.content_sha256" in script
     assert "superseding_proposal_id" in script
     assert "localStorage" not in script
     assert "sessionStorage" not in script
