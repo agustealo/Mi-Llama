@@ -1,34 +1,67 @@
 name: Product Gallery
 
 on:
-  push:
-    branches:
-      - brand/product-imagery-v2
+  pull_request:
+    branches: [main]
     paths:
       - "src/mi_llama/workspace.py"
       - "src/mi_llama/workspace_assets/**"
       - "docs/capture_screenshots.py"
+      - "docs/assets/screenshots/**"
+      - "pyproject.toml"
+      - ".github/workflows/product-gallery.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/mi_llama/workspace.py"
+      - "src/mi_llama/workspace_assets/**"
+      - "docs/capture_screenshots.py"
+      - "docs/assets/screenshots/**"
+      - "pyproject.toml"
       - ".github/workflows/product-gallery.yml"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: product-gallery-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   capture:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install Mi-Llama and browser tooling
+          cache: pip
+
+      - name: Build and install the shipped wheel
         run: |
-          python -m pip install -e ".[dev]" playwright
+          python -m pip install --upgrade pip build
+          python -m build --wheel
+          python -m pip install dist/*.whl playwright
+          python - <<'PY'
+          from pathlib import Path
+          import mi_llama.workspace as workspace
+
+          assets = Path(workspace.__file__).with_name("workspace_assets")
+          required = {"index.html", "app.css", "app.js", "auth.js", "studio.css", "studio.js", "mi-llama-mark.svg"}
+          present = {path.name for path in assets.iterdir()} if assets.is_dir() else set()
+          missing = sorted(required - present)
+          if missing:
+              raise SystemExit(f"installed wheel is missing workspace assets: {missing}")
+          print(f"installed workspace assets: {assets}")
+          PY
           python -m playwright install --with-deps chromium
-      - name: Start the real Mi-Llama workspace
+
+      - name: Start packaged Mi-Llama workspace
         env:
           MI_LLAMA_HOST: 127.0.0.1
           MI_LLAMA_PORT: 8765
@@ -47,17 +80,33 @@ jobs:
           done
           cat /tmp/mi-llama.log
           exit 1
+
       - name: Capture six real product screens
         run: python docs/capture_screenshots.py
-      - name: Commit gallery
+
+      - name: Upload generated gallery
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mi-llama-product-gallery-${{ github.sha }}
+          path: docs/assets/screenshots/*.png
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Verify committed gallery matches the product
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/assets/screenshots/*.png
-          if git diff --cached --quiet; then
-            exit 0
+          if ! git diff --exit-code -- docs/assets/screenshots; then
+            echo "::error::Product screenshots are stale. Download the generated gallery artifact and commit the refreshed PNGs."
+            exit 1
           fi
-          git commit -m "Refresh real Mi-Llama product screenshots"
-          git fetch origin brand/product-imagery-v2
-          git rebase origin/brand/product-imagery-v2
-          git push origin HEAD:brand/product-imagery-v2
+
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/mi-llama.log || true
+
+      - name: Stop workspace
+        if: always()
+        run: |
+          if [ -f /tmp/mi-llama.pid ]; then
+            kill "$(cat /tmp/mi-llama.pid)" 2>/dev/null || true
+          fi
