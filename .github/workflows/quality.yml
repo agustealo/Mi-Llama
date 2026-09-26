@@ -68,6 +68,7 @@ jobs:
           node --check src/mi_llama/workspace_assets/rich_editor_activation.js
           node --check src/mi_llama/workspace_assets/studio_research.js
           node --check src/mi_llama/workspace_assets/studio_citations.js
+          node --check src/mi_llama/workspace_assets/studio_intelligence.js
 
       - name: MyPy
         run: mypy src/mi_llama
