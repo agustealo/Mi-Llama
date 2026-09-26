@@ -12,6 +12,7 @@ const intelligenceState = {
   coverage: null,
   busy: false,
   stale: false,
+  anchorFresh: false,
   loadedKey: null,
   loadingKey: null,
 }
@@ -97,6 +98,18 @@ function candidateSummary(candidates) {
   return `${candidates.length} candidates · ${relations.join(' · ')}`
 }
 
+function annotationPayload() {
+  if (!intelligenceState.result) return []
+  return intelligenceState.result.findings
+    .filter((item) => item.finding.status !== 'dismissed')
+    .map((item) => ({
+      id: item.finding.id,
+      start: item.finding.character_start,
+      end: item.finding.character_end,
+      assessment: item.finding.assessment,
+    }))
+}
+
 function updateFinding(nextFinding) {
   if (!intelligenceState.result) return
   const target = intelligenceState.result.findings.find(
@@ -106,7 +119,8 @@ function updateFinding(nextFinding) {
 }
 
 async function reviewFinding(findingId, status) {
-  const { projectId, documentId, canEdit } = manuscriptContext()
+  const context = manuscriptContext()
+  const { projectId, documentId, canEdit } = context
   if (!projectId || !documentId || !canEdit || intelligenceState.busy) return
   setBusy(true, status === 'confirmed' ? 'Confirming finding…' : 'Dismissing finding…')
   try {
@@ -119,6 +133,7 @@ async function reviewFinding(findingId, status) {
     )
     updateFinding(finding)
     await refreshCoverage(projectId, documentId)
+    await syncInlineAnnotations(context)
     renderIntelligence()
   } catch (error) {
     showIntelligenceMessage(error.message || 'Finding review failed.', 'error')
@@ -128,7 +143,8 @@ async function reviewFinding(findingId, status) {
 }
 
 async function promoteFinding(findingId) {
-  const { projectId, documentId, canEdit } = manuscriptContext()
+  const context = manuscriptContext()
+  const { projectId, documentId, canEdit } = context
   if (!projectId || !documentId || !canEdit || intelligenceState.busy) return
   setBusy(true, 'Creating a research question from this evidence gap…')
   try {
@@ -141,6 +157,7 @@ async function promoteFinding(findingId) {
     )
     updateFinding(result.finding)
     await refreshCoverage(projectId, documentId)
+    await syncInlineAnnotations(context)
     renderIntelligence()
   } catch (error) {
     showIntelligenceMessage(error.message || 'Research question creation failed.', 'error')
@@ -185,6 +202,32 @@ function coverageText() {
   return `${coverage.supported} supported · ${coverage.contradicted} contradicted · ${coverage.insufficient} need evidence`
 }
 
+function revealFinding(finding) {
+  const { editor } = manuscriptContext()
+  if (!editor || !intelligenceState.anchorFresh || intelligenceState.stale) return
+  try {
+    editor.revealRange(finding.character_start, finding.character_end)
+  } catch (_error) {
+    // The review card remains useful even when a browser cannot reveal one visual range.
+  }
+}
+
+function bindFindingReveal(card, finding) {
+  if (!intelligenceState.anchorFresh || intelligenceState.stale) return
+  card.classList.add('is-revealable')
+  card.tabIndex = 0
+  card.setAttribute('aria-label', `${assessmentLabel(finding.assessment)} finding. Reveal in manuscript.`)
+  card.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('button')) return
+    revealFinding(finding)
+  })
+  card.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    revealFinding(finding)
+  })
+}
+
 function renderIntelligence() {
   const panel = intelligencePanel()
   if (!panel) return
@@ -199,6 +242,11 @@ function renderIntelligence() {
     const warning = document.createElement('div')
     warning.className = 'writing-intelligence-message stale'
     warning.textContent = 'The draft changed after this analysis. These findings remain bound to the analyzed revision; checkpoint the current draft before running a new review.'
+    body.appendChild(warning)
+  } else if (intelligenceState.result && !intelligenceState.anchorFresh) {
+    const warning = document.createElement('div')
+    warning.className = 'writing-intelligence-message stale'
+    warning.textContent = 'This review belongs to an older manuscript checkpoint. It remains readable here, but inline passage markers are hidden until the current revision is analyzed.'
     body.appendChild(warning)
   }
 
@@ -230,6 +278,7 @@ function renderIntelligence() {
     const finding = item.finding
     const card = document.createElement('article')
     card.className = `writing-finding assessment-${finding.assessment}`
+    bindFindingReveal(card, finding)
 
     const head = document.createElement('div')
     head.className = 'writing-finding-head'
@@ -265,33 +314,6 @@ async function refreshCoverage(projectId, documentId) {
   )
 }
 
-async function loadLatestAnalysis(context) {
-  const key = contextKey(context)
-  if (!key || intelligenceState.loadingKey === key || intelligenceState.loadedKey === key) return
-  intelligenceState.loadingKey = key
-  showIntelligenceMessage('Loading the latest revision review…', 'busy')
-  try {
-    const runs = await apiJson(
-      `/api/projects/${context.projectId}/writing/documents/${context.documentId}/analysis`,
-    )
-    intelligenceState.result = runs.length
-      ? await apiJson(
-          `/api/projects/${context.projectId}/writing/documents/${context.documentId}/analysis/${runs[0].id}`,
-        )
-      : null
-    await refreshCoverage(context.projectId, context.documentId)
-    intelligenceState.stale = false
-    intelligenceState.loadedKey = key
-    renderIntelligence()
-  } catch (error) {
-    intelligenceState.loadedKey = key
-    showIntelligenceMessage(error.message || 'Could not load writing intelligence.', 'error')
-    syncActionState()
-  } finally {
-    intelligenceState.loadingKey = null
-  }
-}
-
 async function revisionContext(context) {
   if (!context.editor) throw new Error('The manuscript editor is not ready.')
   const draft = await apiJson(
@@ -313,6 +335,51 @@ async function revisionContext(context) {
     throw new Error('The draft moved beyond its checkpoint. Create a new revision before analysis.')
   }
   return { draft, revision }
+}
+
+async function syncInlineAnnotations(context, checkpoint = null) {
+  intelligenceState.anchorFresh = false
+  context.editor?.clearAnnotations()
+  if (!context.editor || !intelligenceState.result || intelligenceState.stale) return
+
+  try {
+    const resolved = checkpoint || (await revisionContext(context))
+    if (String(intelligenceState.result.run.revision_id) !== String(resolved.revision.id)) return
+    intelligenceState.anchorFresh = true
+    context.editor.setAnnotations(annotationPayload())
+  } catch (_error) {
+    // Historical findings stay readable in the rail when the current draft is not their revision.
+  }
+}
+
+async function loadLatestAnalysis(context) {
+  const key = contextKey(context)
+  if (!key || intelligenceState.loadingKey === key || intelligenceState.loadedKey === key) return
+  intelligenceState.loadingKey = key
+  showIntelligenceMessage('Loading the latest revision review…', 'busy')
+  try {
+    const runs = await apiJson(
+      `/api/projects/${context.projectId}/writing/documents/${context.documentId}/analysis`,
+    )
+    intelligenceState.result = runs.length
+      ? await apiJson(
+          `/api/projects/${context.projectId}/writing/documents/${context.documentId}/analysis/${runs[0].id}`,
+        )
+      : null
+    await refreshCoverage(context.projectId, context.documentId)
+    intelligenceState.stale = false
+    intelligenceState.loadedKey = key
+    await syncInlineAnnotations(context)
+    renderIntelligence()
+  } catch (error) {
+    intelligenceState.loadedKey = key
+    intelligenceState.anchorFresh = false
+    context.editor?.clearAnnotations()
+    showIntelligenceMessage(error.message || 'Could not load writing intelligence.', 'error')
+    syncActionState()
+  } finally {
+    intelligenceState.loadingKey = null
+  }
 }
 
 async function analyze(scope) {
@@ -357,8 +424,11 @@ async function analyze(scope) {
     await refreshCoverage(context.projectId, context.documentId)
     intelligenceState.loadedKey = contextKey(context)
     intelligenceState.stale = false
+    await syncInlineAnnotations(context, checkpoint)
     renderIntelligence()
   } catch (error) {
+    intelligenceState.anchorFresh = false
+    context.editor.clearAnnotations()
     showIntelligenceMessage(error.message || 'Writing intelligence analysis failed.', 'error')
   } finally {
     setBusy(false)
@@ -409,6 +479,8 @@ function installIntelligenceInteraction() {
     if (unbindEditorChange) unbindEditorChange()
     boundEditor = context.editor
     unbindEditorChange = context.editor.onChange(() => {
+      context.editor.clearAnnotations()
+      intelligenceState.anchorFresh = false
       if (intelligenceState.result) {
         intelligenceState.stale = true
         renderIntelligence()
@@ -418,9 +490,11 @@ function installIntelligenceInteraction() {
 
   syncActionState()
   if (key !== intelligenceState.loadedKey && key !== intelligenceState.loadingKey) {
+    context.editor.clearAnnotations()
     intelligenceState.result = null
     intelligenceState.coverage = null
     intelligenceState.stale = false
+    intelligenceState.anchorFresh = false
     void loadLatestAnalysis(context)
   }
 }
