@@ -14,6 +14,7 @@ const collaboratorState = {
   messages: [],
   busy: false,
   loadGeneration: 0,
+  mode: 'discuss',
 }
 
 function authClient() {
@@ -103,6 +104,12 @@ function showDiscussionError(message) {
   if (!node) return
   node.hidden = !message
   node.textContent = message || ''
+}
+
+function activeConversation() {
+  return collaboratorState.conversations.find(
+    (conversation) => conversation.id === collaboratorState.conversationId,
+  ) || null
 }
 
 function setBusy(busy) {
@@ -214,10 +221,26 @@ function syncThreadModel(conversation) {
   select.dispatchEvent(new Event('change', { bubbles: true }))
 }
 
+function syncModelAuthority() {
+  const select = document.querySelector('#studio-model')
+  if (!select) return
+  const conversation = activeConversation()
+  const hasModels = [...select.options].some((option) => Boolean(option.value))
+  const locked = collaboratorState.mode === 'discuss' && Boolean(conversation)
+  if (locked) syncThreadModel(conversation)
+  select.disabled = !hasModels || locked
+  if (locked) {
+    select.title = `This discussion is locked to ${conversation.model}. Start a new discussion to choose another model.`
+  } else {
+    select.removeAttribute('title')
+  }
+}
+
 async function loadConversation(conversationId, generation = collaboratorState.loadGeneration) {
   if (!conversationId) {
     collaboratorState.messages = []
     renderMessages()
+    syncModelAuthority()
     return
   }
   const result = await apiJson(`/api/conversations/${conversationId}`)
@@ -227,6 +250,7 @@ async function loadConversation(conversationId, generation = collaboratorState.l
   syncThreadModel(result.conversation)
   renderThreadSelect()
   renderMessages()
+  syncModelAuthority()
 }
 
 async function loadThreads(context) {
@@ -239,6 +263,7 @@ async function loadThreads(context) {
   renderThreadSelect()
   renderMessages()
   showDiscussionError('')
+  syncModelAuthority()
 
   try {
     const conversations = await apiJson(
@@ -289,12 +314,14 @@ function activateMode(mode) {
   const discussButton = document.querySelector('[data-collaborator-mode="discuss"]')
   const proposeButton = document.querySelector('[data-collaborator-mode="propose"]')
   const discuss = mode !== 'propose'
+  collaboratorState.mode = discuss ? 'discuss' : 'propose'
   if (discussion) discussion.hidden = !discuss
   if (proposal) proposal.hidden = discuss
   discussButton?.classList.toggle('active', discuss)
   proposeButton?.classList.toggle('active', !discuss)
   discussButton?.setAttribute('aria-selected', String(discuss))
   proposeButton?.setAttribute('aria-selected', String(!discuss))
+  syncModelAuthority()
   if (discuss) queueContextPreview()
 }
 
@@ -356,12 +383,14 @@ function bindDiscussionEvents() {
     renderThreadSelect()
     renderMessages()
     showDiscussionError('')
+    syncModelAuthority()
   })
   document.querySelector('#collaborator-thread-select')?.addEventListener('change', async (event) => {
     collaboratorState.conversationId = event.target.value || null
     collaboratorState.messages = []
     renderMessages()
     showDiscussionError('')
+    syncModelAuthority()
     try {
       await loadConversation(collaboratorState.conversationId)
     } catch (error) {
@@ -390,7 +419,9 @@ async function ensureConversation(context, firstMessage) {
     ...collaboratorState.conversations.filter((item) => item.id !== conversation.id),
   ])
   collaboratorState.conversationId = conversation.id
+  syncThreadModel(conversation)
   renderThreadSelect()
+  syncModelAuthority()
   return conversation.id
 }
 
@@ -534,6 +565,7 @@ function enhanceCollaborator() {
   if (!host || !context.key) return
   if (host.dataset.conversationEnhanced === context.key) {
     queueContextPreview()
+    syncModelAuthority()
     return
   }
 
