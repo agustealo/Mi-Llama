@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import UUID
 
 import httpx
@@ -127,6 +128,23 @@ def test_promotion_request_rejects_reversed_selection() -> None:
             chunk_id=CHUNK_ID,
             stance=EvidenceStance.SUPPORTS,
         )
+
+
+def test_promotion_migration_preserves_caller_rls() -> None:
+    migration = (
+        Path(__file__).parents[1]
+        / "supabase"
+        / "migrations"
+        / "20260926024500_writing_evidence_interaction.sql"
+    ).read_text()
+
+    assert "security invoker" in migration
+    assert "set search_path = ''" in migration
+    assert "security definer" not in migration
+    assert ") from public;" in migration
+    assert ") from anon;" in migration
+    assert ") to authenticated;" in migration
+    assert "for update;" in migration
 
 
 def test_supabase_promotion_uses_one_atomic_rpc() -> None:
