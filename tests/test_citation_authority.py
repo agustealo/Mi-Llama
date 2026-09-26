@@ -91,6 +91,10 @@ def test_citation_authority_migration_has_versioned_rls_metadata() -> None:
     assert "version bigint not null default 1" in sql
     assert "alter table public.source_citation_metadata enable row level security" in sql
     assert "grant select on public.source_citation_metadata to authenticated" in sql
+    assert "grant insert (source_id, project_id, created_by, updated_by, version, csl)" in sql
+    assert "create policy source_citation_metadata_insert_editor" in sql
+    assert "create policy source_citation_metadata_update_editor" in sql
+    assert "security invoker" in sql
     assert "public.can_access_project(project_id)" in sql
     assert "public.can_edit_project(p_project_id)" in sql
     assert "citation metadata version is stale" in sql
