@@ -40,6 +40,7 @@ from mi_llama.writing_intelligence.service import (
 )
 from mi_llama.writing_studio.repository import WritingStudioRepository
 from mi_llama.writing_studio.routes import register_writing_studio_routes
+from mi_llama.structured_writing import register_structured_writing_routes
 
 SupabaseWritingIntelligenceRepository = SupabaseCitationAuthorityRepository
 
@@ -76,6 +77,11 @@ def register_writing_intelligence_routes(
             app=app,
             repository=repository,
             provider=provider,
+            access_token_dependency=access_token_dependency,
+        )
+        register_structured_writing_routes(
+            app=app,
+            repository=repository,
             access_token_dependency=access_token_dependency,
         )
 
