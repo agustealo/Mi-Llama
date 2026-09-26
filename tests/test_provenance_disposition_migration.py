@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 MIGRATION = (
     Path(__file__).parents[1]
     / "supabase"
