@@ -1,3 +1,10 @@
+import {
+  plainTextToTiptapDoc,
+  projectDocumentState,
+  tiptapDocumentState,
+} from './canonical_editor_state.js'
+import { TiptapEditorAdapter } from './tiptap_adapter.js'
+
 let activeEditor = null
 
 class TextareaEditorAdapter {
@@ -82,9 +89,132 @@ class TextareaEditorAdapter {
   }
 }
 
+class SwappableEditorAdapter {
+  constructor(implementation) {
+    this.implementation = implementation
+    this.changeListeners = new Set()
+    this.selectionListeners = new Set()
+    this.forwardCleanup = []
+    this.#attachForwarders()
+  }
+
+  getText() {
+    return this.implementation.getText()
+  }
+
+  setText(text) {
+    return this.implementation.setText(text)
+  }
+
+  getSelection() {
+    return this.implementation.getSelection()
+  }
+
+  getDocumentState() {
+    return this.implementation.getDocumentState()
+  }
+
+  setDocumentState(documentState) {
+    if (typeof this.implementation.setDocumentState === 'function') {
+      return this.implementation.setDocumentState(documentState)
+    }
+    return this.implementation.setText(projectDocumentState(documentState))
+  }
+
+  setReadOnly(readOnly) {
+    return this.implementation.setReadOnly(readOnly)
+  }
+
+  focus() {
+    return this.implementation.focus()
+  }
+
+  replaceRange(start, end, replacement) {
+    return this.implementation.replaceRange(start, end, replacement)
+  }
+
+  previewReplaceRange(start, end, replacement) {
+    if (typeof this.implementation.previewReplaceRange === 'function') {
+      return this.implementation.previewReplaceRange(start, end, replacement)
+    }
+    const text = this.getText()
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end > text.length) {
+      throw new RangeError('Editor replacement range is invalid')
+    }
+    const plainText = text.slice(0, start) + String(replacement ?? '') + text.slice(end)
+    return {
+      editor_state: { schema: 'plain_text_v1', text: plainText },
+      plain_text: plainText,
+    }
+  }
+
+  runFormatting(command) {
+    if (typeof this.implementation.runFormatting !== 'function') return false
+    return this.implementation.runFormatting(command)
+  }
+
+  onChange(listener) {
+    this.changeListeners.add(listener)
+    return () => this.changeListeners.delete(listener)
+  }
+
+  onSelectionChange(listener) {
+    this.selectionListeners.add(listener)
+    return () => this.selectionListeners.delete(listener)
+  }
+
+  sourceElement() {
+    return this.implementation.sourceElement || this.implementation.element || null
+  }
+
+  swap(implementation) {
+    const previous = this.implementation
+    this.#detachForwarders()
+    this.implementation = implementation
+    this.#attachForwarders()
+    previous.destroy()
+    return this
+  }
+
+  destroy() {
+    this.#detachForwarders()
+    this.changeListeners.clear()
+    this.selectionListeners.clear()
+    this.implementation.destroy()
+  }
+
+  #attachForwarders() {
+    this.forwardCleanup = [
+      this.implementation.onChange(() => {
+        for (const listener of this.changeListeners) listener(this)
+      }),
+      this.implementation.onSelectionChange(() => {
+        for (const listener of this.selectionListeners) listener(this)
+      }),
+    ]
+  }
+
+  #detachForwarders() {
+    for (const unsubscribe of this.forwardCleanup) unsubscribe()
+    this.forwardCleanup = []
+  }
+}
+
 export function bindTextareaEditor(element) {
   clearEditorAdapter()
-  activeEditor = new TextareaEditorAdapter(element)
+  activeEditor = new SwappableEditorAdapter(new TextareaEditorAdapter(element))
+  return activeEditor
+}
+
+export function activateTiptapEditor(documentState, readOnly = false) {
+  if (!activeEditor) throw new Error('No manuscript editor is bound')
+  if (activeEditor.getDocumentState()?.schema === 'tiptap_v1') return activeEditor
+  const source = activeEditor.sourceElement()
+  if (!(source instanceof HTMLElement)) {
+    throw new Error('The active editor does not expose a Tiptap host source')
+  }
+  const richEditor = new TiptapEditorAdapter(source, documentState, readOnly)
+  activeEditor.swap(richEditor)
   return activeEditor
 }
 
@@ -95,6 +225,10 @@ export function clearEditorAdapter() {
 
 export function getEditorAdapter() {
   return activeEditor
+}
+
+export function tiptapStateForText(text) {
+  return tiptapDocumentState(plainTextToTiptapDoc(String(text ?? '')))
 }
 
 export function documentStateForText(text) {

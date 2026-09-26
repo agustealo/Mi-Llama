@@ -40,6 +40,23 @@ function wordCount(text) {
   return trimmed ? trimmed.split(/\s+/u).length : 0
 }
 
+function stableJson(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map((item) => stableJson(item)).join(',')}]`
+  return `{${Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
+    .join(',')}}`
+}
+
+function editorMatchesDraft(editor, draft = state.draft) {
+  if (!editor || !draft) return false
+  return (
+    editor.getText() === (draft.plain_text || '') &&
+    stableJson(editor.getDocumentState()) === stableJson(draft.editor_state || null)
+  )
+}
+
 function setStored(key, value) {
   try {
     if (value) window.sessionStorage.setItem(key, value)
@@ -356,12 +373,18 @@ async function loadWritingWorkspace() {
 }
 
 async function revisionSeed(document) {
-  if (!document?.current_revision_id) return ''
+  if (!document?.current_revision_id) {
+    return { text: '', editorState: documentStateForText('') }
+  }
   const revisions = await apiJson(
     `/api/projects/${state.projectId}/writing/documents/${document.id}/revisions`,
   )
   const current = revisions.find((item) => item.id === document.current_revision_id)
-  return current?.content || ''
+  const text = current?.content || ''
+  return {
+    text,
+    editorState: current?.editor_state || documentStateForText(text),
+  }
 }
 
 async function loadDocumentDraft() {
@@ -371,7 +394,7 @@ async function loadDocumentDraft() {
     `/api/projects/${state.projectId}/writing/documents/${document.id}/draft`,
   )
   if (!draft) {
-    const text = await revisionSeed(document)
+    const seed = await revisionSeed(document)
     try {
       draft = await apiJson(
         `/api/projects/${state.projectId}/writing/documents/${document.id}/draft`,
@@ -380,8 +403,8 @@ async function loadDocumentDraft() {
           body: JSON.stringify({
             expected_version: null,
             base_revision_id: document.current_revision_id,
-            editor_state: documentStateForText(text),
-            plain_text: text,
+            editor_state: seed.editorState,
+            plain_text: seed.text,
           }),
         },
       )
@@ -391,8 +414,8 @@ async function loadDocumentDraft() {
         draft = {
           version: null,
           base_revision_id: document.current_revision_id,
-          plain_text: text,
-          editor_state: documentStateForText(text),
+          plain_text: seed.text,
+          editor_state: seed.editorState,
         }
       } else {
         throw error
@@ -656,7 +679,7 @@ function onEditorInput() {
   const editor = getEditorAdapter()
   if (!editor) return
   state.localText = editor.getText()
-  state.dirty = state.localText !== (state.draft?.plain_text || '')
+  state.dirty = !editorMatchesDraft(editor)
   state.proposal = null
   state.saveError = null
   const count = $('#studio-word-count')
@@ -691,6 +714,8 @@ async function saveDraftNow() {
   const expectedVersion = state.draft.version
   const baseRevisionId = state.draft.base_revision_id
   const text = state.localText
+  const editor = getEditorAdapter()
+  const editorState = editor?.getDocumentState() || documentStateForText(text)
   state.saving = true
   state.saveError = null
   setStudioStatus('Saving…', 'pending')
@@ -704,7 +729,7 @@ async function saveDraftNow() {
           body: JSON.stringify({
             expected_version: expectedVersion,
             base_revision_id: baseRevisionId,
-            editor_state: documentStateForText(text),
+            editor_state: editorState,
             plain_text: text,
           }),
         },
@@ -713,7 +738,11 @@ async function saveDraftNow() {
       state.draft = updated
       state.saveError = null
       state.conflict = false
-      state.dirty = state.localText !== text
+      const currentEditor = getEditorAdapter()
+      if (currentEditor) state.localText = currentEditor.getText()
+      state.dirty = currentEditor
+        ? !editorMatchesDraft(currentEditor, updated)
+        : state.localText !== (updated.plain_text || '')
       setStudioStatus(`Saved · v${updated.version}`, 'saved')
       if (state.dirty) scheduleSave()
       return true
