@@ -21,6 +21,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked editor dependencies
+        run: npm ci
+
+      - name: Editor contract tests
+        run: npm run test:editor
+
+      - name: Rebuild committed editor bundle
+        run: |
+          npm run build:editor
+          git diff --exit-code -- src/mi_llama/workspace_assets/tiptap_editor.bundle.js
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -42,7 +60,10 @@ jobs:
         run: |
           node --check src/mi_llama/workspace_assets/app.js
           node --check src/mi_llama/workspace_assets/auth.js
+          node --check src/mi_llama/workspace_assets/canonical_editor_state.js
           node --check src/mi_llama/workspace_assets/editor_adapter.js
+          node --check src/mi_llama/workspace_assets/tiptap_adapter.js
+          node --check src/mi_llama/workspace_assets/tiptap_editor.bundle.js
           node --check src/mi_llama/workspace_assets/studio.js
           node --check src/mi_llama/workspace_assets/studio_research.js
           node --check src/mi_llama/workspace_assets/studio_citations.js
