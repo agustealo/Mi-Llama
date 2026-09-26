@@ -1,5 +1,7 @@
 from mi_llama.writing_studio.models import (
     ApplyWritingProposalRequest,
+    CheckpointManuscriptDraftRequest,
+    CheckpointManuscriptDraftResult,
     CreateWritingProposalRequest,
     ManuscriptDraft,
     SaveManuscriptDraftRequest,
@@ -23,6 +25,8 @@ from mi_llama.writing_studio.service import (
 
 __all__ = [
     "ApplyWritingProposalRequest",
+    "CheckpointManuscriptDraftRequest",
+    "CheckpointManuscriptDraftResult",
     "CreateWritingProposalRequest",
     "DraftVersionConflict",
     "ManuscriptDraft",

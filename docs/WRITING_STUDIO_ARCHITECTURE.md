@@ -4,7 +4,7 @@ Mi-Llama is not a chat application with a document attached. The manuscript is t
 
 ## Product loop
 
-The first production loop is deliberately narrow:
+The production loop is deliberately explicit:
 
 ```text
 write -> autosave draft -> select passage -> request AI edit
@@ -14,6 +14,16 @@ write -> autosave draft -> select passage -> request AI edit
 
 A model never owns manuscript state. It may only create a proposal. A proposal becomes manuscript content only through an explicit user acceptance transaction.
 
+## Browser session boundary
+
+The workspace authenticates directly against Supabase Auth with the public Supabase URL and publishable key returned by same-origin `GET /api/client-config`.
+
+The browser stores the current access/refresh session in `sessionStorage`, not `localStorage`, and rotates the access token through the Supabase refresh-token flow. Project APIs continue to receive `Authorization: Bearer <access-token>`, so Supabase RLS evaluates the real caller exactly as it does for non-browser clients.
+
+The publishable key is public client configuration, not a privileged service-role secret. Service-role credentials must never enter the workspace bundle, client-config response, browser storage, URL, or logs.
+
+Because bearer tokens are readable by browser JavaScript, the workspace must treat XSS prevention as an authentication invariant. Dynamic project names, manuscript content, model output, and proposal text are assigned through DOM text/value APIs rather than interpolated as executable HTML.
+
 ## Authority model
 
 ### Mutable draft
@@ -22,14 +32,16 @@ A model never owns manuscript state. It may only create a proposal. A proposal b
 
 The draft keeps both `editor_state` and derived `plain_text`:
 
-- `editor_state` is renderer-owned structured state. The initial contract is `plain_text_v1`; a richer editor can replace this representation later without changing draft/proposal identity.
+- `editor_state` is renderer-owned structured state. The current contract is `plain_text_v1`.
 - `plain_text` is the canonical analysis/export projection used for selection offsets, model context, evidence analysis, and revision creation.
+
+The current browser editor intentionally uses a plain-text `<textarea>`. Its `selectionStart`/`selectionEnd` positions are the same character-offset coordinate system enforced by draft proposals and immutable-revision evidence anchors. This keeps the first interactive editor lossless with respect to the verified backend transaction contract.
 
 ### Immutable revision
 
 `manuscript_revisions` remains unchanged. Evidence and citation passage anchors stay bound to immutable revisions, where character offsets are stable.
 
-A draft is therefore not an evidence anchor. It is mutable working state.
+A draft is therefore not an evidence anchor. It is mutable working state. The writer creates an immutable revision checkpoint deliberately; the draft then records that revision as its new base.
 
 ### AI proposal
 
@@ -57,7 +69,7 @@ UPDATE draft WHERE version = N
 SET version = N + 1
 ```
 
-A zero-row update is a conflict, not success.
+A zero-row update is a conflict, not success. The workspace retains the local text, blocks further AI mutation, and asks the user to explicitly reload the server draft rather than silently choosing a winner.
 
 Proposal acceptance is stricter. The database transaction locks the draft and proposal and requires all of the following:
 
@@ -67,6 +79,8 @@ Proposal acceptance is stricter. The database transaction locks the draft and pr
 4. the resulting manuscript text is exactly the reviewed replacement applied to that range.
 
 Only then are draft mutation and proposal acceptance committed together.
+
+The browser serializes autosaves and flushes pending changes before project/document switches, proposal generation, revision checkpoints, and sign-out. An in-flight or conflicted draft is never deliberately discarded by those actions.
 
 ## Model boundary
 
@@ -78,24 +92,30 @@ Writing operations use schema-constrained model output rather than parsing free-
 
 The prompt forbids invented citations, sources, quotations, statistics, names, dates, or unsupported factual claims. This is not a guarantee of truth; it is a narrow generation contract. Research-backed operations will add explicit evidence context in a later slice.
 
-## First operation set
-
-The initial proposal vocabulary is intentionally small:
+The initial visible proposal vocabulary is intentionally small:
 
 - rewrite
 - improve
 - expand
 - condense
-- continue
 - custom
 
-Research, citation, fact-check, and evidence attachment are separate operations because they require different evidence authority and review semantics.
+`continue` remains available in the backend operation vocabulary but is not exposed until cursor-only insertion semantics are designed. Research, citation, fact-check, and evidence attachment are separate operations because they require different evidence authority and review semantics.
 
-## Renderer decision
+## Rich-text adoption gate
 
-The first transactional slice does **not** adopt a full frontend framework. The renderer must not become the authority boundary.
+Tiptap remains the preferred rich editor candidate, but it is intentionally deferred.
 
-For the richer editor follow-up, Tiptap remains the preferred candidate because it is a framework-agnostic ProseMirror layer with explicit document state, selection state, transactions, commands, and JSON serialization. The adoption gate is that the draft/proposal transaction contract is green first.
+ProseMirror selections use document positions, while Mi-Llama's current research/proposal authority uses plain-text character offsets. In addition, the atomic acceptance path can currently validate and reconstruct a plain-text replacement without trusting client-supplied structured markup.
+
+Before replacing the plain-text renderer, Mi-Llama must add a deterministic structured-document projection contract that can:
+
+1. map rich-document positions to stable plain-text offsets;
+2. apply an accepted plain-text proposal to structured content without losing marks/nodes outside the target range;
+3. validate the resulting structured state server-side or from a deterministic patch representation;
+4. preserve immutable evidence/revision anchors.
+
+Only then should Tiptap/ProseMirror become the manuscript renderer.
 
 References:
 
@@ -105,7 +125,7 @@ References:
 
 ## Deliberate exclusions
 
-This slice does not add:
+The interactive writing studio still does not add:
 
 - realtime collaboration or Yjs;
 - autonomous background rewriting;
@@ -113,17 +133,16 @@ This slice does not add:
 - direct model mutation of manuscript state;
 - a revision for every keystroke;
 - generated confidence scores;
-- a second source of truth outside Supabase.
+- a second source of truth outside Supabase;
+- privileged Supabase credentials in the browser.
 
-Those are follow-up capabilities only after the single-writer transactional loop is proven.
+## Next slices
 
-## Next UI slice
+With the single-writer interaction loop in place, the next architecture work should be:
 
-Once the authority layer is green, the manuscript surface should add:
-
-1. actual editable draft hydration and autosave;
-2. text selection tracking;
-3. floating actions such as Improve, Rewrite, Expand, Condense, and Ask Mi-Llama;
-4. a proposal diff rail with Accept, Reject, and Refine;
-5. revision checkpoint/history controls;
-6. then Tiptap rich-text state without changing the backend proposal semantics.
+1. research-aware selection commands: Find Evidence, Fact-check, Research Further, and Insert Citation;
+2. inline writing-intelligence findings inside the manuscript rather than a separate dashboard-first workflow;
+3. deterministic structured-document projection and patching;
+4. Tiptap/ProseMirror rich editing after that projection contract is burn-tested;
+5. authorship/change provenance and revision comparison;
+6. realtime collaboration only after single-writer authority remains stable under those changes.

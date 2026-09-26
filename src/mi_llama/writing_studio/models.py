@@ -7,6 +7,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from mi_llama.writing_structure.models import ManuscriptDocument, ManuscriptRevision
+
 
 class WritingProposalOperation(StrEnum):
     REWRITE = "rewrite"
@@ -43,6 +45,16 @@ class SaveManuscriptDraftRequest(BaseModel):
     base_revision_id: UUID | None = None
     editor_state: dict[str, Any]
     plain_text: str = Field(max_length=2_000_000)
+
+
+class CheckpointManuscriptDraftRequest(BaseModel):
+    expected_draft_version: int = Field(ge=1)
+
+
+class CheckpointManuscriptDraftResult(BaseModel):
+    document: ManuscriptDocument
+    revision: ManuscriptRevision
+    draft: ManuscriptDraft
 
 
 class WritingProposal(BaseModel):

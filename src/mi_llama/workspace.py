@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 
 from mi_llama.config import Settings
@@ -22,7 +22,27 @@ def attach_workspace(app: FastAPI) -> FastAPI:
 
 def create_app(*, settings: Settings | None = None) -> FastAPI:
     """Create the normal Mi-Llama API and attach its consumer workspace shell."""
-    return attach_workspace(create_api_app(settings=settings))
+    runtime_settings = settings or Settings()
+    app = create_api_app(settings=runtime_settings)
+
+    @app.get("/api/client-config")
+    async def client_config() -> dict[str, str]:
+        if (
+            runtime_settings.supabase_url is None
+            or runtime_settings.supabase_publishable_key is None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Supabase authentication is not configured",
+            )
+        return {
+            "supabase_url": str(runtime_settings.supabase_url).rstrip("/"),
+            "supabase_publishable_key": (
+                runtime_settings.supabase_publishable_key.get_secret_value()
+            ),
+        }
+
+    return attach_workspace(app)
 
 
 def run() -> None:

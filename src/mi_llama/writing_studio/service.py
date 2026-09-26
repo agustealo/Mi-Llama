@@ -6,9 +6,12 @@ from uuid import UUID
 
 from mi_llama.domain import ChatMessage, LearningEvent, Role
 from mi_llama.providers.base import StructuredModelProvider
+from mi_llama.repositories import RepositoryError
 from mi_llama.writing_structure.models import ManuscriptDocument, WritingStructureNotFound
 from mi_llama.writing_studio.models import (
     ApplyWritingProposalRequest,
+    CheckpointManuscriptDraftRequest,
+    CheckpointManuscriptDraftResult,
     CreateWritingProposalRequest,
     ManuscriptDraft,
     SaveManuscriptDraftRequest,
@@ -119,6 +122,63 @@ class WritingStudioService:
         if updated is None:
             raise DraftVersionConflict("Draft changed while this save was in flight")
         return updated
+
+    async def checkpoint_draft(
+        self,
+        *,
+        access_token: str,
+        project_id: UUID,
+        document_id: UUID,
+        request: CheckpointManuscriptDraftRequest,
+    ) -> CheckpointManuscriptDraftResult:
+        await self._require_document(
+            access_token=access_token,
+            project_id=project_id,
+            document_id=document_id,
+        )
+        draft = await self._repository.get_manuscript_draft(
+            access_token=access_token,
+            project_id=project_id,
+            document_id=document_id,
+        )
+        if draft is None:
+            raise WritingStudioValidationError("Save the manuscript draft before checkpointing it")
+        if draft.version != request.expected_draft_version:
+            raise DraftVersionConflict(
+                "Draft version conflict: "
+                f"expected {request.expected_draft_version}, current {draft.version}"
+            )
+
+        try:
+            revision = await self._repository.checkpoint_manuscript_draft(
+                access_token=access_token,
+                project_id=project_id,
+                document_id=document_id,
+                expected_draft_version=request.expected_draft_version,
+            )
+        except RepositoryError as exc:
+            message = str(exc).lower()
+            if "version" in message or "stale" in message:
+                raise DraftVersionConflict(str(exc)) from exc
+            raise
+
+        document = await self._require_document(
+            access_token=access_token,
+            project_id=project_id,
+            document_id=document_id,
+        )
+        updated_draft = await self._repository.get_manuscript_draft(
+            access_token=access_token,
+            project_id=project_id,
+            document_id=document_id,
+        )
+        if updated_draft is None:
+            raise WritingStudioError("Checkpoint committed but the updated draft could not be read")
+        return CheckpointManuscriptDraftResult(
+            document=document,
+            revision=revision,
+            draft=updated_draft,
+        )
 
     async def create_proposal(
         self,

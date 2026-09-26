@@ -8,6 +8,7 @@ from mi_llama.writing_intelligence.repository import (
     SupabaseWritingIntelligenceRepository,
     WritingIntelligenceRepository,
 )
+from mi_llama.writing_structure.models import ManuscriptRevision
 from mi_llama.writing_studio.models import (
     ManuscriptDraft,
     WritingProposal,
@@ -48,6 +49,15 @@ class WritingStudioRepository(WritingIntelligenceRepository, Repository, Protoco
         editor_state: dict[str, Any],
         plain_text: str,
     ) -> ManuscriptDraft | None: ...
+
+    async def checkpoint_manuscript_draft(
+        self,
+        *,
+        access_token: str,
+        project_id: UUID,
+        document_id: UUID,
+        expected_draft_version: int,
+    ) -> ManuscriptRevision: ...
 
     async def create_writing_proposal(
         self,
@@ -184,6 +194,26 @@ class SupabaseWritingStudioRepository(SupabaseWritingIntelligenceRepository):
             prefer="return=representation",
         )
         return None if not rows else self._one(rows, ManuscriptDraft)
+
+    async def checkpoint_manuscript_draft(
+        self,
+        *,
+        access_token: str,
+        project_id: UUID,
+        document_id: UUID,
+        expected_draft_version: int,
+    ) -> ManuscriptRevision:
+        rows = await self._request_rows(
+            "POST",
+            "/rpc/checkpoint_manuscript_draft",
+            access_token=access_token,
+            json={
+                "p_project_id": str(project_id),
+                "p_document_id": str(document_id),
+                "p_expected_draft_version": expected_draft_version,
+            },
+        )
+        return self._one(rows, ManuscriptRevision)
 
     async def create_writing_proposal(
         self,

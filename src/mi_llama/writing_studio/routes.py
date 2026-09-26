@@ -11,6 +11,8 @@ from mi_llama.providers.errors import ProviderError
 from mi_llama.writing_structure.models import WritingStructureNotFound
 from mi_llama.writing_studio.models import (
     ApplyWritingProposalRequest,
+    CheckpointManuscriptDraftRequest,
+    CheckpointManuscriptDraftResult,
     CreateWritingProposalRequest,
     ManuscriptDraft,
     SaveManuscriptDraftRequest,
@@ -79,6 +81,34 @@ def register_writing_studio_routes(
             ) from exc
         except DraftVersionConflict as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/projects/{project_id}/writing/documents/{document_id}/draft/checkpoint",
+        response_model=CheckpointManuscriptDraftResult,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def checkpoint_manuscript_draft(
+        project_id: UUID,
+        document_id: UUID,
+        request: CheckpointManuscriptDraftRequest,
+        access_token: Annotated[str, Depends(access_token_dependency)],
+    ) -> CheckpointManuscriptDraftResult:
+        try:
+            return await service.checkpoint_draft(
+                access_token=access_token,
+                project_id=project_id,
+                document_id=document_id,
+                request=request,
+            )
+        except WritingStructureNotFound as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Manuscript document not found",
+            ) from exc
+        except DraftVersionConflict as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        except WritingStudioValidationError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     @app.get(
         "/api/projects/{project_id}/writing/documents/{document_id}/proposals",
