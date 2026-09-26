@@ -201,21 +201,40 @@ class ProvenanceDispositionService:
         self._validate_grounded_accepted(proposal, label="Historical proposal")
 
         if request.disposition is ProvenanceDispositionKind.SUPERSEDED:
-            if request.superseding_proposal_id == proposal_id:
+            superseding_proposal_id = request.superseding_proposal_id
+            if superseding_proposal_id is None:
+                raise ProvenanceDispositionValidationError(
+                    "Superseded provenance requires a superseding proposal"
+                )
+            if superseding_proposal_id == proposal_id:
                 raise ProvenanceDispositionValidationError("A proposal cannot supersede itself")
             replacement = await self._repository.get_writing_proposal(
                 access_token=access_token,
                 project_id=project_id,
                 document_id=document_id,
-                proposal_id=request.superseding_proposal_id,  # type: ignore[arg-type]
+                proposal_id=superseding_proposal_id,
             )
             self._validate_grounded_accepted(replacement, label="Superseding proposal")
+            if replacement.base_draft_version <= proposal.base_draft_version:
+                raise ProvenanceDispositionValidationError(
+                    "Superseding proposal must target a later manuscript draft"
+                )
             historical_time = proposal.reviewed_at or proposal.updated_at or proposal.created_at
             replacement_time = replacement.reviewed_at or replacement.updated_at or replacement.created_at
             if replacement_time <= historical_time:
                 raise ProvenanceDispositionValidationError(
                     "Superseding proposal must have been accepted after the historical proposal"
                 )
+
+        existing = await self._matching_existing(
+            access_token=access_token,
+            project_id=project_id,
+            document_id=document_id,
+            proposal_id=proposal_id,
+            request=request,
+        )
+        if existing is not None:
+            return existing
 
         try:
             return await self._repository.create_provenance_disposition(
@@ -229,7 +248,41 @@ class ProvenanceDispositionService:
             message = str(exc).lower()
             if "draft version" in message or "version conflict" in message:
                 raise ProvenanceDispositionConflict(str(exc)) from exc
+            if "duplicate" in message or "unique" in message:
+                existing = await self._matching_existing(
+                    access_token=access_token,
+                    project_id=project_id,
+                    document_id=document_id,
+                    proposal_id=proposal_id,
+                    request=request,
+                )
+                if existing is not None:
+                    return existing
             raise
+
+    async def _matching_existing(
+        self,
+        *,
+        access_token: str,
+        project_id: UUID,
+        document_id: UUID,
+        proposal_id: UUID,
+        request: CreateProvenanceDispositionRequest,
+    ) -> ProvenanceDisposition | None:
+        existing = await self._repository.list_provenance_dispositions(
+            access_token=access_token,
+            project_id=project_id,
+            document_id=document_id,
+        )
+        for item in existing:
+            if (
+                item.accepted_proposal_id == proposal_id
+                and item.draft_version == request.expected_draft_version
+                and item.disposition is request.disposition
+                and item.superseding_proposal_id == request.superseding_proposal_id
+            ):
+                return item
+        return None
 
     @staticmethod
     def _validate_grounded_accepted(
