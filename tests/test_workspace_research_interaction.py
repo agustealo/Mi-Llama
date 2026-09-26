@@ -64,14 +64,28 @@ def test_evidence_tray_is_fenced_against_stale_manuscript_state() -> None:
     script = _research_script()
 
     assert "editor.getText() !== snapshot.fullText" in script
-    assert "clearResearchState('The manuscript changed. Select the passage again to refresh evidence context.', true)" in script
-    assert "clearEvidenceTray()\n    showResearchError('The manuscript changed after this evidence search." in script
-    assert "clearEvidenceTray()\n      showResearchError('The saved manuscript changed after this evidence search." in script
+    assert (
+        "clearResearchState('The manuscript changed. Select the passage again to refresh evidence context.', true)"
+        in script
+    )
+    assert (
+        "clearEvidenceTray()\n    showResearchError('The manuscript changed after this evidence search."
+        in script
+    )
+    assert (
+        "clearEvidenceTray()\n      showResearchError('The saved manuscript changed after this evidence search."
+        in script
+    )
     assert "draft.version !== target.draftVersion" in script
-    assert "draft.plain_text.slice(target.selectionStart, target.selectionEnd) !== target.selectionText" in script
+    assert (
+        "draft.plain_text.slice(target.selectionStart, target.selectionEnd) !== target.selectionText"
+        in script
+    )
 
 
-def test_evidence_tray_supports_removal_and_readdition_without_mutating_canonical_research() -> None:
+def test_evidence_tray_supports_removal_and_readdition_without_mutating_canonical_research() -> (
+    None
+):
     script = _research_script()
 
     assert "removeTrayCitation" in script
