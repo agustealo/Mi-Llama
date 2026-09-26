@@ -95,6 +95,8 @@ def test_default_runtime_mounts_writing_studio_authority() -> None:
     assert (f"{document}/proposals", "POST") in routes
     assert (f"{document}/proposals/{{proposal_id}}/accept", "POST") in routes
     assert (f"{document}/proposals/{{proposal_id}}/reject", "POST") in routes
+    assert (f"{document}/proposals/{{proposal_id}}/refine", "POST") in routes
+    assert (f"{document}/proposals/{{proposal_id}}/explain", "POST") in routes
     assert (f"{document}/conversations", "GET") in routes
     assert (f"{document}/conversations", "POST") in routes
     assert (f"{document}/conversations/{{conversation_id}}/messages", "POST") in routes
