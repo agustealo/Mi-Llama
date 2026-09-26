@@ -93,6 +93,7 @@ def test_default_runtime_mounts_writing_studio_authority() -> None:
     assert (f"{document}/draft/checkpoint", "POST") in routes
     assert (f"{document}/proposals", "GET") in routes
     assert (f"{document}/proposals", "POST") in routes
+    assert (f"{document}/grounded-proposals", "POST") in routes
     assert (f"{document}/proposals/{{proposal_id}}/accept", "POST") in routes
     assert (f"{document}/proposals/{{proposal_id}}/reject", "POST") in routes
     assert (f"{document}/proposals/{{proposal_id}}/refine", "POST") in routes
