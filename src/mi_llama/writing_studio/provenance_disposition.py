@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Any, Protocol, runtime_checkable
+from typing import Annotated, Any, Protocol, TypeVar, cast, runtime_checkable
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -11,6 +11,9 @@ from pydantic import BaseModel, Field, model_validator
 
 from mi_llama.repositories import RepositoryError
 from mi_llama.writing_studio.models import ManuscriptDraft, WritingProposal, WritingProposalStatus
+
+
+T = TypeVar("T")
 
 
 class ProvenanceDispositionKind(StrEnum):
@@ -86,6 +89,19 @@ class ProvenanceDispositionRepository(Protocol):
     ) -> ProvenanceDisposition: ...
 
 
+class _SupabaseRepositoryPrimitives(Protocol):
+    async def _request_rows(
+        self,
+        method: str,
+        path: str,
+        **kwargs: Any,
+    ) -> list[dict[str, Any]]: ...
+
+    def _many(self, rows: list[dict[str, Any]], model: type[T]) -> list[T]: ...
+
+    def _one(self, rows: list[dict[str, Any]], model: type[T]) -> T: ...
+
+
 class SupabaseProvenanceDispositionMixin:
     async def list_provenance_dispositions(
         self,
@@ -94,9 +110,8 @@ class SupabaseProvenanceDispositionMixin:
         project_id: UUID,
         document_id: UUID,
     ) -> list[ProvenanceDisposition]:
-        request_rows = getattr(self, "_request_rows")
-        many = getattr(self, "_many")
-        rows: list[dict[str, Any]] = await request_rows(
+        client = cast(_SupabaseRepositoryPrimitives, self)
+        rows = await client._request_rows(
             "GET",
             "/provenance_dispositions",
             access_token=access_token,
@@ -107,7 +122,7 @@ class SupabaseProvenanceDispositionMixin:
                 "order": "created_at.desc,id.desc",
             },
         )
-        return many(rows, ProvenanceDisposition)
+        return client._many(rows, ProvenanceDisposition)
 
     async def create_provenance_disposition(
         self,
@@ -118,9 +133,8 @@ class SupabaseProvenanceDispositionMixin:
         accepted_proposal_id: UUID,
         request: CreateProvenanceDispositionRequest,
     ) -> ProvenanceDisposition:
-        request_rows = getattr(self, "_request_rows")
-        one = getattr(self, "_one")
-        rows: list[dict[str, Any]] = await request_rows(
+        client = cast(_SupabaseRepositoryPrimitives, self)
+        rows = await client._request_rows(
             "POST",
             "/provenance_dispositions",
             access_token=access_token,
@@ -139,7 +153,7 @@ class SupabaseProvenanceDispositionMixin:
             },
             prefer="return=representation",
         )
-        return one(rows, ProvenanceDisposition)
+        return client._one(rows, ProvenanceDisposition)
 
 
 class ProvenanceDispositionConflict(RuntimeError):
@@ -192,7 +206,8 @@ class ProvenanceDispositionService:
             raise ProvenanceDispositionValidationError("Manuscript draft not found")
         if draft.version != request.expected_draft_version:
             raise ProvenanceDispositionConflict(
-                f"Draft version conflict: expected {request.expected_draft_version}, current {draft.version}"
+                f"Draft version conflict: expected {request.expected_draft_version}, "
+                f"current {draft.version}"
             )
 
         proposal = await self._repository.get_writing_proposal(
