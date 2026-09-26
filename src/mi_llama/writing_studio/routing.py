@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import cast
 
 from fastapi import FastAPI
 
@@ -31,7 +30,7 @@ def register_writing_studio_routes(
     if isinstance(repository, GroundedProposalRepository):
         register_grounded_proposal_routes(
             app=app,
-            repository=cast(GroundedProposalRepository, repository),
+            repository=repository,
             provider=provider,
             access_token_dependency=access_token_dependency,
         )
