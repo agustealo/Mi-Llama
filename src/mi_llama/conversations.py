@@ -13,16 +13,13 @@ from mi_llama.domain import (
     ChatMessage,
     Conversation,
     ConversationWithMessages,
+    ManuscriptConversationContextRequest,
     ManuscriptMessageContext,
     Role,
     StoredMessage,
 )
 from mi_llama.providers.base import ModelProvider
 from mi_llama.repositories import Repository, RepositoryError
-from mi_llama.writing_studio.models import (
-    ManuscriptConversationContextRequest,
-    ManuscriptDraft,
-)
 
 _REPLY_LEASE_SECONDS = 600
 _REPLY_LEASE_RENEW_INTERVAL_SECONDS = 120
@@ -39,6 +36,12 @@ class ConversationContextConflict(ConversationContextError):
 
 class ConversationContextUnavailable(ConversationContextError):
     """The configured repository cannot persist manuscript conversation context."""
+
+
+class ManuscriptDraftSnapshot(Protocol):
+    base_revision_id: UUID | None
+    version: int
+    plain_text: str
 
 
 @runtime_checkable
@@ -87,7 +90,7 @@ class ConversationContextRepository(Protocol):
         access_token: str,
         project_id: UUID,
         document_id: UUID,
-    ) -> ManuscriptDraft | None: ...
+    ) -> ManuscriptDraftSnapshot | None: ...
 
     async def add_context_message(
         self,
