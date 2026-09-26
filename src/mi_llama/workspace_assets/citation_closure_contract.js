@@ -66,11 +66,33 @@ export function acceptedGroundingObligations(proposals, draft) {
         manuscriptState: location.state,
         manuscriptStart: location.start,
         manuscriptEnd: location.end,
+        originalSelectionStart: proposal.selection_start,
+        originalSelectionEnd: proposal.selection_end,
+        acceptedText: proposal.proposed_text,
         citations: unique,
       }
     })
     .filter(Boolean)
     .sort((a, b) => b.reviewedAt.localeCompare(a.reviewedAt))
+}
+
+export function provenanceRepairItems(obligations, draft) {
+  if (!Array.isArray(obligations) || typeof draft?.plain_text !== 'string') return []
+  return obligations
+    .filter((item) => item.manuscriptState === 'changed')
+    .map((item) => {
+      const start = Number.isInteger(item.originalSelectionStart) ? item.originalSelectionStart : null
+      const acceptedText = typeof item.acceptedText === 'string' ? item.acceptedText : ''
+      const currentAtOriginalRange =
+        start === null || !acceptedText
+          ? ''
+          : draft.plain_text.slice(start, Math.min(draft.plain_text.length, start + acceptedText.length))
+      return {
+        ...item,
+        currentAtOriginalRange,
+        citationIds: item.citations.map((citation) => citation.citation_id),
+      }
+    })
 }
 
 export function documentProvenanceHealth(obligations, contexts, documentId) {
