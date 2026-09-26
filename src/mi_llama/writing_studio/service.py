@@ -259,9 +259,141 @@ class WritingStudioService:
             selection_end=request.selection_end,
             selection_hash=selection_hash,
             original_text=original_text,
-            proposed_text=proposed_text.strip(),
+            proposed_text=proposed_text,
             context_manifest=context_manifest,
         )
+
+    async def apply_proposal(
+        self,
+        *,
+        access_token: str,
+        project_id: UUID,
+        document_id: UUID,
+        proposal_id: UUID,
+        request: ApplyWritingProposalRequest,
+    ) -> WritingProposalApplicationResult:
+        draft = await self._repository.get_manuscript_draft(
+            access_token=access_token,
+            project_id=project_id,
+            document_id=document_id,
+        )
+        if draft is None:
+            raise WritingProposalStale("The manuscript draft no longer exists")
+        proposal = await self._repository.get_writing_proposal(
+            access_token=access_token,
+            project_id=project_id,
+            document_id=document_id,
+            proposal_id=proposal_id,
+        )
+        if proposal is None:
+            raise WritingStudioValidationError("Writing proposal not found")
+        if proposal.status != WritingProposalStatus.PROPOSED:
+            raise WritingProposalStale("The writing proposal has already been resolved")
+        if request.expected_draft_version != draft.version:
+            raise DraftVersionConflict(
+                "Draft version conflict: "
+                f"expected {request.expected_draft_version}, current {draft.version}"
+            )
+        if proposal.base_draft_version != draft.version:
+            raise WritingProposalStale("The manuscript changed after this proposal was created")
+        if proposal.base_revision_id != draft.base_revision_id:
+            raise WritingProposalStale("The manuscript revision changed after this proposal was created")
+        self._validate_selection(
+            plain_text=draft.plain_text,
+            selection_start=proposal.selection_start,
+            selection_end=proposal.selection_end,
+        )
+        current_selection = draft.plain_text[proposal.selection_start : proposal.selection_end]
+        if self._selection_hash(current_selection) != proposal.selection_hash:
+            raise WritingProposalStale("The selected manuscript passage changed")
+
+        replacement = proposal.proposed_text
+        plain_text = (
+            draft.plain_text[: proposal.selection_start]
+            + replacement
+            + draft.plain_text[proposal.selection_end :]
+        )
+        editor_state = {"format": "plain_text", "content": plain_text}
+        try:
+            updated_draft = await self._repository.apply_writing_proposal(
+                access_token=access_token,
+                project_id=project_id,
+                document_id=document_id,
+                proposal_id=proposal_id,
+                expected_draft_version=draft.version,
+                editor_state=editor_state,
+                plain_text=plain_text,
+            )
+        except RepositoryError as exc:
+            message = str(exc).lower()
+            if "version" in message or "stale" in message or "selection" in message:
+                raise WritingProposalStale(str(exc)) from exc
+            raise
+
+        await self._repository.add_learning_signal(
+            access_token=access_token,
+            project_id=project_id,
+            event_type=LearningEvent.AI_EDIT_ACCEPTED,
+            entity_type="writing_proposal",
+            entity_id=proposal.id,
+            metadata={
+                "operation": proposal.operation.value,
+                "document_id": str(document_id),
+                "base_draft_version": proposal.base_draft_version,
+                "result_draft_version": updated_draft.version,
+                "selection_start": proposal.selection_start,
+                "selection_end": proposal.selection_end,
+            },
+        )
+        accepted = await self._repository.get_writing_proposal(
+            access_token=access_token,
+            project_id=project_id,
+            document_id=document_id,
+            proposal_id=proposal_id,
+        )
+        if accepted is None:
+            raise WritingStudioError("Proposal was applied but could not be re-read")
+        return WritingProposalApplicationResult(draft=updated_draft, proposal=accepted)
+
+    async def reject_proposal(
+        self,
+        *,
+        access_token: str,
+        project_id: UUID,
+        document_id: UUID,
+        proposal_id: UUID,
+    ) -> WritingProposal:
+        proposal = await self._repository.get_writing_proposal(
+            access_token=access_token,
+            project_id=project_id,
+            document_id=document_id,
+            proposal_id=proposal_id,
+        )
+        if proposal is None:
+            raise WritingStudioValidationError("Writing proposal not found")
+        if proposal.status != WritingProposalStatus.PROPOSED:
+            raise WritingProposalStale("The writing proposal has already been resolved")
+        rejected = await self._repository.reject_writing_proposal(
+            access_token=access_token,
+            project_id=project_id,
+            document_id=document_id,
+            proposal_id=proposal_id,
+        )
+        if rejected is None:
+            raise WritingProposalStale("The writing proposal changed while it was being rejected")
+        await self._repository.add_learning_signal(
+            access_token=access_token,
+            project_id=project_id,
+            event_type=LearningEvent.AI_EDIT_REJECTED,
+            entity_type="writing_proposal",
+            entity_id=proposal.id,
+            metadata={
+                "operation": proposal.operation.value,
+                "document_id": str(document_id),
+                "base_draft_version": proposal.base_draft_version,
+            },
+        )
+        return rejected
 
     async def list_proposals(
         self,
@@ -280,127 +412,6 @@ class WritingStudioService:
             project_id=project_id,
             document_id=document_id,
         )
-
-    async def accept_proposal(
-        self,
-        *,
-        access_token: str,
-        project_id: UUID,
-        document_id: UUID,
-        proposal_id: UUID,
-        request: ApplyWritingProposalRequest,
-    ) -> WritingProposalApplicationResult:
-        proposal = await self._require_proposal(
-            access_token=access_token,
-            project_id=project_id,
-            document_id=document_id,
-            proposal_id=proposal_id,
-        )
-        if proposal.status is not WritingProposalStatus.PROPOSED:
-            raise WritingProposalStale("Only a proposed edit can be accepted")
-        draft = await self._repository.get_manuscript_draft(
-            access_token=access_token,
-            project_id=project_id,
-            document_id=document_id,
-        )
-        if draft is None:
-            raise WritingProposalStale("The draft no longer exists")
-        if (
-            draft.version != request.expected_draft_version
-            or proposal.base_draft_version != request.expected_draft_version
-        ):
-            raise WritingProposalStale("The draft changed after this proposal was created")
-
-        self._validate_selection(
-            plain_text=draft.plain_text,
-            selection_start=proposal.selection_start,
-            selection_end=proposal.selection_end,
-        )
-        current_selection = draft.plain_text[proposal.selection_start : proposal.selection_end]
-        if (
-            current_selection != proposal.original_text
-            or self._selection_hash(current_selection) != proposal.selection_hash
-        ):
-            raise WritingProposalStale(
-                "The selected passage changed after this proposal was created"
-            )
-
-        updated_plain_text = (
-            draft.plain_text[: proposal.selection_start]
-            + proposal.proposed_text
-            + draft.plain_text[proposal.selection_end :]
-        )
-        editor_state = self._plain_text_editor_state(updated_plain_text)
-        try:
-            updated_draft = await self._repository.apply_writing_proposal(
-                access_token=access_token,
-                project_id=project_id,
-                document_id=document_id,
-                proposal_id=proposal_id,
-                expected_draft_version=request.expected_draft_version,
-                editor_state=editor_state,
-                plain_text=updated_plain_text,
-            )
-        except Exception as exc:
-            message = str(exc).lower()
-            if "stale" in message or "version" in message or "selection" in message:
-                raise WritingProposalStale(str(exc)) from exc
-            raise
-
-        accepted = await self._require_proposal(
-            access_token=access_token,
-            project_id=project_id,
-            document_id=document_id,
-            proposal_id=proposal_id,
-        )
-        await self._repository.add_learning_signal(
-            access_token=access_token,
-            project_id=project_id,
-            event_type=LearningEvent.AI_EDIT_ACCEPTED,
-            entity_type="writing_proposal",
-            entity_id=proposal_id,
-            metadata={
-                "operation": proposal.operation.value,
-                "model": proposal.model,
-                "base_draft_version": proposal.base_draft_version,
-                "applied_draft_version": updated_draft.version,
-            },
-        )
-        return WritingProposalApplicationResult(draft=updated_draft, proposal=accepted)
-
-    async def reject_proposal(
-        self,
-        *,
-        access_token: str,
-        project_id: UUID,
-        document_id: UUID,
-        proposal_id: UUID,
-    ) -> WritingProposal:
-        proposal = await self._require_proposal(
-            access_token=access_token,
-            project_id=project_id,
-            document_id=document_id,
-            proposal_id=proposal_id,
-        )
-        if proposal.status is not WritingProposalStatus.PROPOSED:
-            raise WritingStudioValidationError("Only a proposed edit can be rejected")
-        rejected = await self._repository.reject_writing_proposal(
-            access_token=access_token,
-            project_id=project_id,
-            document_id=document_id,
-            proposal_id=proposal_id,
-        )
-        if rejected is None:
-            raise WritingProposalStale("The proposal changed while the rejection was in flight")
-        await self._repository.add_learning_signal(
-            access_token=access_token,
-            project_id=project_id,
-            event_type=LearningEvent.AI_EDIT_REJECTED,
-            entity_type="writing_proposal",
-            entity_id=proposal_id,
-            metadata={"operation": proposal.operation.value, "model": proposal.model},
-        )
-        return rejected
 
     async def _require_document(
         self,
@@ -437,23 +448,18 @@ class WritingStudioService:
         if revision is None:
             raise WritingStructureNotFound(str(revision_id))
 
-    async def _require_proposal(
-        self,
-        *,
-        access_token: str,
-        project_id: UUID,
-        document_id: UUID,
-        proposal_id: UUID,
-    ) -> WritingProposal:
-        proposal = await self._repository.get_writing_proposal(
-            access_token=access_token,
-            project_id=project_id,
-            document_id=document_id,
-            proposal_id=proposal_id,
-        )
-        if proposal is None:
-            raise WritingStructureNotFound(str(proposal_id))
-        return proposal
+    @staticmethod
+    def _validate_selection(*, plain_text: str, selection_start: int, selection_end: int) -> None:
+        if selection_start < 0 or selection_end <= selection_start:
+            raise WritingStudioValidationError("Select a non-empty manuscript passage")
+        if selection_end > len(plain_text):
+            raise WritingStudioValidationError("The selected passage exceeds the manuscript draft")
+        if not plain_text[selection_start:selection_end].strip():
+            raise WritingStudioValidationError("Select manuscript text before asking Mi-Llama")
+
+    @staticmethod
+    def _selection_hash(text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     async def _generate_proposal(
         self,
@@ -465,54 +471,24 @@ class WritingStudioService:
         after_context: str,
         custom_prompt: str | None,
     ) -> str:
-        operation_instruction = {
-            WritingProposalOperation.REWRITE: (
-                "Rewrite the selected passage while preserving its meaning."
-            ),
-            WritingProposalOperation.IMPROVE: (
-                "Improve clarity, precision, flow, and readability without adding "
-                "unsupported facts."
-            ),
-            WritingProposalOperation.EXPAND: (
-                "Expand the selected passage with useful connective explanation, but do "
-                "not invent facts or citations."
-            ),
-            WritingProposalOperation.CONDENSE: (
-                "Make the selected passage materially shorter while preserving the "
-                "argument and important facts."
-            ),
-            WritingProposalOperation.CONTINUE: (
-                "Continue the selected passage naturally in the same voice without "
-                "inventing factual claims."
-            ),
-            WritingProposalOperation.CUSTOM: (
-                "Follow the writer's instruction exactly while preserving factual uncertainty."
-            ),
-        }[operation]
-        user_instruction = custom_prompt.strip() if custom_prompt else "No additional instruction."
-        payload = await self._provider.chat_json(
+        system = (
+            "You are Mi-Llama's manuscript collaborator. Return only a JSON object that conforms "
+            "to the requested schema. Rewrite only the selected passage. Do not add commentary, "
+            "Markdown fences, labels, or citations unless the user explicitly asks. Preserve facts "
+            "and claims unless the instruction explicitly requires changing them."
+        )
+        instruction = self._operation_instruction(operation, custom_prompt)
+        user = (
+            f"Instruction: {instruction}\n\n"
+            f"Context before selection:\n{before_context}\n\n"
+            f"Selected manuscript passage:\n{original_text}\n\n"
+            f"Context after selection:\n{after_context}"
+        )
+        payload = await self._provider.complete_structured(
             model=model,
             messages=[
-                ChatMessage(
-                    role=Role.SYSTEM,
-                    content=(
-                        "You are Mi-Llama's manuscript collaborator. Produce only a replacement "
-                        "for the selected passage. Preserve uncertainty and the writer's intent. "
-                        "Never invent sources, citations, quotations, statistics, names, dates, "
-                        "or factual claims that are not present in the supplied text/context."
-                    ),
-                ),
-                ChatMessage(
-                    role=Role.USER,
-                    content=(
-                        f"Operation: {operation.value}\n"
-                        f"Instruction: {operation_instruction}\n"
-                        f"Writer instruction: {user_instruction}\n\n"
-                        f"Context before:\n{before_context}\n\n"
-                        f"Selected passage:\n{original_text}\n\n"
-                        f"Context after:\n{after_context}"
-                    ),
-                ),
+                ChatMessage(role=Role.SYSTEM, content=system),
+                ChatMessage(role=Role.USER, content=user),
             ],
             schema={
                 "type": "object",
@@ -527,25 +503,23 @@ class WritingStudioService:
         return replacement
 
     @staticmethod
-    def _validate_selection(
-        *,
-        plain_text: str,
-        selection_start: int,
-        selection_end: int,
-    ) -> None:
-        if selection_end <= selection_start:
-            raise WritingStudioValidationError("Select a non-empty manuscript passage")
-        if selection_start < 0 or selection_end > len(plain_text):
-            raise WritingStudioValidationError("The selected passage is outside the current draft")
-        if not plain_text[selection_start:selection_end].strip():
-            raise WritingStudioValidationError(
-                "Select manuscript text before asking for an AI edit"
-            )
-
-    @staticmethod
-    def _selection_hash(text: str) -> str:
-        return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-    @staticmethod
-    def _plain_text_editor_state(text: str) -> dict[str, Any]:
-        return {"schema": "plain_text_v1", "text": text}
+    def _operation_instruction(
+        operation: WritingProposalOperation,
+        custom_prompt: str | None,
+    ) -> str:
+        if operation == WritingProposalOperation.REWRITE:
+            return "Rewrite the passage for clarity and flow while preserving its meaning."
+        if operation == WritingProposalOperation.IMPROVE:
+            return "Improve the passage's clarity, precision, grammar, and rhythm."
+        if operation == WritingProposalOperation.EXPAND:
+            return "Expand the passage with useful detail without inventing unsupported facts."
+        if operation == WritingProposalOperation.CONDENSE:
+            return "Make the passage substantially more concise without losing its core meaning."
+        if operation == WritingProposalOperation.CONTINUE:
+            return "Continue this passage naturally using only information already present in context."
+        if operation == WritingProposalOperation.CUSTOM:
+            prompt = (custom_prompt or "").strip()
+            if not prompt:
+                raise WritingStudioValidationError("Custom writing proposals require an instruction")
+            return prompt
+        raise WritingStudioValidationError(f"Unsupported writing operation: {operation}")
