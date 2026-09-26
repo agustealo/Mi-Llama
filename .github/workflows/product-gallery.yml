@@ -61,6 +61,8 @@ jobs:
               "studio.js",
               "studio_research.css",
               "studio_research.js",
+              "studio_citations.css",
+              "studio_citations.js",
               "mi-llama-mark.svg",
           }
           present = {path.name for path in assets.iterdir()} if assets.is_dir() else set()
