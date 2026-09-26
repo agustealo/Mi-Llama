@@ -9,6 +9,7 @@ from mi_llama.citation_authority import (
 )
 from mi_llama.providers.base import StructuredModelProvider
 from mi_llama.research import AuthorizedResearchService
+from mi_llama.structured_writing import register_structured_writing_routes
 from mi_llama.writing_evidence import (
     WritingEvidenceRepository,
     register_writing_evidence_routes,
@@ -76,6 +77,11 @@ def register_writing_intelligence_routes(
             app=app,
             repository=repository,
             provider=provider,
+            access_token_dependency=access_token_dependency,
+        )
+        register_structured_writing_routes(
+            app=app,
+            repository=repository,
             access_token_dependency=access_token_dependency,
         )
 
