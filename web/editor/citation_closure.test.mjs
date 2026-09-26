@@ -63,6 +63,22 @@ test('changed manuscript keeps citation obligation open for re-review', () => {
   assert.equal(obligations[0].manuscriptState, 'changed')
 })
 
+test('unchanged grounded wording shifted by earlier edits is relocated rather than changed', () => {
+  const obligations = acceptedGroundingObligations(
+    [proposal()],
+    { plain_text: 'Preface. Start grounded claim end' },
+  )
+  assert.equal(obligations[0].manuscriptState, 'relocated')
+})
+
+test('duplicate grounded wording at multiple locations is conservatively treated as changed', () => {
+  const obligations = acceptedGroundingObligations(
+    [proposal()],
+    { plain_text: 'Start edited. grounded claim and grounded claim' },
+  )
+  assert.equal(obligations[0].manuscriptState, 'changed')
+})
+
 test('duplicate citation identities inside one frozen packet are deduplicated', () => {
   const duplicate = proposal()
   duplicate.context_manifest.grounding.citations.push({
@@ -118,6 +134,16 @@ test('document provenance health keeps citation, drift, and counterevidence as s
   assert.equal(health.changedAfterGrounding, 0)
   assert.equal(health.counterevidenceEdits, 1)
   assert.equal(health.items[0].hasCounterevidence, true)
+})
+
+test('relocated unchanged wording does not inflate changed-after-grounding health', () => {
+  const obligations = acceptedGroundingObligations(
+    [proposal()],
+    { plain_text: 'Preface. Start grounded claim end' },
+  )
+  const health = documentProvenanceHealth(obligations, new Map(), 'doc-1')
+  assert.equal(health.items[0].manuscriptState, 'relocated')
+  assert.equal(health.changedAfterGrounding, 0)
 })
 
 test('fully cited counterevidence remains visible as context rather than a defect', () => {
