@@ -18,6 +18,7 @@ const state = {
   models: [],
   model: null,
   proposal: null,
+  proposalExplanation: null,
   canEdit: true,
   dirty: false,
   saving: false,
@@ -217,6 +218,7 @@ function resetProjectState() {
   state.draft = null
   state.localText = ''
   state.proposal = null
+  state.proposalExplanation = null
   state.canEdit = true
   state.dirty = false
   state.saving = false
@@ -348,6 +350,7 @@ async function loadWritingWorkspace() {
   state.draft = null
   state.localText = ''
   state.proposal = null
+  state.proposalExplanation = null
   state.canEdit = true
   state.dirty = false
   state.saving = false
@@ -428,6 +431,7 @@ async function loadDocumentDraft() {
   state.dirty = false
   state.saveError = null
   state.conflict = false
+  state.proposalExplanation = null
 
   if (draft.version) {
     const proposals = await apiJson(
@@ -681,6 +685,7 @@ function onEditorInput() {
   state.localText = editor.getText()
   state.dirty = !editorMatchesDraft(editor)
   state.proposal = null
+  state.proposalExplanation = null
   state.saveError = null
   const count = $('#studio-word-count')
   if (count) count.textContent = `${wordCount(state.localText)} words`
@@ -825,6 +830,7 @@ async function reloadServerDraft() {
     state.saveError = null
     state.conflict = false
     state.proposal = null
+    state.proposalExplanation = null
     renderManuscriptStudio()
     setStudioStatus(`Reloaded · v${draft.version}`, 'saved')
   } catch (error) {
@@ -870,9 +876,11 @@ async function requestProposal(operation) {
         }),
       },
     )
+    state.proposalExplanation = null
     renderProposalPanel()
   } catch (error) {
     state.proposal = null
+    state.proposalExplanation = null
     renderProposalPanel()
     showError(error.message || 'Mi-Llama could not create the proposal')
   } finally {
@@ -890,7 +898,7 @@ function setProposalBusy(busy, message = '') {
     node.textContent = message
     panel.appendChild(node)
   }
-  document.querySelectorAll('[data-operation], #custom-proposal').forEach((button) => {
+  document.querySelectorAll('[data-operation], #custom-proposal, [data-proposal-action]').forEach((button) => {
     button.disabled = busy || !state.canEdit || state.conflict || Boolean(state.saveError)
   })
 }
@@ -904,6 +912,53 @@ function proposalTextBlock(label, text, tone) {
   body.textContent = text
   wrap.append(title, body)
   return wrap
+}
+
+function proposalReviewNotes() {
+  if (!state.proposalExplanation) return null
+  const note = document.createElement('div')
+  note.className = 'collaborator-callout'
+  const title = document.createElement('b')
+  title.textContent = 'Review notes'
+  const body = document.createElement('p')
+  body.textContent = state.proposalExplanation
+  note.append(title, body)
+  return note
+}
+
+function refinementForm() {
+  const form = document.createElement('form')
+  form.id = 'proposal-refine-form'
+  const label = document.createElement('label')
+  label.className = 'field-label'
+  label.textContent = 'Refinement instruction'
+  const input = document.createElement('textarea')
+  input.id = 'proposal-refine-instruction'
+  input.rows = 3
+  input.maxLength = 4000
+  input.required = true
+  input.placeholder = 'e.g. Keep the argument, but make the rhythm less formal'
+  label.appendChild(input)
+  const submit = document.createElement('button')
+  submit.className = 'secondary collaborator-ask'
+  submit.type = 'submit'
+  submit.dataset.proposalAction = 'refine-submit'
+  submit.textContent = 'Generate refinement'
+  form.append(label, submit)
+  form.addEventListener('submit', refineProposal)
+  return form
+}
+
+function showRefinementForm() {
+  const panel = $('#proposal-panel')
+  if (!panel || !state.proposal) return
+  const existing = $('#proposal-refine-form')
+  if (existing) {
+    existing.remove()
+    return
+  }
+  panel.appendChild(refinementForm())
+  $('#proposal-refine-instruction')?.focus()
 }
 
 function renderProposalPanel() {
@@ -923,24 +978,109 @@ function renderProposalPanel() {
   const title = document.createElement('b')
   title.textContent = `${state.proposal.operation} proposal`
   const meta = document.createElement('span')
-  meta.textContent = `draft v${state.proposal.base_draft_version} · ${state.proposal.model}`
+  const depth = state.proposal.context_manifest?.refinement_depth
+  const lineage = Number.isInteger(depth) && depth > 0 ? ` · refinement ${depth}` : ''
+  meta.textContent = `draft v${state.proposal.base_draft_version} · ${state.proposal.model}${lineage}`
   heading.append(title, meta)
   panel.appendChild(heading)
   panel.appendChild(proposalTextBlock('Current', state.proposal.original_text, 'proposal-before'))
   panel.appendChild(proposalTextBlock('Proposed', state.proposal.proposed_text, 'proposal-after'))
+  const reviewNotes = proposalReviewNotes()
+  if (reviewNotes) panel.appendChild(reviewNotes)
 
   const actions = document.createElement('div')
   actions.className = 'proposal-actions'
   const accept = document.createElement('button')
   accept.className = 'primary'
+  accept.dataset.proposalAction = 'accept'
   accept.textContent = 'Accept'
   accept.addEventListener('click', acceptProposal)
   const reject = document.createElement('button')
   reject.className = 'secondary'
+  reject.dataset.proposalAction = 'reject'
   reject.textContent = 'Reject'
   reject.addEventListener('click', rejectProposal)
-  actions.append(accept, reject)
+  const refine = document.createElement('button')
+  refine.className = 'secondary'
+  refine.dataset.proposalAction = 'refine'
+  refine.textContent = 'Refine'
+  refine.addEventListener('click', showRefinementForm)
+  const explain = document.createElement('button')
+  explain.className = 'secondary'
+  explain.dataset.proposalAction = 'explain'
+  explain.textContent = 'Explain changes'
+  explain.addEventListener('click', explainProposal)
+  actions.append(accept, reject, refine, explain)
   panel.appendChild(actions)
+}
+
+async function refineProposal(event) {
+  event.preventDefault()
+  if (!state.proposal || !state.draft?.version) return
+  clearError()
+  if (state.dirty || state.saveError || state.localText !== state.draft.plain_text) {
+    showError('The manuscript changed after this proposal was created. Save and regenerate before refining it.')
+    return
+  }
+  const instruction = $('#proposal-refine-instruction')?.value.trim()
+  if (!instruction) {
+    showError('Add a refinement instruction before asking Mi-Llama to iterate the proposal.')
+    return
+  }
+  setProposalBusy(true, 'Mi-Llama is refining the reviewable proposal…')
+  try {
+    state.proposal = await apiJson(
+      `/api/projects/${state.projectId}/writing/documents/${state.documentId}/proposals/${state.proposal.id}/refine`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ instruction }),
+      },
+    )
+    state.proposalExplanation = null
+    renderProposalPanel()
+  } catch (error) {
+    if (error instanceof AuthError && error.status === 409) {
+      state.proposal = null
+      state.proposalExplanation = null
+      renderProposalPanel()
+      showError('This proposal is stale because the draft changed. Select the passage again to regenerate it.')
+    } else {
+      renderProposalPanel()
+      showError(error.message || 'Mi-Llama could not refine the proposal')
+    }
+  } finally {
+    setProposalBusy(false)
+  }
+}
+
+async function explainProposal() {
+  if (!state.proposal || !state.draft?.version) return
+  clearError()
+  if (state.dirty || state.saveError || state.localText !== state.draft.plain_text) {
+    showError('The manuscript changed after this proposal was created. Save and regenerate before reviewing it.')
+    return
+  }
+  setProposalBusy(true, 'Mi-Llama is preparing review notes…')
+  try {
+    const result = await apiJson(
+      `/api/projects/${state.projectId}/writing/documents/${state.documentId}/proposals/${state.proposal.id}/explain`,
+      { method: 'POST' },
+    )
+    state.proposalExplanation = result.explanation
+    renderProposalPanel()
+  } catch (error) {
+    if (error instanceof AuthError && error.status === 409) {
+      state.proposal = null
+      state.proposalExplanation = null
+      renderProposalPanel()
+      showError('This proposal is stale because the draft changed. Select the passage again to regenerate it.')
+    } else {
+      renderProposalPanel()
+      showError(error.message || 'Mi-Llama could not explain the proposal')
+    }
+  } finally {
+    setProposalBusy(false)
+  }
 }
 
 async function acceptProposal() {
@@ -961,6 +1101,7 @@ async function acceptProposal() {
     state.draft = result.draft
     state.localText = result.draft.plain_text
     state.proposal = null
+    state.proposalExplanation = null
     state.dirty = false
     state.saveError = null
     getEditorAdapter()?.setText(state.localText)
@@ -972,6 +1113,7 @@ async function acceptProposal() {
   } catch (error) {
     if (error instanceof AuthError && error.status === 409) {
       state.proposal = null
+      state.proposalExplanation = null
       renderProposalPanel()
       showError('This proposal is stale because the draft changed. Select the passage again to regenerate it.')
     } else {
@@ -989,6 +1131,7 @@ async function rejectProposal() {
       { method: 'POST' },
     )
     state.proposal = null
+    state.proposalExplanation = null
     setStudioStatus('Proposal rejected · manuscript unchanged', 'saved')
     renderProposalPanel()
   } catch (error) {
@@ -1020,6 +1163,7 @@ async function checkpointRevision() {
     state.saveError = null
     state.conflict = false
     state.proposal = null
+    state.proposalExplanation = null
     const index = state.documents.findIndex((item) => item.id === state.documentId)
     if (index >= 0) state.documents[index] = result.document
     setStudioStatus(`Revision ${result.revision.revision_number} checkpointed · v${result.draft.version}`, 'saved')

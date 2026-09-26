@@ -117,6 +117,16 @@ class CreateWritingProposalRequest(BaseModel):
     prompt: str | None = Field(default=None, max_length=4000)
 
 
+class RefineWritingProposalRequest(BaseModel):
+    instruction: str = Field(min_length=1, max_length=4000)
+
+
+class WritingProposalExplanation(BaseModel):
+    proposal_id: UUID
+    model: str
+    explanation: str = Field(min_length=1, max_length=20_000)
+
+
 class ApplyWritingProposalRequest(BaseModel):
     expected_draft_version: int = Field(ge=1)
 

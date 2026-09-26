@@ -99,3 +99,20 @@ def test_studio_never_synthesizes_ai_replacements_in_browser() -> None:
     assert "state.proposal = await apiJson" in studio
     assert "/accept`" in studio
     assert "/reject`" in studio
+
+
+def test_proposal_iteration_stays_reviewable_and_server_authoritative() -> None:
+    studio = (ASSETS / "studio.js").read_text()
+
+    assert "proposalExplanation" in studio
+    assert "Refine" in studio
+    assert "Explain changes" in studio
+    assert "/refine`" in studio
+    assert "/explain`" in studio
+    assert "Generate refinement" in studio
+    assert "Review notes" in studio
+    assert "refinement_depth" in studio
+    assert "state.localText !== state.draft.plain_text" in studio
+    assert "state.proposal = await apiJson" in studio
+    assert "getEditorAdapter()?.setText(state.localText)" in studio
+    assert "state.proposalExplanation = result.explanation" in studio

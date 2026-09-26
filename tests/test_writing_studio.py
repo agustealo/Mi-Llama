@@ -13,6 +13,7 @@ from mi_llama.writing_studio import (
     CreateWritingProposalRequest,
     DraftVersionConflict,
     ManuscriptDraft,
+    RefineWritingProposalRequest,
     SaveManuscriptDraftRequest,
     WritingProposal,
     WritingProposalOperation,
@@ -20,6 +21,7 @@ from mi_llama.writing_studio import (
     WritingProposalStatus,
     WritingStudioService,
 )
+from mi_llama.writing_studio.proposal_iteration import ProposalIterationService
 
 PROJECT_ID = UUID("11111111-1111-1111-1111-111111111111")
 USER_ID = UUID("22222222-2222-2222-2222-222222222222")
@@ -38,7 +40,16 @@ class FakeStructuredProvider:
         messages: Any,
         schema: dict[str, Any],
     ) -> dict[str, Any]:
-        del model, messages, schema
+        del model
+        if "explanation" in schema.get("properties", {}):
+            return {
+                "explanation": (
+                    "The proposal tightens the wording while preserving the original claim."
+                )
+            }
+        last_content = messages[-1].content if messages else ""
+        if "Existing proposal:" in last_content:
+            return {"replacement": "The refined passage is tighter."}
         return {"replacement": "The revised passage is clearer."}
 
 
@@ -434,3 +445,98 @@ async def test_reject_proposal_records_learning_signal_without_mutating_draft() 
     assert rejected.status is WritingProposalStatus.REJECTED
     assert repository.draft is not None and repository.draft.version == 1
     assert repository.learning_events == [LearningEvent.AI_EDIT_REJECTED]
+
+
+@pytest.mark.asyncio
+async def test_refinement_creates_immutable_child_lineage_without_mutating_draft() -> None:
+    repository = FakeWritingStudioRepository()
+    provider = FakeStructuredProvider()
+    service = WritingStudioService(
+        repository=repository,  # type: ignore[arg-type]
+        provider=provider,  # type: ignore[arg-type]
+    )
+    iteration = ProposalIterationService(
+        repository=repository,  # type: ignore[arg-type]
+        provider=provider,  # type: ignore[arg-type]
+    )
+    draft = await _seed_draft(service)
+    parent = await service.create_proposal(
+        access_token="jwt",
+        project_id=PROJECT_ID,
+        document_id=DOCUMENT_ID,
+        request=CreateWritingProposalRequest(
+            expected_draft_version=draft.version,
+            operation=WritingProposalOperation.IMPROVE,
+            model="llama-test",
+            selection_start=0,
+            selection_end=25,
+        ),
+    )
+
+    child = await iteration.refine(
+        access_token="jwt",
+        project_id=PROJECT_ID,
+        document_id=DOCUMENT_ID,
+        proposal_id=parent.id,
+        request=RefineWritingProposalRequest(instruction="Make the rhythm less formal"),
+    )
+
+    assert child.id != parent.id
+    assert child.proposed_text == "The refined passage is tighter."
+    assert child.original_text == parent.original_text
+    assert child.selection_hash == parent.selection_hash
+    assert child.base_draft_version == parent.base_draft_version
+    assert child.context_manifest["parent_proposal_id"] == str(parent.id)
+    assert child.context_manifest["refinement_root_proposal_id"] == str(parent.id)
+    assert child.context_manifest["refinement_depth"] == 1
+    assert parent.status is WritingProposalStatus.PROPOSED
+    assert repository.draft is not None and repository.draft.version == 1
+
+    result = await service.accept_proposal(
+        access_token="jwt",
+        project_id=PROJECT_ID,
+        document_id=DOCUMENT_ID,
+        proposal_id=child.id,
+        request=ApplyWritingProposalRequest(expected_draft_version=draft.version),
+    )
+    assert result.draft.plain_text == "The refined passage is tighter. The next sentence stays."
+
+
+@pytest.mark.asyncio
+async def test_explanation_is_read_only_review_metadata() -> None:
+    repository = FakeWritingStudioRepository()
+    provider = FakeStructuredProvider()
+    service = WritingStudioService(
+        repository=repository,  # type: ignore[arg-type]
+        provider=provider,  # type: ignore[arg-type]
+    )
+    iteration = ProposalIterationService(
+        repository=repository,  # type: ignore[arg-type]
+        provider=provider,  # type: ignore[arg-type]
+    )
+    draft = await _seed_draft(service)
+    proposal = await service.create_proposal(
+        access_token="jwt",
+        project_id=PROJECT_ID,
+        document_id=DOCUMENT_ID,
+        request=CreateWritingProposalRequest(
+            expected_draft_version=draft.version,
+            operation=WritingProposalOperation.REWRITE,
+            model="llama-test",
+            selection_start=0,
+            selection_end=25,
+        ),
+    )
+
+    explanation = await iteration.explain(
+        access_token="jwt",
+        project_id=PROJECT_ID,
+        document_id=DOCUMENT_ID,
+        proposal_id=proposal.id,
+    )
+
+    assert explanation.proposal_id == proposal.id
+    assert explanation.model == proposal.model
+    assert "tightens" in explanation.explanation
+    assert repository.proposals[proposal.id].status is WritingProposalStatus.PROPOSED
+    assert repository.draft is not None and repository.draft.version == draft.version
