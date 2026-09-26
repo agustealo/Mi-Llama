@@ -3,7 +3,9 @@ import { getEditorAdapter } from './editor_adapter.js'
 
 const SEARCH_LIMIT = 6
 const SEARCH_MAX_CHARS = 4000
+const MAX_GROUNDING_CITATIONS = 8
 const PROMOTION_FLASH_KEY = 'mi-llama.research-promotion.v1'
+const EVIDENCE_TRAY_KEY = 'mi-llama.evidence-tray.v1'
 
 let authError = null
 const authPromise = AuthClient.create().catch((error) => {
@@ -16,6 +18,7 @@ const researchState = {
   hits: [],
   busy: false,
   promotion: null,
+  tray: null,
 }
 
 let boundEditor = null
@@ -56,10 +59,96 @@ function researchPanel() {
   return $('#research-evidence-panel')
 }
 
-function clearResearchState(message = 'Select a passage and find project evidence without leaving the manuscript.') {
+function loadEvidenceTray(documentId = null) {
+  try {
+    const raw = window.sessionStorage.getItem(EVIDENCE_TRAY_KEY)
+    if (!raw) return null
+    const tray = JSON.parse(raw)
+    if (!tray || !Array.isArray(tray.items)) return null
+    if (documentId && tray.documentId !== documentId) return null
+    return tray
+  } catch (_error) {
+    return null
+  }
+}
+
+function persistEvidenceTray(tray) {
+  researchState.tray = tray
+  try {
+    window.sessionStorage.setItem(EVIDENCE_TRAY_KEY, JSON.stringify(tray))
+  } catch (_error) {
+    // The server remains authoritative. Tray persistence is only interaction state.
+  }
+}
+
+function clearEvidenceTray() {
+  researchState.tray = null
+  try {
+    window.sessionStorage.removeItem(EVIDENCE_TRAY_KEY)
+  } catch (_error) {
+    // Session storage is optional interaction state.
+  }
+}
+
+function trayMatchesSnapshot(tray, snapshot) {
+  return Boolean(
+    tray &&
+      snapshot &&
+      tray.projectId === snapshot.projectId &&
+      tray.documentId === snapshot.documentId &&
+      tray.selectionStart === snapshot.start &&
+      tray.selectionEnd === snapshot.end &&
+      tray.selectionText === snapshot.text,
+  )
+}
+
+function evidenceTrayForSnapshot(snapshot) {
+  const existing = researchState.tray || loadEvidenceTray(snapshot.documentId)
+  if (trayMatchesSnapshot(existing, snapshot)) return existing
+  return {
+    projectId: snapshot.projectId,
+    documentId: snapshot.documentId,
+    draftVersion: snapshot.draftVersion,
+    selectionStart: snapshot.start,
+    selectionEnd: snapshot.end,
+    selectionText: snapshot.text,
+    items: [],
+  }
+}
+
+function addPromotionToTray(result, hit, stance, snapshot) {
+  const tray = evidenceTrayForSnapshot(snapshot)
+  const existingIndex = tray.items.findIndex((item) => item.citationId === result.citation.id)
+  const item = {
+    citationId: result.citation.id,
+    source: sourceLabel(hit),
+    stance,
+    citationStatus: result.citation.status,
+  }
+  if (existingIndex >= 0) tray.items[existingIndex] = item
+  else tray.items.push(item)
+  tray.draftVersion = result.draft.version
+  persistEvidenceTray(tray)
+  return tray
+}
+
+function removeTrayCitation(citationId) {
+  const tray = researchState.tray || loadEvidenceTray()
+  if (!tray) return null
+  tray.items = tray.items.filter((item) => item.citationId !== citationId)
+  if (tray.items.length === 0) {
+    clearEvidenceTray()
+    return null
+  }
+  persistEvidenceTray(tray)
+  return tray
+}
+
+function clearResearchState(message = 'Select a passage and find project evidence without leaving the manuscript.', clearTray = false) {
   researchState.snapshot = null
   researchState.hits = []
   researchState.promotion = null
+  if (clearTray) clearEvidenceTray()
   const panel = researchPanel()
   if (!panel) return
   panel.replaceChildren()
@@ -116,6 +205,64 @@ function sourceLabel(hit) {
   return hit.location ? `${hit.source_filename} · ${hit.location}` : hit.source_filename
 }
 
+function stanceSummary(items) {
+  const counts = { supports: 0, contradicts: 0, context: 0 }
+  for (const item of items) {
+    if (item.stance in counts) counts[item.stance] += 1
+  }
+  return `support ${counts.supports} · contradict ${counts.contradicts} · context ${counts.context}`
+}
+
+function groundingTargetFromTray(tray) {
+  return {
+    citationIds: tray.items.map((item) => item.citationId),
+    draftVersion: tray.draftVersion,
+    selectionStart: tray.selectionStart,
+    selectionEnd: tray.selectionEnd,
+    selectionText: tray.selectionText,
+  }
+}
+
+function renderEvidenceTray(host, tray) {
+  if (!tray?.items?.length) return
+  const section = document.createElement('section')
+  section.className = 'research-evidence-tray'
+
+  const head = document.createElement('div')
+  head.className = 'research-tray-head'
+  const title = document.createElement('b')
+  title.textContent = `Evidence tray · ${tray.items.length}/${MAX_GROUNDING_CITATIONS}`
+  const balance = document.createElement('span')
+  balance.textContent = stanceSummary(tray.items)
+  head.append(title, balance)
+  section.appendChild(head)
+
+  const list = document.createElement('div')
+  list.className = 'research-tray-items'
+  for (const item of tray.items) {
+    const row = document.createElement('div')
+    row.className = 'research-tray-item'
+    const copy = document.createElement('div')
+    const source = document.createElement('strong')
+    source.textContent = item.source
+    const meta = document.createElement('small')
+    meta.textContent = `${item.stance} · citation ${item.citationStatus}`
+    copy.append(source, meta)
+    const remove = document.createElement('button')
+    remove.className = 'secondary research-tray-remove'
+    remove.textContent = 'Remove'
+    remove.addEventListener('click', () => {
+      const updated = removeTrayCitation(item.citationId)
+      if (updated) renderPromotionTray(updated)
+      else renderSearchResults()
+    })
+    row.append(copy, remove)
+    list.appendChild(row)
+  }
+  section.appendChild(list)
+  host.appendChild(section)
+}
+
 function renderSearchResults() {
   const panel = researchPanel()
   if (!panel) return
@@ -123,9 +270,17 @@ function renderSearchResults() {
 
   const snapshot = researchState.snapshot
   if (!snapshot) {
+    const tray = researchState.tray || loadEvidenceTray(manuscriptContext().documentId)
+    if (tray?.items?.length) {
+      renderPromotionTray(tray)
+      return
+    }
     clearResearchState()
     return
   }
+
+  const tray = researchState.tray || loadEvidenceTray(snapshot.documentId)
+  if (trayMatchesSnapshot(tray, snapshot) && tray.items.length) renderEvidenceTray(panel, tray)
 
   const header = document.createElement('div')
   header.className = 'research-result-head'
@@ -138,7 +293,7 @@ function renderSearchResults() {
 
   const policy = document.createElement('p')
   policy.className = 'research-policy'
-  policy.textContent = 'Retrieval is candidate-only. Choose a stance to promote one source passage into canonical research and bind it to an immutable manuscript revision.'
+  policy.textContent = 'Retrieval is candidate-only. Promote reviewed passages with an explicit stance, then generate against the bounded evidence tray.'
   panel.appendChild(policy)
 
   if (researchState.hits.length === 0) {
@@ -183,6 +338,27 @@ function renderSearchResults() {
   }
 }
 
+async function searchEvidenceForSelection(selection) {
+  setResearchBusy(true, 'Searching the project research index…')
+  try {
+    const snapshot = await persistedSnapshot(selection)
+    const response = await apiJson(`/api/projects/${selection.projectId}/research/query`, {
+      method: 'POST',
+      body: JSON.stringify({ query: selection.text, limit: SEARCH_LIMIT }),
+    })
+    researchState.snapshot = snapshot
+    researchState.hits = response?.hits || []
+    researchState.promotion = null
+    const tray = loadEvidenceTray(selection.documentId)
+    researchState.tray = trayMatchesSnapshot(tray, snapshot) ? tray : null
+    renderSearchResults()
+  } catch (error) {
+    showResearchError(error.message || 'Project evidence search failed.')
+  } finally {
+    setResearchBusy(false)
+  }
+}
+
 async function findEvidence() {
   if (researchState.busy) return
   const selection = currentSelection()
@@ -198,33 +374,33 @@ async function findEvidence() {
     showResearchError(`Evidence search is limited to ${SEARCH_MAX_CHARS} selected characters at a time.`)
     return
   }
-
-  setResearchBusy(true, 'Searching the project research index…')
-  try {
-    const snapshot = await persistedSnapshot(selection)
-    const response = await apiJson(`/api/projects/${selection.projectId}/research/query`, {
-      method: 'POST',
-      body: JSON.stringify({ query: selection.text, limit: SEARCH_LIMIT }),
-    })
-    researchState.snapshot = snapshot
-    researchState.hits = response?.hits || []
-    researchState.promotion = null
-    renderSearchResults()
-  } catch (error) {
-    showResearchError(error.message || 'Project evidence search failed.')
-  } finally {
-    setResearchBusy(false)
-  }
+  await searchEvidenceForSelection(selection)
 }
 
-function groundingTarget(result, snapshot) {
-  return {
-    citationId: result.citation.id,
-    draftVersion: result.draft.version,
-    selectionStart: snapshot.start,
-    selectionEnd: snapshot.end,
-    selectionText: snapshot.text,
+async function findMoreEvidenceFromTray() {
+  if (researchState.busy) return
+  const tray = researchState.tray || loadEvidenceTray(manuscriptContext().documentId)
+  const { projectId, documentId, editor } = manuscriptContext()
+  if (!tray || !projectId || !documentId || !editor) return
+  if (tray.projectId !== projectId || tray.documentId !== documentId) {
+    clearEvidenceTray()
+    showResearchError('The evidence tray belonged to another manuscript. Select this passage again.')
+    return
   }
+  const fullText = editor.getText()
+  if (fullText.slice(tray.selectionStart, tray.selectionEnd) !== tray.selectionText) {
+    clearEvidenceTray()
+    showResearchError('The evidence-bound manuscript passage changed. Select it again before continuing research.')
+    return
+  }
+  await searchEvidenceForSelection({
+    projectId,
+    documentId,
+    start: tray.selectionStart,
+    end: tray.selectionEnd,
+    text: tray.selectionText,
+    fullText,
+  })
 }
 
 function renderGroundedProposalControls(host, target) {
@@ -234,7 +410,7 @@ function renderGroundedProposalControls(host, target) {
   const label = document.createElement('label')
   label.className = 'research-grounding-operation'
   const text = document.createElement('span')
-  text.textContent = 'Evidence-grounded edit'
+  text.textContent = `Evidence-grounded edit · ${target.citationIds.length} source${target.citationIds.length === 1 ? '' : 's'}`
   const operation = document.createElement('select')
   for (const [value, title] of [
     ['improve', 'Improve'],
@@ -251,7 +427,7 @@ function renderGroundedProposalControls(host, target) {
 
   const button = document.createElement('button')
   button.className = 'primary research-grounded-proposal'
-  button.textContent = 'Generate from reviewed evidence'
+  button.textContent = 'Generate from evidence tray'
   button.addEventListener('click', () => generateGroundedProposal(target, operation.value, button))
   wrap.append(label, button)
   host.appendChild(wrap)
@@ -260,9 +436,10 @@ function renderGroundedProposalControls(host, target) {
 async function generateGroundedProposal(target, operation, button) {
   if (researchState.busy) return
   const { projectId, documentId, editor } = manuscriptContext()
-  if (!projectId || !documentId || !editor) return
+  if (!projectId || !documentId || !editor || target.citationIds.length === 0) return
   if (editor.getText().slice(target.selectionStart, target.selectionEnd) !== target.selectionText) {
-    showResearchError('The reviewed manuscript passage changed. Find and promote evidence again before grounding a proposal.')
+    clearEvidenceTray()
+    showResearchError('The reviewed manuscript passage changed. Build a new evidence tray before grounding a proposal.')
     return
   }
   const model = $('#studio-model')?.value || null
@@ -292,42 +469,44 @@ async function generateGroundedProposal(target, operation, button) {
         selection_start: target.selectionStart,
         selection_end: target.selectionEnd,
         prompt,
-        citation_ids: [target.citationId],
+        citation_ids: target.citationIds,
       }),
     })
+    clearEvidenceTray()
     window.location.reload()
   } catch (error) {
     showResearchError(error.message || 'Mi-Llama could not generate an evidence-grounded proposal.')
   } finally {
     researchState.busy = false
     button.disabled = false
-    button.textContent = 'Generate from reviewed evidence'
+    button.textContent = 'Generate from evidence tray'
   }
 }
 
-function renderPromotion(result, hit, stance, checkpointed) {
+function renderPromotionTray(tray) {
   const panel = researchPanel()
-  if (!panel || !researchState.snapshot) return
+  if (!panel || !tray?.items?.length) return
+  researchState.tray = tray
   panel.replaceChildren()
 
   const card = document.createElement('article')
   card.className = 'research-promotion'
   const badge = document.createElement('span')
   badge.className = 'research-promoted-badge'
-  badge.textContent = `${stance} · linked`
+  badge.textContent = `${tray.items.length} reviewed source${tray.items.length === 1 ? '' : 's'} · linked`
   const title = document.createElement('b')
-  title.textContent = sourceLabel(hit)
+  title.textContent = 'Claim evidence tray'
   const text = document.createElement('p')
-  text.textContent = 'This source passage is now canonical claim evidence and is anchored to the exact immutable manuscript passage you reviewed.'
-  const revision = document.createElement('small')
-  revision.textContent = `${checkpointed ? 'Created' : 'Reused'} revision ${result.revision.revision_number} · citation ${result.citation.status}`
-  card.append(badge, title, text, revision)
-  renderGroundedProposalControls(card, groundingTarget(result, researchState.snapshot))
+  text.textContent = 'Every tray item is canonical evidence bound to this exact manuscript passage. Generation will freeze the selected packet and preserve each stance.'
+  card.append(badge, title, text)
+  renderEvidenceTray(card, tray)
+  renderGroundedProposalControls(card, groundingTargetFromTray(tray))
 
   const again = document.createElement('button')
   again.className = 'secondary research-again'
-  again.textContent = 'Review more evidence'
-  again.addEventListener('click', renderSearchResults)
+  again.textContent = tray.items.length >= MAX_GROUNDING_CITATIONS ? 'Evidence tray full' : 'Find more evidence for this passage'
+  again.disabled = tray.items.length >= MAX_GROUNDING_CITATIONS
+  again.addEventListener('click', findMoreEvidenceFromTray)
 
   panel.append(card, again)
 }
@@ -369,35 +548,23 @@ function renderPromotionFlash() {
   const flash = takePromotionFlash()
   const { documentId } = manuscriptContext()
   if (!flash || flash.document_id !== documentId) return false
-  const panel = researchPanel()
-  if (!panel) return false
-  panel.replaceChildren()
-  const card = document.createElement('article')
-  card.className = 'research-promotion'
-  const badge = document.createElement('span')
-  badge.className = 'research-promoted-badge'
-  badge.textContent = `${flash.stance} · linked`
-  const title = document.createElement('b')
-  title.textContent = flash.source
-  const text = document.createElement('p')
-  text.textContent = 'Evidence was committed atomically and the studio reloaded the authoritative manuscript checkpoint.'
-  const revision = document.createElement('small')
-  revision.textContent = `Revision ${flash.revision_number} · citation ${flash.citation_status}`
-  card.append(badge, title, text, revision)
-  renderGroundedProposalControls(card, {
-    citationId: flash.citation_id,
-    draftVersion: flash.draft_version,
-    selectionStart: flash.selection_start,
-    selectionEnd: flash.selection_end,
-    selectionText: flash.selection_text,
-  })
-  panel.appendChild(card)
+  const tray = loadEvidenceTray(documentId)
+  if (!tray?.items?.length) return false
+  researchState.tray = tray
+  renderPromotionTray(tray)
   return true
 }
 
 async function promoteEvidence(hit, stance, button) {
   if (researchState.busy || !researchState.snapshot) return
   const snapshot = researchState.snapshot
+  const tray = evidenceTrayForSnapshot(snapshot)
+  const alreadyIncluded = tray.items.some((item) => item.source === sourceLabel(hit) && item.stance === stance)
+  if (!alreadyIncluded && tray.items.length >= MAX_GROUNDING_CITATIONS) {
+    showResearchError(`The evidence tray is limited to ${MAX_GROUNDING_CITATIONS} reviewed sources. Remove one before adding another.`)
+    return
+  }
+
   const { projectId, documentId, editor } = manuscriptContext()
   if (
     projectId !== snapshot.projectId ||
@@ -405,6 +572,7 @@ async function promoteEvidence(hit, stance, button) {
     !editor ||
     editor.getText() !== snapshot.fullText
   ) {
+    clearEvidenceTray()
     showResearchError('The manuscript changed after this evidence search. Search the passage again before promoting evidence.')
     return
   }
@@ -436,15 +604,17 @@ async function promoteEvidence(hit, stance, button) {
       draftVersion: result.draft.version,
       baseRevisionId: result.revision.id,
     }
+    const updatedTray = addPromotionToTray(result, hit, stance, researchState.snapshot)
 
     if (checkpointed) {
       savePromotionFlash(result, hit, stance, researchState.snapshot)
       window.location.reload()
       return
     }
-    renderPromotion(result, hit, stance, false)
+    renderPromotionTray(updatedTray)
   } catch (error) {
     if (error instanceof AuthError && error.status === 409) {
+      clearEvidenceTray()
       showResearchError('The saved manuscript changed after this evidence search. Select the passage again and refresh the candidates.')
     } else {
       showResearchError(error.message || 'Evidence promotion failed.')
@@ -481,14 +651,20 @@ function installResearchInteraction() {
     else collaborator.appendChild(section)
     createdPanel = true
   }
-  if (createdPanel && !renderPromotionFlash()) clearResearchState()
+  if (createdPanel) {
+    if (!renderPromotionFlash()) {
+      const tray = loadEvidenceTray(manuscriptContext().documentId)
+      if (tray?.items?.length) renderPromotionTray(tray)
+      else clearResearchState()
+    }
+  }
 
   if (editor !== boundEditor) {
     if (unbindEditorChange) unbindEditorChange()
     boundEditor = editor
     unbindEditorChange = editor.onChange(() => {
-      if (researchState.snapshot || researchState.hits.length || researchState.promotion) {
-        clearResearchState('The manuscript changed. Select the passage again to refresh evidence context.')
+      if (researchState.snapshot || researchState.hits.length || researchState.promotion || researchState.tray) {
+        clearResearchState('The manuscript changed. Select the passage again to refresh evidence context.', true)
       }
     })
   }
