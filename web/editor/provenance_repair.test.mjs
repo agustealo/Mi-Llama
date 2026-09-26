@@ -49,7 +49,7 @@ test('repair candidates preserve frozen accepted wording and current original-ra
   const repairs = provenanceRepairItems(acceptedGroundingObligations([acceptedProposal()], draft), draft)
   assert.equal(repairs.length, 1)
   assert.equal(repairs[0].acceptedText, 'grounded claim')
-  assert.equal(repairs[0].currentAtOriginalRange, 'edited wording ')
+  assert.equal(repairs[0].currentAtOriginalRange, 'edited wording')
   assert.deepEqual(repairs[0].citationIds, ['citation-a', 'citation-b'])
 })
 
