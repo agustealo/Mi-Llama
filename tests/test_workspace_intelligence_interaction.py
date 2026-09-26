@@ -47,6 +47,31 @@ def test_intelligence_mutations_follow_studio_edit_authority() -> None:
     assert "button.disabled = intelligenceState.busy || !canEdit" in interaction
 
 
+def test_intelligence_inline_annotations_require_exact_revision_identity() -> None:
+    interaction = (ASSETS / "studio_intelligence.js").read_text()
+
+    assert "context.editor?.clearAnnotations()" in interaction
+    assert (
+        "String(intelligenceState.result.run.revision_id) !== String(resolved.revision.id)"
+        in interaction
+    )
+    assert "intelligenceState.anchorFresh = true" in interaction
+    assert "context.editor.setAnnotations(annotationPayload())" in interaction
+    assert ".filter((item) => item.finding.status !== 'dismissed')" in interaction
+    assert "context.editor.clearAnnotations()" in interaction
+    assert "intelligenceState.anchorFresh = false" in interaction
+
+
+def test_finding_cards_reveal_only_fresh_revision_ranges() -> None:
+    interaction = (ASSETS / "studio_intelligence.js").read_text()
+
+    assert "!intelligenceState.anchorFresh || intelligenceState.stale" in interaction
+    assert "editor.revealRange(finding.character_start, finding.character_end)" in interaction
+    assert "card.classList.add('is-revealable')" in interaction
+    assert "Reveal in manuscript." in interaction
+    assert "inline passage markers are hidden" in interaction
+
+
 def test_intelligence_installer_and_failed_loads_are_observer_safe() -> None:
     interaction = (ASSETS / "studio_intelligence.js").read_text()
 

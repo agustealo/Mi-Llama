@@ -55,6 +55,23 @@ class TextareaEditorAdapter {
     return this.getText()
   }
 
+  setAnnotations(_annotations) {
+    return false
+  }
+
+  clearAnnotations() {}
+
+  revealRange(start, end) {
+    const text = this.getText()
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end > text.length) {
+      throw new RangeError('Editor reveal range is invalid')
+    }
+    this.element.setSelectionRange(start, end)
+    this.element.focus()
+    this.element.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    return true
+  }
+
   onChange(listener) {
     const handler = () => listener(this)
     this.element.addEventListener('input', handler)
@@ -146,6 +163,22 @@ class SwappableEditorAdapter {
       editor_state: { schema: 'plain_text_v1', text: plainText },
       plain_text: plainText,
     }
+  }
+
+  setAnnotations(annotations) {
+    if (typeof this.implementation.setAnnotations !== 'function') return false
+    return this.implementation.setAnnotations(annotations)
+  }
+
+  clearAnnotations() {
+    if (typeof this.implementation.clearAnnotations === 'function') {
+      return this.implementation.clearAnnotations()
+    }
+  }
+
+  revealRange(start, end) {
+    if (typeof this.implementation.revealRange !== 'function') return false
+    return this.implementation.revealRange(start, end)
   }
 
   runFormatting(command) {
