@@ -51,9 +51,7 @@ class ProposalIterationService:
         if not instruction:
             raise WritingStudioValidationError("A refinement instruction is required")
 
-        before = draft.plain_text[
-            max(0, proposal.selection_start - 800) : proposal.selection_start
-        ]
+        before = draft.plain_text[max(0, proposal.selection_start - 800) : proposal.selection_start]
         after = draft.plain_text[proposal.selection_end : proposal.selection_end + 800]
         proposed_text = await self._generate_refinement(
             model=proposal.model,
@@ -147,9 +145,7 @@ class ProposalIterationService:
         )
         explanation = payload.get("explanation")
         if not isinstance(explanation, str) or not explanation.strip():
-            raise WritingStudioValidationError(
-                "The model returned invalid proposal review notes"
-            )
+            raise WritingStudioValidationError("The model returned invalid proposal review notes")
         explanation = explanation.strip()
         if len(explanation) > 20_000:
             raise WritingStudioValidationError("Proposal review notes exceed the maximum size")
@@ -245,9 +241,7 @@ class ProposalIterationService:
         )
         replacement = payload.get("replacement")
         if not isinstance(replacement, str):
-            raise WritingStudioValidationError(
-                "The model returned an invalid refined proposal"
-            )
+            raise WritingStudioValidationError("The model returned an invalid refined proposal")
         return replacement
 
     @staticmethod
@@ -265,8 +259,7 @@ def register_proposal_iteration_routes(
     service = ProposalIterationService(repository=repository, provider=provider)
 
     @app.post(
-        "/api/projects/{project_id}/writing/documents/{document_id}/proposals/"
-        "{proposal_id}/refine",
+        "/api/projects/{project_id}/writing/documents/{document_id}/proposals/{proposal_id}/refine",
         response_model=WritingProposal,
         status_code=status.HTTP_201_CREATED,
     )
