@@ -130,9 +130,10 @@ function renderHealthDetails(host, items, label) {
     titleNode.textContent = `${item.operation} · ${manuscriptStateLabel(item.manuscriptState)}`
     const sourceState = document.createElement('small')
     const counter = item.hasCounterevidence ? ' · counterevidence included' : ''
+    const reground = item.needsRegrounding ? ' · marked needs re-grounding' : ''
     sourceState.textContent = item.fullyCited
-      ? `all ${item.citations.length} grounding citation${item.citations.length === 1 ? '' : 's'} inserted${counter}`
-      : `${item.openCitationCount} citation${item.openCitationCount === 1 ? '' : 's'} still open${counter}`
+      ? `all ${item.citations.length} grounding citation${item.citations.length === 1 ? '' : 's'} inserted${counter}${reground}`
+      : `${item.openCitationCount} citation${item.openCitationCount === 1 ? '' : 's'} still open${counter}${reground}`
     copy.append(titleNode, sourceState)
 
     const actions = document.createElement('div')
@@ -192,7 +193,7 @@ function renderHealth(panel, health) {
   const title = document.createElement('b')
   title.textContent = 'Manuscript provenance health'
   const meta = document.createElement('span')
-  meta.textContent = `${health.totalGroundedEdits} accepted grounded edit${health.totalGroundedEdits === 1 ? '' : 's'}`
+  meta.textContent = `${health.totalGroundedEdits} active grounded edit${health.totalGroundedEdits === 1 ? '' : 's'}`
   head.append(title, meta)
   section.appendChild(head)
 
@@ -241,7 +242,7 @@ function renderHealth(panel, health) {
   const note = document.createElement('p')
   note.className = 'citation-closure-policy'
   note.textContent =
-    'These are independent provenance facts, not a score. Counterevidence is surfaced as research context, not treated as a defect.'
+    'These are independent provenance facts, not a score. Retired and superseded grounding stays in history but leaves the active health view. Counterevidence remains research context, not a defect.'
   section.appendChild(note)
   panel.appendChild(section)
 }
@@ -261,7 +262,7 @@ function renderClosure(panel, health, obligations) {
   if (obligations.length === 0) {
     const complete = document.createElement('div')
     complete.className = 'citation-closure-complete'
-    complete.textContent = 'No open citation actions for accepted grounded edits in this manuscript.'
+    complete.textContent = 'No open citation actions for active accepted grounded edits in this manuscript.'
     panel.appendChild(complete)
     return
   }
@@ -300,8 +301,9 @@ function renderClosure(panel, health, obligations) {
     if (obligation.manuscriptState === 'changed') {
       const warning = document.createElement('p')
       warning.className = 'citation-closure-warning'
-      warning.textContent =
-        'This grounded passage changed after acceptance. Its source obligations remain open until you re-review the evidence and citations.'
+      warning.textContent = obligation.needsRegrounding
+        ? 'This grounded passage changed and is durably marked needs re-grounding. Its source obligations remain active until the writer repairs or resolves the relationship.'
+        : 'This grounded passage changed after acceptance. Its source obligations remain open until you re-review the evidence and citations.'
       card.appendChild(warning)
     }
 
@@ -347,19 +349,21 @@ async function refreshCitationClosure() {
 
   const generation = ++refreshGeneration
   try {
-    const [draft, proposals] = await Promise.all([
+    const [draft, proposals, dispositions] = await Promise.all([
       apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/draft`),
       apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/proposals`),
+      apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/provenance-dispositions`),
     ])
     if (generation !== refreshGeneration || !draft) return
 
-    const obligations = acceptedGroundingObligations(proposals, draft)
-    if (obligations.length === 0) {
+    const obligations = acceptedGroundingObligations(proposals, draft, dispositions)
+    const activeObligations = obligations.filter((item) => !item.provenanceResolved)
+    if (activeObligations.length === 0) {
       removePanel()
       return
     }
 
-    const citationIds = [...new Set(obligations.flatMap((item) => item.citations.map((citation) => citation.citation_id)))]
+    const citationIds = [...new Set(activeObligations.flatMap((item) => item.citations.map((citation) => citation.citation_id)))]
     const contexts = new Map()
     await Promise.all(
       citationIds.map(async (citationId) => {
