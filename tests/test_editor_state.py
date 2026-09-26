@@ -111,7 +111,9 @@ def test_draft_request_rejects_editor_plain_text_split_brain() -> None:
         )
 
 
-def test_structured_editor_migration_allows_format_upgrade_but_blocks_destructive_downgrade() -> None:
+def test_structured_editor_migration_allows_format_upgrade_but_blocks_destructive_downgrade() -> (
+    None
+):
     sql = MIGRATION.read_text()
 
     assert "new_schema not in ('plain_text_v1', 'tiptap_v1')" in sql

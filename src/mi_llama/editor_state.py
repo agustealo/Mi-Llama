@@ -30,7 +30,9 @@ def project_editor_state(editor_state: dict[str, Any]) -> str:
     if not isinstance(editor_state, dict):
         raise EditorStateError("Editor state must be an object")
     try:
-        encoded_size = len(json.dumps(editor_state, ensure_ascii=False, separators=(",", ":")).encode())
+        encoded_size = len(
+            json.dumps(editor_state, ensure_ascii=False, separators=(",", ":")).encode()
+        )
     except (TypeError, ValueError) as exc:
         raise EditorStateError("Editor state must be JSON serializable") from exc
     if encoded_size > MAX_EDITOR_STATE_BYTES:
@@ -124,7 +126,9 @@ def _project_block(node: dict[str, Any], *, depth: int, counter: list[int]) -> s
         children = _content(node)
         if not children:
             return ""
-        return "\n".join(_project_block(child, depth=depth + 1, counter=counter) for child in children)
+        return "\n".join(
+            _project_block(child, depth=depth + 1, counter=counter) for child in children
+        )
 
     if node_type in {"bulletList", "orderedList"}:
         allowed = {"type", "content"} if node_type == "bulletList" else {"type", "content", "attrs"}
@@ -140,14 +144,18 @@ def _project_block(node: dict[str, Any], *, depth: int, counter: list[int]) -> s
         for child in children:
             if child.get("type") != "listItem":
                 raise EditorStateError("List content must contain only listItem nodes")
-        return "\n".join(_project_block(child, depth=depth + 1, counter=counter) for child in children)
+        return "\n".join(
+            _project_block(child, depth=depth + 1, counter=counter) for child in children
+        )
 
     if node_type == "listItem":
         _validate_node_keys(node, {"type", "content"})
         children = _content(node)
         if not children:
             return ""
-        return "\n".join(_project_block(child, depth=depth + 1, counter=counter) for child in children)
+        return "\n".join(
+            _project_block(child, depth=depth + 1, counter=counter) for child in children
+        )
 
     raise EditorStateError(f"Unsupported Tiptap block node: {node_type!r}")
 
