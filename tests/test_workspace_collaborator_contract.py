@@ -46,3 +46,15 @@ def test_discussion_requires_selection_for_large_drafts() -> None:
     assert "This draft is too long for whole-manuscript context" in collaborator
     assert "Select at most ${MAX_CONTEXT_CHARS.toLocaleString()} characters" in collaborator
     assert "The selected passage no longer matches the saved manuscript draft." in collaborator
+
+
+def test_existing_discussion_owns_its_model_without_locking_proposals() -> None:
+    collaborator = (ROOT / "studio_collaborator.js").read_text()
+
+    assert "function activeConversation()" in collaborator
+    assert "function syncModelAuthority()" in collaborator
+    assert "collaboratorState.mode === 'discuss'" in collaborator
+    assert "select.disabled = !hasModels || locked" in collaborator
+    assert "Start a new discussion to choose another model." in collaborator
+    assert "collaboratorState.mode = discuss ? 'discuss' : 'propose'" in collaborator
+    assert "if (locked) syncThreadModel(conversation)" in collaborator
