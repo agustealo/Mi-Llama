@@ -220,7 +220,9 @@ class ProvenanceDispositionService:
                     "Superseding proposal must target a later manuscript draft"
                 )
             historical_time = proposal.reviewed_at or proposal.updated_at or proposal.created_at
-            replacement_time = replacement.reviewed_at or replacement.updated_at or replacement.created_at
+            replacement_time = (
+                replacement.reviewed_at or replacement.updated_at or replacement.created_at
+            )
             if replacement_time <= historical_time:
                 raise ProvenanceDispositionValidationError(
                     "Superseding proposal must have been accepted after the historical proposal"
