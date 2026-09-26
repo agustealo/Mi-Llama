@@ -65,6 +65,7 @@ jobs:
           node --check src/mi_llama/workspace_assets/tiptap_adapter.js
           node --check src/mi_llama/workspace_assets/tiptap_editor.bundle.js
           node --check src/mi_llama/workspace_assets/studio.js
+          node --check src/mi_llama/workspace_assets/rich_editor_activation.js
           node --check src/mi_llama/workspace_assets/studio_research.js
           node --check src/mi_llama/workspace_assets/studio_citations.js
 
