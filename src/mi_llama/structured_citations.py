@@ -324,9 +324,7 @@ def build_citation_insertion_plan(
 
     citation_start = insertion_position + len(fragment) - len(citation_text)
     citation_end = citation_start + len(citation_text)
-    next_content = (
-        revision.content[:insertion_position] + fragment + revision.content[insertion_position:]
-    )
+    next_content = revision.content[:insertion_position] + fragment + revision.content[insertion_position:]
     if len(next_content) > 2_000_000:
         raise CitationAuthorityConflict("Manuscript draft exceeds maximum size")
 
