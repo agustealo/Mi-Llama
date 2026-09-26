@@ -18,6 +18,24 @@ function citationClosureStatus(item, contexts, documentId) {
   return 'pending'
 }
 
+function manuscriptStateFor(proposal, draftText) {
+  const start = proposal?.selection_start
+  const proposedText = proposal?.proposed_text
+  if (
+    !Number.isInteger(start) ||
+    start < 0 ||
+    typeof proposedText !== 'string' ||
+    proposedText.length === 0
+  ) {
+    return 'changed'
+  }
+  if (draftText.slice(start, start + proposedText.length) === proposedText) return 'exact'
+
+  const first = draftText.indexOf(proposedText)
+  if (first >= 0 && first === draftText.lastIndexOf(proposedText)) return 'relocated'
+  return 'changed'
+}
+
 export function acceptedGroundingObligations(proposals, draft) {
   if (!Array.isArray(proposals) || typeof draft?.plain_text !== 'string') return []
 
@@ -35,21 +53,12 @@ export function acceptedGroundingObligations(proposals, draft) {
         unique.push(item)
       }
 
-      const start = proposal.selection_start
-      const proposedText = proposal.proposed_text
-      const exact =
-        Number.isInteger(start) &&
-        start >= 0 &&
-        typeof proposedText === 'string' &&
-        proposedText.length > 0 &&
-        draft.plain_text.slice(start, start + proposedText.length) === proposedText
-
       return {
         proposalId: proposal.id,
         operation: proposal.operation,
         baseDraftVersion: proposal.base_draft_version,
         reviewedAt: reviewedTime(proposal),
-        manuscriptState: exact ? 'exact' : 'changed',
+        manuscriptState: manuscriptStateFor(proposal, draft.plain_text),
         citations: unique,
       }
     })
