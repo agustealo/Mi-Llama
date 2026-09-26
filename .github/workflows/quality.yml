@@ -43,6 +43,7 @@ jobs:
           node --check src/mi_llama/workspace_assets/app.js
           node --check src/mi_llama/workspace_assets/auth.js
           node --check src/mi_llama/workspace_assets/studio.js
+          node --check src/mi_llama/workspace_assets/studio_research.js
 
       - name: MyPy
         run: mypy src/mi_llama
