@@ -28,11 +28,14 @@ async function apiJson(path, options = {}) {
 }
 
 function manuscriptContext() {
+  const editor = getEditorAdapter()
+  const source = editor?.sourceElement?.() || null
   return {
     projectId: $('#project-select')?.value || null,
     documentId: $('#document-select')?.value || null,
     model: $('#studio-model')?.value || null,
-    editor: getEditorAdapter(),
+    editor,
+    canEdit: Boolean(editor && !source?.readOnly),
   }
 }
 
@@ -58,13 +61,18 @@ function showIntelligenceMessage(message, tone = '') {
   body.appendChild(node)
 }
 
-function setBusy(busy, message = '') {
-  intelligenceState.busy = busy
+function syncActionState() {
+  const { canEdit } = manuscriptContext()
   document
     .querySelectorAll('#analyze-revision-action, #analyze-selection-action, [data-finding-action]')
     .forEach((button) => {
-      button.disabled = busy
+      button.disabled = intelligenceState.busy || !canEdit
     })
+}
+
+function setBusy(busy, message = '') {
+  intelligenceState.busy = busy
+  syncActionState()
   if (busy && message) showIntelligenceMessage(message, 'busy')
 }
 
@@ -98,8 +106,8 @@ function updateFinding(nextFinding) {
 }
 
 async function reviewFinding(findingId, status) {
-  const { projectId, documentId } = manuscriptContext()
-  if (!projectId || !documentId || intelligenceState.busy) return
+  const { projectId, documentId, canEdit } = manuscriptContext()
+  if (!projectId || !documentId || !canEdit || intelligenceState.busy) return
   setBusy(true, status === 'confirmed' ? 'Confirming finding…' : 'Dismissing finding…')
   try {
     const finding = await apiJson(
@@ -120,8 +128,8 @@ async function reviewFinding(findingId, status) {
 }
 
 async function promoteFinding(findingId) {
-  const { projectId, documentId } = manuscriptContext()
-  if (!projectId || !documentId || intelligenceState.busy) return
+  const { projectId, documentId, canEdit } = manuscriptContext()
+  if (!projectId || !documentId || !canEdit || intelligenceState.busy) return
   setBusy(true, 'Creating a research question from this evidence gap…')
   try {
     const result = await apiJson(
@@ -144,7 +152,7 @@ async function promoteFinding(findingId) {
 function findingActions(item) {
   const actions = document.createElement('div')
   actions.className = 'writing-finding-actions'
-  if (item.finding.status !== 'proposed') return actions
+  if (item.finding.status !== 'proposed' || !manuscriptContext().canEdit) return actions
 
   const confirm = document.createElement('button')
   confirm.type = 'button'
@@ -199,6 +207,7 @@ function renderIntelligence() {
     empty.className = 'writing-intelligence-message'
     empty.textContent = 'Checkpoint a manuscript revision, then analyze the full revision or a selected passage for evidence support, contradiction, and unresolved claims.'
     body.appendChild(empty)
+    syncActionState()
     return
   }
 
@@ -213,6 +222,7 @@ function renderIntelligence() {
     empty.className = 'writing-intelligence-message'
     empty.textContent = 'No externally verifiable claims were selected in this analyzed passage.'
     body.appendChild(empty)
+    syncActionState()
     return
   }
 
@@ -246,6 +256,7 @@ function renderIntelligence() {
     if (actions.childElementCount) card.appendChild(actions)
     body.appendChild(card)
   }
+  syncActionState()
 }
 
 async function refreshCoverage(projectId, documentId) {
@@ -273,7 +284,9 @@ async function loadLatestAnalysis(context) {
     intelligenceState.loadedKey = key
     renderIntelligence()
   } catch (error) {
+    intelligenceState.loadedKey = key
     showIntelligenceMessage(error.message || 'Could not load writing intelligence.', 'error')
+    syncActionState()
   } finally {
     intelligenceState.loadingKey = null
   }
@@ -306,6 +319,10 @@ async function analyze(scope) {
   if (intelligenceState.busy) return
   const context = manuscriptContext()
   if (!context.projectId || !context.documentId || !context.editor) return
+  if (!context.canEdit) {
+    showIntelligenceMessage('Edit access is required to create a new revision analysis.', 'error')
+    return
+  }
   if (!context.model) {
     showIntelligenceMessage('No Ollama model is available for writing intelligence.', 'error')
     return
@@ -361,6 +378,7 @@ function installIntelligenceInteraction() {
     key === intelligenceState.loadedKey &&
     context.editor === boundEditor
   ) {
+    syncActionState()
     return
   }
 
@@ -398,6 +416,7 @@ function installIntelligenceInteraction() {
     })
   }
 
+  syncActionState()
   if (key !== intelligenceState.loadedKey && key !== intelligenceState.loadingKey) {
     intelligenceState.result = null
     intelligenceState.coverage = null
