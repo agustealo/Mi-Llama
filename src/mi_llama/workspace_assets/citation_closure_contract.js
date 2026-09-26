@@ -18,7 +18,7 @@ function citationClosureStatus(item, contexts, documentId) {
   return 'pending'
 }
 
-function manuscriptStateFor(proposal, draftText) {
+function manuscriptLocationFor(proposal, draftText) {
   const start = proposal?.selection_start
   const proposedText = proposal?.proposed_text
   if (
@@ -27,13 +27,17 @@ function manuscriptStateFor(proposal, draftText) {
     typeof proposedText !== 'string' ||
     proposedText.length === 0
   ) {
-    return 'changed'
+    return { state: 'changed', start: null, end: null }
   }
-  if (draftText.slice(start, start + proposedText.length) === proposedText) return 'exact'
+  if (draftText.slice(start, start + proposedText.length) === proposedText) {
+    return { state: 'exact', start, end: start + proposedText.length }
+  }
 
   const first = draftText.indexOf(proposedText)
-  if (first >= 0 && first === draftText.lastIndexOf(proposedText)) return 'relocated'
-  return 'changed'
+  if (first >= 0 && first === draftText.lastIndexOf(proposedText)) {
+    return { state: 'relocated', start: first, end: first + proposedText.length }
+  }
+  return { state: 'changed', start: null, end: null }
 }
 
 export function acceptedGroundingObligations(proposals, draft) {
@@ -53,12 +57,15 @@ export function acceptedGroundingObligations(proposals, draft) {
         unique.push(item)
       }
 
+      const location = manuscriptLocationFor(proposal, draft.plain_text)
       return {
         proposalId: proposal.id,
         operation: proposal.operation,
         baseDraftVersion: proposal.base_draft_version,
         reviewedAt: reviewedTime(proposal),
-        manuscriptState: manuscriptStateFor(proposal, draft.plain_text),
+        manuscriptState: location.state,
+        manuscriptStart: location.start,
+        manuscriptEnd: location.end,
         citations: unique,
       }
     })
@@ -146,5 +153,17 @@ export function documentProvenanceFingerprint(health, unresolved) {
     health.changedAfterGrounding,
     health.counterevidenceEdits,
   ].join(':')
-  return `${summary}::${citationClosureFingerprint(unresolved) || 'closed'}`
+  const itemIdentity = health.items
+    .map((item) =>
+      [
+        item.proposalId,
+        item.manuscriptState,
+        item.manuscriptStart ?? 'none',
+        item.manuscriptEnd ?? 'none',
+        item.openCitationCount,
+        item.hasCounterevidence ? 'counter' : 'plain',
+      ].join(':'),
+    )
+    .join('|')
+  return `${summary}::${itemIdentity}::${citationClosureFingerprint(unresolved) || 'closed'}`
 }
