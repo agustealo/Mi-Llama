@@ -144,8 +144,7 @@ async function promoteFinding(findingId) {
 function findingActions(item) {
   const actions = document.createElement('div')
   actions.className = 'writing-finding-actions'
-  const status = item.finding.status
-  if (status !== 'proposed') return actions
+  if (item.finding.status !== 'proposed') return actions
 
   const confirm = document.createElement('button')
   confirm.type = 'button'
@@ -300,7 +299,7 @@ async function revisionContext(context) {
   if (revision.content !== draft.plain_text) {
     throw new Error('The draft moved beyond its checkpoint. Create a new revision before analysis.')
   }
-  return { draft, revision, editorText }
+  return { draft, revision }
 }
 
 async function analyze(scope) {
@@ -356,6 +355,15 @@ function installIntelligenceInteraction() {
   const collaborator = $('.collaborator-panel')
   if (!context.projectId || !context.documentId || !context.editor || !toolbar || !collaborator) return
 
+  const key = contextKey(context)
+  if (
+    intelligencePanel() &&
+    key === intelligenceState.loadedKey &&
+    context.editor === boundEditor
+  ) {
+    return
+  }
+
   if (!$('#analyze-selection-action')) {
     const button = document.createElement('button')
     button.id = 'analyze-selection-action'
@@ -390,14 +398,11 @@ function installIntelligenceInteraction() {
     })
   }
 
-  const key = contextKey(context)
   if (key !== intelligenceState.loadedKey && key !== intelligenceState.loadingKey) {
     intelligenceState.result = null
     intelligenceState.coverage = null
     intelligenceState.stale = false
     void loadLatestAnalysis(context)
-  } else {
-    renderIntelligence()
   }
 }
 
