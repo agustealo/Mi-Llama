@@ -6,6 +6,12 @@ import {
   tiptapDocumentState,
 } from './canonical_editor_state.js'
 
+const WRITING_HIGHLIGHT_NAMES = {
+  supported: 'mi-llama-writing-supported',
+  contradicted: 'mi-llama-writing-contradicted',
+  insufficient: 'mi-llama-writing-insufficient',
+}
+
 export class TiptapEditorAdapter {
   constructor(element, documentState = null, readOnly = false) {
     if (!(element instanceof HTMLElement)) {
@@ -15,6 +21,7 @@ export class TiptapEditorAdapter {
     this.cleanup = new Set()
     this.changeListeners = new Set()
     this.selectionListeners = new Set()
+    this.annotationNames = new Set()
     this.muted = false
 
     this.host = document.createElement('div')
@@ -29,7 +36,10 @@ export class TiptapEditorAdapter {
       doc: initial.doc,
       editable: !readOnly,
       onUpdate: () => {
-        if (!this.muted) this.changeListeners.forEach((listener) => listener(this))
+        if (!this.muted) {
+          this.clearAnnotations()
+          this.changeListeners.forEach((listener) => listener(this))
+        }
       },
       onSelectionUpdate: () => {
         if (!this.muted) this.selectionListeners.forEach((listener) => listener(this))
@@ -108,6 +118,77 @@ export class TiptapEditorAdapter {
     }
   }
 
+  setAnnotations(annotations) {
+    this.clearAnnotations()
+    if (!customHighlightsAvailable()) return false
+    if (!Array.isArray(annotations) || !annotations.length) return true
+
+    const text = this.getText()
+    const segments = editorSegments(this.editor.state.doc)
+    const grouped = new Map()
+
+    for (const annotation of annotations) {
+      const highlightName = WRITING_HIGHLIGHT_NAMES[annotation?.assessment]
+      if (!highlightName) continue
+      const start = annotation?.start
+      const end = annotation?.end
+      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end > text.length) {
+        continue
+      }
+
+      try {
+        const from = pmPositionForPlainOffset(segments, start)
+        const to = pmPositionForPlainOffset(segments, end)
+        const fromDom = this.editor.view.domAtPos(from, 1)
+        const toDom = this.editor.view.domAtPos(to, -1)
+        const range = document.createRange()
+        range.setStart(fromDom.node, fromDom.offset)
+        range.setEnd(toDom.node, toDom.offset)
+        if (range.collapsed) continue
+        if (!grouped.has(highlightName)) grouped.set(highlightName, [])
+        grouped.get(highlightName).push(range)
+      } catch (_error) {
+        // The review rail remains authoritative if a browser cannot represent one visual range.
+      }
+    }
+
+    for (const [name, ranges] of grouped) {
+      if (!ranges.length) continue
+      globalThis.CSS.highlights.set(name, new globalThis.Highlight(...ranges))
+      this.annotationNames.add(name)
+    }
+    return true
+  }
+
+  clearAnnotations() {
+    if (!globalThis.CSS?.highlights) {
+      this.annotationNames.clear()
+      return
+    }
+    for (const name of this.annotationNames) globalThis.CSS.highlights.delete(name)
+    this.annotationNames.clear()
+  }
+
+  revealRange(start, end) {
+    const text = this.getText()
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end > text.length) {
+      throw new RangeError('Editor reveal range is invalid')
+    }
+    const segments = editorSegments(this.editor.state.doc)
+    const from = pmPositionForPlainOffset(segments, start)
+    const to = pmPositionForPlainOffset(segments, end)
+    this.editor.commands.setTextSelection({ from, to })
+    this.editor.commands.focus()
+    try {
+      const target = this.editor.view.domAtPos(from, 1).node
+      const element = target.nodeType === 1 ? target : target.parentElement
+      element?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    } catch (_error) {
+      // Selection and focus still reveal the passage even when scrolling cannot resolve a DOM node.
+    }
+    return true
+  }
+
   onChange(listener) {
     this.changeListeners.add(listener)
     const unsubscribe = () => this.changeListeners.delete(listener)
@@ -148,6 +229,7 @@ export class TiptapEditorAdapter {
   }
 
   destroy() {
+    this.clearAnnotations()
     for (const unsubscribe of [...this.cleanup]) unsubscribe()
     this.cleanup.clear()
     this.changeListeners.clear()
@@ -158,6 +240,7 @@ export class TiptapEditorAdapter {
   }
 
   #setDoc(doc) {
+    this.clearAnnotations()
     this.muted = true
     try {
       this.editor.commands.setContent(doc, { emitUpdate: false, errorOnInvalidContent: true })
@@ -169,6 +252,10 @@ export class TiptapEditorAdapter {
 
 export function documentStatePlainText(documentState) {
   return projectDocumentState(documentState)
+}
+
+function customHighlightsAvailable() {
+  return Boolean(globalThis.CSS?.highlights && typeof globalThis.Highlight === 'function')
 }
 
 function normalizeDocumentState(documentState, fallbackText) {
