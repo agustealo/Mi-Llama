@@ -1,5 +1,6 @@
 const SESSION_KEY = 'mi-llama.supabase.session.v1'
 const REFRESH_SKEW_SECONDS = 60
+let sharedClientPromise = null
 
 export class AuthError extends Error {
   constructor(message, status = 0) {
@@ -55,14 +56,24 @@ export class AuthClient {
   }
 
   static async create() {
-    const response = await fetch('/api/client-config', {
-      headers: { Accept: 'application/json' },
-      cache: 'no-store',
-    })
-    if (!response.ok) {
-      throw new AuthError(await responseError(response, 'Authentication is not configured'), response.status)
+    if (!sharedClientPromise) {
+      sharedClientPromise = (async () => {
+        const response = await fetch('/api/client-config', {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        })
+        if (!response.ok) {
+          throw new AuthError(await responseError(response, 'Authentication is not configured'), response.status)
+        }
+        return new AuthClient(await response.json())
+      })()
     }
-    return new AuthClient(await response.json())
+    try {
+      return await sharedClientPromise
+    } catch (error) {
+      sharedClientPromise = null
+      throw error
+    }
   }
 
   get user() {
