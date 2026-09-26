@@ -52,9 +52,9 @@ def test_intelligence_inline_annotations_require_exact_revision_identity() -> No
 
     assert "context.editor?.clearAnnotations()" in interaction
     assert (
-        "String(intelligenceState.result.run.revision_id) !== "
-        "String(resolved.revision.id)"
-    ) in interaction
+        "String(intelligenceState.result.run.revision_id) !== String(resolved.revision.id)"
+        in interaction
+    )
     assert "intelligenceState.anchorFresh = true" in interaction
     assert "context.editor.setAnnotations(annotationPayload())" in interaction
     assert ".filter((item) => item.finding.status !== 'dismissed')" in interaction
