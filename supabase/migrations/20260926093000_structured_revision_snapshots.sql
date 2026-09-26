@@ -31,6 +31,11 @@ check (
     )
 );
 
+-- Revision ancestry is transaction-owned. Ordinary authenticated autosave may
+-- mutate the working draft content/version, but only privileged checkpoint,
+-- evidence, and citation transactions may advance base_revision_id.
+revoke update (base_revision_id) on public.manuscript_drafts from authenticated;
+
 create or replace function public.populate_manuscript_revision_editor_state()
 returns trigger
 language plpgsql
