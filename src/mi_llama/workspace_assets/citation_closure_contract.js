@@ -95,6 +95,35 @@ export function provenanceRepairItems(obligations, draft) {
     })
 }
 
+export function provenanceRestoreProposalRequest(item, selection, draftVersion, model) {
+  if (
+    !item ||
+    item.manuscriptState !== 'changed' ||
+    typeof item.acceptedText !== 'string' ||
+    item.acceptedText.length === 0 ||
+    !Number.isInteger(selection?.start) ||
+    !Number.isInteger(selection?.end) ||
+    selection.end <= selection.start ||
+    typeof selection?.text !== 'string' ||
+    selection.text.length === 0 ||
+    !Number.isInteger(draftVersion) ||
+    draftVersion < 1 ||
+    typeof model !== 'string' ||
+    model.length === 0
+  ) {
+    return null
+  }
+  return {
+    expected_draft_version: draftVersion,
+    operation: 'rewrite',
+    model,
+    selection_start: selection.start,
+    selection_end: selection.end,
+    prompt: `Restore this selected passage toward the previously accepted grounded wording while preserving meaning and citation fit. Previously accepted wording: ${item.acceptedText}`,
+    citation_ids: item.citationIds.slice(0, 8),
+  }
+}
+
 export function documentProvenanceHealth(obligations, contexts, documentId) {
   if (!Array.isArray(obligations) || !documentId) {
     return {
