@@ -20,8 +20,8 @@ def test_citation_closure_is_read_only_and_proposal_bound() -> None:
     assert "/insert" not in script
     assert "method: 'POST'" not in script
     assert "proposal?.status === 'accepted'" in contract
-    assert "return 'relocated'" in contract
-    assert "return 'changed'" in contract
+    assert "state: 'relocated'" in contract
+    assert "state: 'changed'" in contract
     assert "first === draftText.lastIndexOf(proposedText)" in contract
     assert "String(context.insertion.document_id) === String(documentId)" in contract
     assert "context?.citation?.status === 'rejected'" in contract
