@@ -60,13 +60,15 @@ function selectedRange() {
   return getEditorAdapter()?.getSelection() || null
 }
 
-function reGroundSelection() {
+function reGroundSelection(item) {
   const selection = selectedRange()
-  if (!selection?.text?.trim()) return false
+  if (!selection?.text?.trim() || !item?.proposalId) return false
   const researchAction = document.querySelector('#find-evidence-action')
   const researchPanel = document.querySelector('#research-evidence-panel')
   if (!researchAction || !researchPanel) return false
+  researchAction.dataset.repairOfProposalId = item.proposalId
   researchAction.click()
+  delete researchAction.dataset.repairOfProposalId
   researchPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
   return true
 }
@@ -250,8 +252,8 @@ function repairCard(item, proposals) {
   reground.className = 'secondary'
   reground.textContent = 'Re-ground selected text'
   reground.addEventListener('click', () => {
-    status.textContent = reGroundSelection()
-      ? 'Searching project evidence for the current selection.'
+    status.textContent = reGroundSelection(item)
+      ? 'Searching project evidence for the current selection with repair lineage preserved.'
       : 'Select the current passage in the manuscript first.'
   })
 

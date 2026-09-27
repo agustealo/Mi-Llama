@@ -98,7 +98,8 @@ function trayMatchesSnapshot(tray, snapshot) {
       tray.documentId === snapshot.documentId &&
       tray.selectionStart === snapshot.start &&
       tray.selectionEnd === snapshot.end &&
-      tray.selectionText === snapshot.text,
+      tray.selectionText === snapshot.text &&
+      (tray.repairOfProposalId || null) === (snapshot.repairOfProposalId || null),
   )
 }
 
@@ -112,6 +113,7 @@ function evidenceTrayForSnapshot(snapshot) {
     selectionStart: snapshot.start,
     selectionEnd: snapshot.end,
     selectionText: snapshot.text,
+    repairOfProposalId: snapshot.repairOfProposalId || null,
     items: [],
   }
 }
@@ -220,6 +222,7 @@ function groundingTargetFromTray(tray) {
     selectionStart: tray.selectionStart,
     selectionEnd: tray.selectionEnd,
     selectionText: tray.selectionText,
+    repairOfProposalId: tray.repairOfProposalId || null,
   }
 }
 
@@ -285,7 +288,7 @@ function renderSearchResults() {
   const header = document.createElement('div')
   header.className = 'research-result-head'
   const title = document.createElement('b')
-  title.textContent = 'Evidence candidates'
+  title.textContent = snapshot.repairOfProposalId ? 'Evidence candidates · provenance repair' : 'Evidence candidates'
   const meta = document.createElement('span')
   meta.textContent = `${researchState.hits.length} project hits · draft v${snapshot.draftVersion}`
   header.append(title, meta)
@@ -359,7 +362,7 @@ async function searchEvidenceForSelection(selection) {
   }
 }
 
-async function findEvidence() {
+async function findEvidence(event) {
   if (researchState.busy) return
   const selection = currentSelection()
   if (!selection) {
@@ -374,7 +377,8 @@ async function findEvidence() {
     showResearchError(`Evidence search is limited to ${SEARCH_MAX_CHARS} selected characters at a time.`)
     return
   }
-  await searchEvidenceForSelection(selection)
+  const repairOfProposalId = event?.currentTarget?.dataset?.repairOfProposalId || null
+  await searchEvidenceForSelection({ ...selection, repairOfProposalId })
 }
 
 async function findMoreEvidenceFromTray() {
@@ -400,6 +404,7 @@ async function findMoreEvidenceFromTray() {
     end: tray.selectionEnd,
     text: tray.selectionText,
     fullText,
+    repairOfProposalId: tray.repairOfProposalId || null,
   })
 }
 
@@ -410,7 +415,8 @@ function renderGroundedProposalControls(host, target) {
   const label = document.createElement('label')
   label.className = 'research-grounding-operation'
   const text = document.createElement('span')
-  text.textContent = `Evidence-grounded edit · ${target.citationIds.length} source${target.citationIds.length === 1 ? '' : 's'}`
+  const kind = target.repairOfProposalId ? 'Evidence-grounded repair' : 'Evidence-grounded edit'
+  text.textContent = `${kind} · ${target.citationIds.length} source${target.citationIds.length === 1 ? '' : 's'}`
   const operation = document.createElement('select')
   for (const [value, title] of [
     ['improve', 'Improve'],
@@ -427,7 +433,7 @@ function renderGroundedProposalControls(host, target) {
 
   const button = document.createElement('button')
   button.className = 'primary research-grounded-proposal'
-  button.textContent = 'Generate from evidence tray'
+  button.textContent = target.repairOfProposalId ? 'Generate re-grounded repair' : 'Generate from evidence tray'
   button.addEventListener('click', () => generateGroundedProposal(target, operation.value, button))
   wrap.append(label, button)
   host.appendChild(wrap)
@@ -470,6 +476,7 @@ async function generateGroundedProposal(target, operation, button) {
         selection_end: target.selectionEnd,
         prompt,
         citation_ids: target.citationIds,
+        ...(target.repairOfProposalId ? { repair_of_proposal_id: target.repairOfProposalId } : {}),
       }),
     })
     clearEvidenceTray()
@@ -479,7 +486,7 @@ async function generateGroundedProposal(target, operation, button) {
   } finally {
     researchState.busy = false
     button.disabled = false
-    button.textContent = 'Generate from evidence tray'
+    button.textContent = target.repairOfProposalId ? 'Generate re-grounded repair' : 'Generate from evidence tray'
   }
 }
 
@@ -495,9 +502,11 @@ function renderPromotionTray(tray) {
   badge.className = 'research-promoted-badge'
   badge.textContent = `${tray.items.length} reviewed source${tray.items.length === 1 ? '' : 's'} · linked`
   const title = document.createElement('b')
-  title.textContent = 'Claim evidence tray'
+  title.textContent = tray.repairOfProposalId ? 'Claim evidence tray · provenance repair' : 'Claim evidence tray'
   const text = document.createElement('p')
-  text.textContent = 'Every tray item is canonical evidence bound to this exact manuscript passage. Generation will freeze the selected packet and preserve each stance.'
+  text.textContent = tray.repairOfProposalId
+    ? 'Every tray item is canonical evidence bound to this exact manuscript passage. Generation will freeze the selected packet and preserve validated repair lineage.'
+    : 'Every tray item is canonical evidence bound to this exact manuscript passage. Generation will freeze the selected packet and preserve each stance.'
   card.append(badge, title, text)
   renderEvidenceTray(card, tray)
   renderGroundedProposalControls(card, groundingTargetFromTray(tray))
