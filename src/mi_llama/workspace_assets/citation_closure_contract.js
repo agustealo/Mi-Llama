@@ -15,7 +15,8 @@ function dispositionTime(disposition) {
 
 function citationClosureStatus(item, contexts, documentId) {
   const context = contextFor(contexts, item.citation_id)
-  const insertedHere = context?.insertion && String(context.insertion.document_id) === String(documentId)
+  const insertedHere =
+    context?.insertion && String(context.insertion.document_id) === String(documentId)
   if (insertedHere) return 'inserted'
   if (context?.citation?.status === 'rejected') return 'rejected'
   return 'pending'
@@ -24,12 +25,18 @@ function citationClosureStatus(item, contexts, documentId) {
 function manuscriptLocationFor(proposal, draftText) {
   const start = proposal?.selection_start
   const proposedText = proposal?.proposed_text
-  if (!Number.isInteger(start) || start < 0 || typeof proposedText !== 'string' || proposedText.length === 0) {
+  if (
+    !Number.isInteger(start) ||
+    start < 0 ||
+    typeof proposedText !== 'string' ||
+    proposedText.length === 0
+  ) {
     return { state: 'changed', start: null, end: null }
   }
   if (draftText.slice(start, start + proposedText.length) === proposedText) {
     return { state: 'exact', start, end: start + proposedText.length }
   }
+
   const first = draftText.indexOf(proposedText)
   if (first >= 0 && first === draftText.lastIndexOf(proposedText)) {
     return { state: 'relocated', start: first, end: first + proposedText.length }
@@ -64,6 +71,7 @@ export function acceptedGroundingObligations(proposals, draft, dispositions = []
     .map((proposal) => {
       const items = groundingItemsFromProposal(proposal)
       if (items.length === 0) return null
+
       const unique = []
       const seen = new Set()
       for (const item of items) {
@@ -71,6 +79,7 @@ export function acceptedGroundingObligations(proposals, draft, dispositions = []
         seen.add(item.citation_id)
         unique.push(item)
       }
+
       const location = manuscriptLocationFor(proposal, draft.plain_text)
       const provenanceDisposition = latestDispositions.get(String(proposal.id)) || null
       const dispositionKind = provenanceDisposition?.disposition || null
@@ -112,8 +121,15 @@ export function provenanceRepairItems(obligations, draft) {
     .map((item) => {
       const start = Number.isInteger(item.originalSelectionStart) ? item.originalSelectionStart : null
       const acceptedText = typeof item.acceptedText === 'string' ? item.acceptedText : ''
-      const currentAtOriginalRange = start === null || !acceptedText ? '' : draft.plain_text.slice(start, Math.min(draft.plain_text.length, start + acceptedText.length))
-      return { ...item, currentAtOriginalRange, citationIds: item.citations.map((citation) => citation.citation_id) }
+      const currentAtOriginalRange =
+        start === null || !acceptedText
+          ? ''
+          : draft.plain_text.slice(start, Math.min(draft.plain_text.length, start + acceptedText.length))
+      return {
+        ...item,
+        currentAtOriginalRange,
+        citationIds: item.citations.map((citation) => citation.citation_id),
+      }
     })
 }
 
@@ -164,13 +180,32 @@ export function repairLineageProposal(item, proposals) {
 
 export function documentProvenanceHealth(obligations, contexts, documentId) {
   if (!Array.isArray(obligations) || !documentId) {
-    return { totalGroundedEdits: 0, fullyCitedEdits: 0, openCitationEdits: 0, changedAfterGrounding: 0, counterevidenceEdits: 0, needsRegroundingEdits: 0, items: [] }
+    return {
+      totalGroundedEdits: 0,
+      fullyCitedEdits: 0,
+      openCitationEdits: 0,
+      changedAfterGrounding: 0,
+      counterevidenceEdits: 0,
+      needsRegroundingEdits: 0,
+      items: [],
+    }
   }
+
   const items = activeProvenanceObligations(obligations).map((obligation) => {
-    const citations = obligation.citations.map((item) => ({ ...item, closureStatus: citationClosureStatus(item, contexts, documentId) }))
+    const citations = obligation.citations.map((item) => ({
+      ...item,
+      closureStatus: citationClosureStatus(item, contexts, documentId),
+    }))
     const openCitations = citations.filter((item) => item.closureStatus !== 'inserted')
-    return { ...obligation, citations, openCitationCount: openCitations.length, fullyCited: openCitations.length === 0, hasCounterevidence: citations.some((item) => item.stance === 'contradicts') }
+    return {
+      ...obligation,
+      citations,
+      openCitationCount: openCitations.length,
+      fullyCited: openCitations.length === 0,
+      hasCounterevidence: citations.some((item) => item.stance === 'contradicts'),
+    }
   })
+
   return {
     totalGroundedEdits: items.length,
     fullyCitedEdits: items.filter((item) => item.fullyCited).length,
@@ -184,27 +219,60 @@ export function documentProvenanceHealth(obligations, contexts, documentId) {
 
 export function unresolvedCitationObligations(obligations, contexts, documentId) {
   if (!Array.isArray(obligations) || !documentId) return []
+
   const unresolved = []
   for (const obligation of activeProvenanceObligations(obligations)) {
-    const citations = obligation.citations.map((item) => ({ ...item, closureStatus: citationClosureStatus(item, contexts, documentId) }))
+    const citations = obligation.citations.map((item) => ({
+      ...item,
+      closureStatus: citationClosureStatus(item, contexts, documentId),
+    }))
     const openCitations = citations.filter((item) => item.closureStatus !== 'inserted')
     if (openCitations.length === 0) continue
-    unresolved.push({ ...obligation, citations, openCitations, pendingCount: openCitations.filter((item) => item.closureStatus === 'pending').length, rejectedCount: openCitations.filter((item) => item.closureStatus === 'rejected').length })
+    unresolved.push({
+      ...obligation,
+      citations,
+      openCitations,
+      pendingCount: openCitations.filter((item) => item.closureStatus === 'pending').length,
+      rejectedCount: openCitations.filter((item) => item.closureStatus === 'rejected').length,
+    })
   }
   return unresolved
 }
 
 export function citationClosureFingerprint(obligations) {
   if (!Array.isArray(obligations) || obligations.length === 0) return null
-  return obligations.map((obligation) => {
-    const citations = obligation.openCitations.map((item) => `${item.citation_id}:${item.closureStatus}:${item.content_sha256}`).join('|')
-    return `${obligation.proposalId}:${obligation.manuscriptState}:${citations}`
-  }).join('||')
+  return obligations
+    .map((obligation) => {
+      const citations = obligation.openCitations
+        .map((item) => `${item.citation_id}:${item.closureStatus}:${item.content_sha256}`)
+        .join('|')
+      return `${obligation.proposalId}:${obligation.manuscriptState}:${citations}`
+    })
+    .join('||')
 }
 
 export function documentProvenanceFingerprint(health, unresolved) {
   if (!health?.totalGroundedEdits) return null
-  const summary = [health.totalGroundedEdits, health.fullyCitedEdits, health.openCitationEdits, health.changedAfterGrounding, health.counterevidenceEdits, health.needsRegroundingEdits].join(':')
-  const itemIdentity = health.items.map((item) => [item.proposalId, item.manuscriptState, item.manuscriptStart ?? 'none', item.manuscriptEnd ?? 'none', item.openCitationCount, item.hasCounterevidence ? 'counter' : 'plain', item.needsRegrounding ? 'reground' : 'active'].join(':')).join('|')
+  const summary = [
+    health.totalGroundedEdits,
+    health.fullyCitedEdits,
+    health.openCitationEdits,
+    health.changedAfterGrounding,
+    health.counterevidenceEdits,
+    health.needsRegroundingEdits,
+  ].join(':')
+  const itemIdentity = health.items
+    .map((item) =>
+      [
+        item.proposalId,
+        item.manuscriptState,
+        item.manuscriptStart ?? 'none',
+        item.manuscriptEnd ?? 'none',
+        item.openCitationCount,
+        item.hasCounterevidence ? 'counter' : 'plain',
+        item.needsRegrounding ? 'reground' : 'active',
+      ].join(':'),
+    )
+    .join('|')
   return `${summary}::${itemIdentity}::${citationClosureFingerprint(unresolved) || 'closed'}`
 }
