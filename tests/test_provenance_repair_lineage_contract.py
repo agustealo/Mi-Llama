@@ -24,4 +24,7 @@ def test_supersession_ui_requires_exact_accepted_repair_lineage() -> None:
     assert "Record exact supersession" in repair
     assert "superseding grounded proposal" not in repair.lower()
     assert "proposal?.status === 'accepted'" in contract
-    assert "proposal?.context_manifest?.provenance_repair?.repair_of_proposal_id === item.proposalId" in contract
+    assert (
+        "proposal?.context_manifest?.provenance_repair?.repair_of_proposal_id === item.proposalId"
+        in contract
+    )
