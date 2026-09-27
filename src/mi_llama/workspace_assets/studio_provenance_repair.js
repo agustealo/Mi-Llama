@@ -4,6 +4,7 @@ import {
   acceptedGroundingObligations,
   provenanceRepairItems,
   provenanceRestoreProposalRequest,
+  repairLineageProposal,
   resolvedProvenanceObligations,
 } from './citation_closure_contract.js'
 
@@ -70,30 +71,6 @@ function reGroundSelection() {
   return true
 }
 
-function proposalTimestamp(proposal) {
-  return proposal?.reviewed_at || proposal?.updated_at || proposal?.created_at || ''
-}
-
-function isGroundedAccepted(proposal) {
-  return (
-    proposal?.status === 'accepted' &&
-    Array.isArray(proposal?.context_manifest?.grounding?.citations) &&
-    proposal.context_manifest.grounding.citations.length > 0
-  )
-}
-
-function supersedingCandidates(item, proposals) {
-  return proposals
-    .filter(
-      (proposal) =>
-        isGroundedAccepted(proposal) &&
-        proposal.id !== item.proposalId &&
-        Number(proposal.base_draft_version) > Number(item.baseDraftVersion) &&
-        proposalTimestamp(proposal) > item.reviewedAt,
-    )
-    .sort((a, b) => proposalTimestamp(b).localeCompare(proposalTimestamp(a)))
-}
-
 async function currentSavedDraft() {
   const { projectId, documentId } = ids()
   const editor = getEditorAdapter()
@@ -154,38 +131,41 @@ function dispositionControls(item, proposals, status) {
   label.textContent = 'Grounding disposition'
   form.appendChild(label)
 
+  const exactReplacement = repairLineageProposal(item, proposals)
+  if (exactReplacement) {
+    const lineage = document.createElement('p')
+    lineage.className = 'provenance-repair-status'
+    lineage.textContent = `Accepted repair lineage found: ${exactReplacement.id.slice(0, 8)} · draft ${exactReplacement.base_draft_version}.`
+    const resolve = document.createElement('button')
+    resolve.className = 'primary'
+    resolve.textContent = 'Record exact supersession'
+    resolve.addEventListener('click', async () => {
+      if (!window.confirm('Record this accepted repair as the exact superseding grounded edit? Historical evidence remains preserved.')) return
+      resolve.disabled = true
+      status.textContent = 'Recording exact provenance supersession…'
+      try {
+        await saveDisposition(item, 'superseded', exactReplacement.id, 'Resolved by accepted provenance repair lineage.')
+      } catch (error) {
+        status.textContent = error.message || 'Could not record exact supersession.'
+        resolve.disabled = false
+      }
+    })
+    form.append(lineage, resolve)
+    return form
+  }
+
   const select = document.createElement('select')
   select.setAttribute('aria-label', 'Grounding disposition')
-  const options = [
+  for (const [value, text] of [
     ['', 'Choose an explicit disposition…'],
     ['needs_regrounding', 'Needs re-grounding'],
     ['retired', 'No longer applicable'],
-    ['superseded', 'Superseded by a later grounded edit'],
-  ]
-  for (const [value, text] of options) {
+  ]) {
     const option = document.createElement('option')
     option.value = value
     option.textContent = text
     select.appendChild(option)
   }
-
-  const replacements = supersedingCandidates(item, proposals)
-  const superseding = document.createElement('select')
-  superseding.className = 'provenance-superseding-select'
-  superseding.setAttribute('aria-label', 'Superseding grounded proposal')
-  const placeholder = document.createElement('option')
-  placeholder.value = ''
-  placeholder.textContent = replacements.length
-    ? 'Choose the later accepted grounded edit…'
-    : 'No later accepted grounded edit is available'
-  superseding.appendChild(placeholder)
-  for (const proposal of replacements) {
-    const option = document.createElement('option')
-    option.value = proposal.id
-    option.textContent = `${proposal.operation} · draft ${proposal.base_draft_version} · ${proposal.id.slice(0, 8)}`
-    superseding.appendChild(option)
-  }
-  superseding.hidden = true
 
   const reason = document.createElement('textarea')
   reason.rows = 2
@@ -196,41 +176,23 @@ function dispositionControls(item, proposals, status) {
   save.className = 'secondary'
   save.textContent = 'Record disposition'
   save.disabled = true
-
   select.addEventListener('change', () => {
-    superseding.hidden = select.value !== 'superseded'
-    save.disabled = !select.value || (select.value === 'superseded' && replacements.length === 0)
+    save.disabled = !select.value
   })
-  superseding.addEventListener('change', () => {
-    if (select.value === 'superseded') save.disabled = !superseding.value
-  })
-
   save.addEventListener('click', async () => {
     if (!select.value) return
-    if (select.value === 'superseded' && !superseding.value) {
-      status.textContent = 'Choose the later accepted grounded edit that supersedes this one.'
-      return
-    }
-    const resolving = select.value === 'retired' || select.value === 'superseded'
-    if (
-      resolving &&
-      !window.confirm(
-        'This preserves the historical evidence but removes this grounding relationship from active provenance health. Record this disposition?',
-      )
-    ) {
-      return
-    }
+    if (select.value === 'retired' && !window.confirm('This preserves historical evidence but removes this grounding relationship from active provenance health. Record this disposition?')) return
     save.disabled = true
     status.textContent = 'Recording durable provenance state…'
     try {
-      await saveDisposition(item, select.value, superseding.value, reason.value)
+      await saveDisposition(item, select.value, null, reason.value)
     } catch (error) {
       status.textContent = error.message || 'Could not record provenance state.'
       save.disabled = false
     }
   })
 
-  form.append(select, superseding, reason, save)
+  form.append(select, reason, save)
   return form
 }
 
@@ -277,7 +239,7 @@ function repairCard(item, proposals) {
   restore.textContent = 'Prepare restore proposal'
   restore.addEventListener('click', async () => {
     restore.disabled = true
-    status.textContent = 'Preparing reviewable grounded proposal…'
+    status.textContent = 'Preparing reviewable grounded repair proposal…'
     try {
       await prepareRestore(item)
     } catch (error) {
@@ -297,14 +259,11 @@ function frozenEvidenceHistory(citations) {
   const summary = document.createElement('summary')
   summary.textContent = `Frozen grounding evidence · ${citations.length}`
   details.appendChild(summary)
-
   for (const citation of citations) {
     const source = document.createElement('div')
     source.className = 'provenance-repair-copy'
     const label = document.createElement('b')
-    label.textContent = citation.location
-      ? `${citation.source_filename} · ${citation.location} · ${citation.stance}`
-      : `${citation.source_filename} · ${citation.stance}`
+    label.textContent = citation.location ? `${citation.source_filename} · ${citation.location} · ${citation.stance}` : `${citation.source_filename} · ${citation.stance}`
     const passage = document.createElement('blockquote')
     passage.textContent = citation.content
     const identity = document.createElement('small')
@@ -320,7 +279,6 @@ function resolvedCard(item) {
   const card = document.createElement('article')
   card.className = 'provenance-repair-card provenance-resolved-card'
   card.dataset.proposalId = item.proposalId
-
   const head = document.createElement('div')
   head.className = 'provenance-resolved-head'
   const title = document.createElement('b')
@@ -328,14 +286,10 @@ function resolvedCard(item) {
   const date = document.createElement('span')
   date.textContent = record?.created_at ? new Date(record.created_at).toLocaleString() : 'Recorded'
   head.append(title, date)
-
   const historical = compareBlock('Historical accepted grounded wording', item.acceptedText)
   const meta = document.createElement('small')
-  const superseding = record?.superseding_proposal_id
-    ? ` · superseding proposal ${record.superseding_proposal_id.slice(0, 8)}`
-    : ''
+  const superseding = record?.superseding_proposal_id ? ` · superseding proposal ${record.superseding_proposal_id.slice(0, 8)}` : ''
   meta.textContent = `${item.citations.length} frozen grounding citation${item.citations.length === 1 ? '' : 's'} preserved${superseding}`
-
   card.append(head, historical, meta)
   if (record?.reason) {
     const reason = document.createElement('p')
@@ -357,15 +311,11 @@ function render(panel, repairs, resolved, proposals) {
   meta.textContent = `${repairs.length} active · ${resolved.length} resolved`
   head.append(title, meta)
   panel.appendChild(head)
-
   const policy = document.createElement('p')
   policy.className = 'provenance-repair-policy'
-  policy.textContent =
-    'Repair and disposition are explicit. Mi-Llama never overwrites changed text or erases historical evidence. Retired and superseded relationships leave active health but remain auditable here.'
+  policy.textContent = 'Repair and disposition are explicit. Mi-Llama never overwrites changed text or erases historical evidence. Exact supersession is offered only when an accepted grounded proposal carries validated repair lineage.'
   panel.appendChild(policy)
-
   for (const item of repairs) panel.appendChild(repairCard(item, proposals))
-
   if (resolved.length) {
     const history = document.createElement('details')
     history.className = 'provenance-resolved-history'
