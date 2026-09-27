@@ -15,7 +15,7 @@ def test_provenance_repair_preserves_proposal_authority() -> None:
 
     assert "Prepare restore proposal" in script
     assert "method: 'POST'" in script
-    assert "/proposals`" in script
+    assert "/grounded-proposals`" in script
     assert "getEditorAdapter()?.getSelection()" in script
     assert "editor.getText() !== draft.plain_text" in script
     assert "window.location.reload()" in script
@@ -39,6 +39,16 @@ def test_provenance_regrounding_uses_canonical_research_action() -> None:
     assert "Searching project evidence for the current selection." in script
     assert "/research/query" not in script
     assert "EVIDENCE_TRAY_KEY" not in script
+
+
+def test_restore_reuses_grounded_server_authority() -> None:
+    root = Path(__file__).parents[1] / "src" / "mi_llama" / "workspace_assets"
+    script = (root / "studio_provenance_repair.js").read_text()
+
+    assert "/grounded-proposals`" in script
+    assert "provenanceRestoreProposalRequest" in script
+    assert "citation_ids" not in script
+    assert "/research/query" not in script
 
 
 def test_provenance_disposition_is_explicit_durable_and_auditable() -> None:
