@@ -34,11 +34,26 @@ def test_provenance_regrounding_uses_canonical_research_action() -> None:
 
     assert "Re-ground selected text" in script
     assert "#find-evidence-action" in script
+    assert "researchAction.dataset.repairOfProposalId = item.proposalId" in script
     assert "researchAction.click()" in script
+    assert "delete researchAction.dataset.repairOfProposalId" in script
     assert "#research-evidence-panel" in script
-    assert "Searching project evidence for the current selection." in script
+    assert "repair lineage preserved" in script
     assert "/research/query" not in script
     assert "EVIDENCE_TRAY_KEY" not in script
+
+
+def test_reground_lineage_stays_bound_to_canonical_evidence_tray() -> None:
+    root = Path(__file__).parents[1] / "src" / "mi_llama" / "workspace_assets"
+    research = (root / "studio_research.js").read_text()
+
+    assert "event?.currentTarget?.dataset?.repairOfProposalId || null" in research
+    assert "repairOfProposalId: snapshot.repairOfProposalId || null" in research
+    assert "(tray.repairOfProposalId || null) === (snapshot.repairOfProposalId || null)" in research
+    assert "repairOfProposalId: tray.repairOfProposalId || null" in research
+    assert "repair_of_proposal_id: target.repairOfProposalId" in research
+    assert "Generate re-grounded repair" in research
+    assert "mi-llama.repair" not in research
 
 
 def test_restore_reuses_grounded_server_authority() -> None:
