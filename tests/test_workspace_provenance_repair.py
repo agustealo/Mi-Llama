@@ -28,6 +28,19 @@ def test_provenance_repair_preserves_proposal_authority() -> None:
     assert "setText(" not in script
 
 
+def test_provenance_regrounding_uses_canonical_research_action() -> None:
+    root = Path(__file__).parents[1] / "src" / "mi_llama" / "workspace_assets"
+    script = (root / "studio_provenance_repair.js").read_text()
+
+    assert "Re-ground selected text" in script
+    assert "#find-evidence-action" in script
+    assert "researchAction.click()" in script
+    assert "#research-evidence-panel" in script
+    assert "Searching project evidence for the current selection." in script
+    assert "/research/query" not in script
+    assert "EVIDENCE_TRAY_KEY" not in script
+
+
 def test_provenance_disposition_is_explicit_durable_and_auditable() -> None:
     root = Path(__file__).parents[1] / "src" / "mi_llama" / "workspace_assets"
     script = (root / "studio_provenance_repair.js").read_text()
