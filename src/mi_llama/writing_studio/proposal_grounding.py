@@ -23,6 +23,7 @@ from mi_llama.writing_structure.models import (
 from mi_llama.writing_studio.models import (
     WritingProposal,
     WritingProposalOperation,
+    WritingProposalStatus,
 )
 from mi_llama.writing_studio.repository import WritingStudioRepository
 from mi_llama.writing_studio.service import (
@@ -44,6 +45,7 @@ class CreateGroundedWritingProposalRequest(BaseModel):
     selection_end: int = Field(ge=1)
     prompt: str | None = Field(default=None, max_length=4000)
     citation_ids: list[UUID] = Field(min_length=1, max_length=MAX_GROUNDING_CITATIONS)
+    repair_of_proposal_id: UUID | None = None
 
     @model_validator(mode="after")
     def validate_request(self) -> CreateGroundedWritingProposalRequest:
@@ -135,6 +137,32 @@ class GroundedProposalService(WritingStudioService):
                 "Checkpoint the manuscript evidence before generating a grounded proposal"
             )
 
+        repair_of = None
+        if request.repair_of_proposal_id is not None:
+            repair_of = await self._grounded_repository.get_writing_proposal(
+                access_token=access_token,
+                project_id=project_id,
+                document_id=document_id,
+                proposal_id=request.repair_of_proposal_id,
+            )
+            if repair_of is None:
+                raise WritingStudioValidationError(
+                    "Repair lineage proposal not found in this manuscript"
+                )
+            if repair_of.status is not WritingProposalStatus.ACCEPTED:
+                raise WritingStudioValidationError(
+                    "Repair lineage must reference an accepted proposal"
+                )
+            repair_grounding = repair_of.context_manifest.get("grounding")
+            if not isinstance(repair_grounding, dict) or not repair_grounding.get("citations"):
+                raise WritingStudioValidationError(
+                    "Repair lineage must reference a grounded proposal"
+                )
+            if repair_of.base_draft_version >= draft.version:
+                raise WritingStudioValidationError(
+                    "Repair lineage must reference an earlier manuscript draft"
+                )
+
         original_text = draft.plain_text[request.selection_start : request.selection_end]
         before = draft.plain_text[max(0, request.selection_start - 800) : request.selection_start]
         after = draft.plain_text[request.selection_end : request.selection_end + 800]
@@ -164,6 +192,11 @@ class GroundedProposalService(WritingStudioService):
                 "citations": [item.model_dump(mode="json") for item in grounding],
             },
         }
+        if repair_of is not None:
+            context_manifest["provenance_repair"] = {
+                "version": 1,
+                "repair_of_proposal_id": str(repair_of.id),
+            }
 
         proposed_text = await self._generate_grounded_proposal(
             model=request.model,

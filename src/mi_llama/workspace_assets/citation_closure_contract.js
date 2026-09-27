@@ -160,7 +160,22 @@ export function provenanceRestoreProposalRequest(item, selection, draftVersion, 
     selection_end: selection.end,
     prompt: `Restore this selected passage toward the previously accepted grounded wording while preserving meaning and citation fit. Previously accepted wording: ${item.acceptedText}`,
     citation_ids: item.citationIds.slice(0, 8),
+    repair_of_proposal_id: item.proposalId,
   }
+}
+
+export function repairLineageProposal(item, proposals) {
+  if (!item?.proposalId || !Array.isArray(proposals)) return null
+  const matches = proposals
+    .filter(
+      (proposal) =>
+        proposal?.status === 'accepted' &&
+        proposal?.context_manifest?.provenance_repair?.repair_of_proposal_id === item.proposalId &&
+        Array.isArray(proposal?.context_manifest?.grounding?.citations) &&
+        proposal.context_manifest.grounding.citations.length > 0,
+    )
+    .sort((a, b) => reviewedTime(b).localeCompare(reviewedTime(a)))
+  return matches[0] || null
 }
 
 export function documentProvenanceHealth(obligations, contexts, documentId) {

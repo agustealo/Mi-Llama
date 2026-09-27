@@ -5,6 +5,7 @@ import {
   acceptedGroundingObligations,
   provenanceRepairItems,
   provenanceRestoreProposalRequest,
+  repairLineageProposal,
 } from '../../src/mi_llama/workspace_assets/citation_closure_contract.js'
 
 function acceptedProposal(overrides = {}) {
@@ -60,7 +61,7 @@ test('exact or relocated accepted wording does not enter repair queue', () => {
   assert.deepEqual(provenanceRepairItems(acceptedGroundingObligations([acceptedProposal()], moved), moved), [])
 })
 
-test('restore creates a normal grounded rewrite proposal request against writer selection', () => {
+test('restore creates a grounded rewrite request with explicit repair lineage', () => {
   const draft = { plain_text: 'Start edited wording end' }
   const item = provenanceRepairItems(acceptedGroundingObligations([acceptedProposal()], draft), draft)[0]
   const request = provenanceRestoreProposalRequest(
@@ -74,7 +75,24 @@ test('restore creates a normal grounded rewrite proposal request against writer 
   assert.equal(request.selection_start, 6)
   assert.equal(request.selection_end, 20)
   assert.deepEqual(request.citation_ids, ['citation-a', 'citation-b'])
+  assert.equal(request.repair_of_proposal_id, 'proposal-1')
   assert.match(request.prompt, /Previously accepted wording: grounded claim/)
+})
+
+test('accepted exact repair lineage wins over unrelated later grounded proposals', () => {
+  const draft = { plain_text: 'Start edited wording end' }
+  const item = provenanceRepairItems(acceptedGroundingObligations([acceptedProposal()], draft), draft)[0]
+  const unrelated = acceptedProposal({ id: 'proposal-2', base_draft_version: 8, reviewed_at: '2026-09-26T21:00:00Z' })
+  const repair = acceptedProposal({
+    id: 'proposal-3',
+    base_draft_version: 9,
+    reviewed_at: '2026-09-26T22:00:00Z',
+    context_manifest: {
+      ...acceptedProposal().context_manifest,
+      provenance_repair: { version: 1, repair_of_proposal_id: 'proposal-1' },
+    },
+  })
+  assert.equal(repairLineageProposal(item, [unrelated, repair])?.id, 'proposal-3')
 })
 
 test('restore request refuses missing writer selection or non-changed provenance', () => {
