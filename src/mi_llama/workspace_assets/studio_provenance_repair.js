@@ -116,7 +116,7 @@ async function prepareRestore(item) {
   const model = document.querySelector('#studio-model')?.value || ''
   const body = provenanceRestoreProposalRequest(item, selection, draft.version, model)
   if (!body) throw new Error('This repair cannot be prepared from the current selection.')
-  await apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/proposals`, {
+  await apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/grounded-proposals`, {
     method: 'POST',
     body: JSON.stringify(body),
   })
