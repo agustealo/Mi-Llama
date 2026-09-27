@@ -61,8 +61,12 @@ function selectedRange() {
 
 function reGroundSelection() {
   const selection = selectedRange()
-  if (!selection?.text) return false
-  document.querySelector('#research-evidence-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  if (!selection?.text?.trim()) return false
+  const researchAction = document.querySelector('#find-evidence-action')
+  const researchPanel = document.querySelector('#research-evidence-panel')
+  if (!researchAction || !researchPanel) return false
+  researchAction.click()
+  researchPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
   return true
 }
 
@@ -264,7 +268,7 @@ function repairCard(item, proposals) {
   reground.textContent = 'Re-ground selected text'
   reground.addEventListener('click', () => {
     status.textContent = reGroundSelection()
-      ? 'Current selection is ready for evidence review.'
+      ? 'Searching project evidence for the current selection.'
       : 'Select the current passage in the manuscript first.'
   })
 
