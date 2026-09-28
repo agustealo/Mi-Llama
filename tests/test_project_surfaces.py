@@ -57,4 +57,4 @@ def test_studio_owns_project_state_and_rejects_stale_surface_loads() -> None:
     assert "loadProjectSurfaceState" in studio
     assert "renderProjectSurface" in studio
     assert "if (state.projectId !== projectId) return" in studio
-    assert "await reloadProjectSurfaceState()" in studio
+    assert "reload: reloadProjectSurfaceState" in studio
