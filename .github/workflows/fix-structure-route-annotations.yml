@@ -1,0 +1,38 @@
+name: Repair structure route annotation binding
+
+on:
+  push:
+    branches: [e2e/authenticated-product-fixture]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: e2e/authenticated-product-fixture
+      - name: Remove postponed annotations from closure-bound routes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          for filename in (
+              'src/mi_llama/research_structure/routes.py',
+              'src/mi_llama/writing_structure/routes.py',
+          ):
+              path = Path(filename)
+              text = path.read_text()
+              prefix = 'from __future__ import annotations\n\n'
+              if not text.startswith(prefix):
+                  raise SystemExit(f'unexpected route header: {filename}')
+              path.write_text(text[len(prefix):])
+          PY
+          rm .github/workflows/fix-structure-route-annotations.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/mi_llama/research_structure/routes.py src/mi_llama/writing_structure/routes.py .github/workflows/fix-structure-route-annotations.yml
+          git commit -m 'Fix structure route dependency binding'
+          git push origin HEAD:e2e/authenticated-product-fixture
