@@ -1,0 +1,356 @@
+name: Patch project-aware consumer surfaces
+
+on:
+  push:
+    branches:
+      - ux/project-aware-surfaces
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ux/project-aware-surfaces
+          fetch-depth: 0
+      - name: Patch canonical project-aware surfaces
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          studio_path = Path('src/mi_llama/workspace_assets/studio.js')
+          studio = studio_path.read_text()
+
+          old = """  outline: [],\n  draft: null,\n  localText: '',\n"""
+          new = """  outline: [],\n  sources: null,\n  researchQuestions: null,\n  researchClaims: null,\n  researchNotes: null,\n  researchCitations: null,\n  surfaceErrors: [],\n  draft: null,\n  localText: '',\n"""
+          assert studio.count(old) == 1
+          studio = studio.replace(old, new)
+
+          old = """  state.outline = []\n  state.draft = null\n"""
+          new = """  state.outline = []\n  resetProjectSurfaceState()\n  state.draft = null\n"""
+          assert studio.count(old) >= 2
+          studio = studio.replace(old, new, 1)
+
+          old = """async function loadWritingWorkspace() {\n  if (state.saveTimer) window.clearTimeout(state.saveTimer)\n  state.documents = []\n  state.documentId = null\n  state.outline = []\n  state.draft = null\n  state.localText = ''\n  state.proposal = null\n  state.proposalExplanation = null\n  state.canEdit = true\n  state.dirty = false\n  state.saving = false\n  state.saveQueued = false\n  state.savePromise = null\n  state.saveTimer = null\n  state.saveError = null\n  state.conflict = false\n  if (!state.projectId || !state.auth?.signedIn) return\n\n  const [documents, outline] = await Promise.all([\n    apiJson(`/api/projects/${state.projectId}/writing/documents`),\n    apiJson(`/api/projects/${state.projectId}/writing/outline`),\n  ])\n  state.documents = documents\n  state.outline = outline\n  const remembered = getStored(DOCUMENT_KEY)\n  state.documentId = documents.some((item) => item.id === remembered)\n    ? remembered\n    : documents[0]?.id || null\n  setStored(DOCUMENT_KEY, state.documentId)\n  if (state.documentId) await loadDocumentDraft()\n}\n"""
+          new = """function resetProjectSurfaceState() {\n  state.sources = null\n  state.researchQuestions = null\n  state.researchClaims = null\n  state.researchNotes = null\n  state.researchCitations = null\n  state.surfaceErrors = []\n}\n\nasync function loadProjectSurfaceState(projectId = state.projectId) {\n  resetProjectSurfaceState()\n  if (!projectId || !state.auth?.signedIn) return\n\n  const reads = [\n    ['sources', `/api/projects/${projectId}/sources`],\n    ['researchQuestions', `/api/projects/${projectId}/research/questions`],\n    ['researchClaims', `/api/projects/${projectId}/research/claims`],\n    ['researchNotes', `/api/projects/${projectId}/research/notes`],\n    ['researchCitations', `/api/projects/${projectId}/research/citations`],\n  ]\n  const results = await Promise.allSettled(reads.map(([, path]) => apiJson(path)))\n  if (state.projectId !== projectId) return\n\n  results.forEach((result, index) => {\n    const [field] = reads[index]\n    if (result.status === 'fulfilled') state[field] = result.value\n    else state.surfaceErrors.push(field)\n  })\n}\n\nasync function loadWritingWorkspace() {\n  if (state.saveTimer) window.clearTimeout(state.saveTimer)\n  state.documents = []\n  state.documentId = null\n  state.outline = []\n  resetProjectSurfaceState()\n  state.draft = null\n  state.localText = ''\n  state.proposal = null\n  state.proposalExplanation = null\n  state.canEdit = true\n  state.dirty = false\n  state.saving = false\n  state.saveQueued = false\n  state.savePromise = null\n  state.saveTimer = null\n  state.saveError = null\n  state.conflict = false\n  if (!state.projectId || !state.auth?.signedIn) return\n\n  const projectId = state.projectId\n  const surfacePromise = loadProjectSurfaceState(projectId)\n  const [documents, outline] = await Promise.all([\n    apiJson(`/api/projects/${projectId}/writing/documents`),\n    apiJson(`/api/projects/${projectId}/writing/outline`),\n  ])\n  if (state.projectId !== projectId) return\n  state.documents = documents\n  state.outline = outline\n  const remembered = getStored(DOCUMENT_KEY)\n  state.documentId = documents.some((item) => item.id === remembered)\n    ? remembered\n    : documents[0]?.id || null\n  setStored(DOCUMENT_KEY, state.documentId)\n  if (state.documentId) await loadDocumentDraft()\n  await surfacePromise\n}\n"""
+          assert studio.count(old) == 1
+          studio = studio.replace(old, new)
+
+          marker = "function renderManuscriptStudio() {"
+          assert studio.count(marker) == 1
+          insert = r'''const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/gu, (character) => HTML_ESCAPES[character])
+}
+
+function textSnippet(value, limit = 240) {
+  const text = String(value || '').trim()
+  return text.length <= limit ? text : `${text.slice(0, limit - 1).trimEnd()}…`
+}
+
+function currentProject() {
+  return state.projects.find((project) => project.id === state.projectId) || null
+}
+
+function projectGateView(label, title, message, actionLabel = 'Create project') {
+  return `
+    <div class="studio-gate card">
+      <div>
+        <span class="eyebrow">${escapeHtml(label)}</span>
+        <h1>${escapeHtml(title)}</h1>
+        <p>${escapeHtml(message)}</p>
+        <button class="primary" data-view-target="manuscript">${escapeHtml(actionLabel)}</button>
+      </div>
+    </div>`
+}
+
+function surfaceUnavailableView(title, message) {
+  return `
+    <div class="card">
+      <div class="panel-body">
+        <h2>${escapeHtml(title)}</h2>
+        <p>${escapeHtml(message)}</p>
+        <button id="reload-project-surface" class="secondary">Retry</button>
+      </div>
+    </div>`
+}
+
+function formatSurfaceDate(value) {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleDateString()
+}
+
+function renderOverviewSurface() {
+  const project = currentProject()
+  const sources = state.sources
+  const questions = state.researchQuestions
+  const notes = state.researchNotes
+  const openQuestions = questions?.filter((item) => item.status === 'open' || item.status === 'investigating')
+  const sourceCount = sources === null ? '—' : sources.length
+  const questionCount = questions === null ? '—' : openQuestions.length
+  const noteCount = notes === null ? '—' : notes.length
+  const words = state.documentId ? wordCount(state.localText) : 0
+  const sourceMeta = sources === null ? 'Temporarily unavailable' : 'Private project library'
+  const questionMeta = questions === null ? 'Temporarily unavailable' : 'Open or investigating'
+  const noteMeta = notes === null ? 'Temporarily unavailable' : 'Project notebook'
+  return `
+    <div class="page-heading">
+      <div><h1>${escapeHtml(project?.title || 'Project overview')}</h1><p>Live project status from your saved sources, research, notes, and current manuscript.</p></div>
+      <div class="page-actions"><button class="primary" data-view-target="manuscript">Continue writing</button></div>
+    </div>
+    <div id="studio-error" class="studio-error" hidden></div>
+    <div class="grid stats">
+      <div class="card stat"><div class="label">Sources</div><div class="value">${sourceCount}</div><div class="meta">${sourceMeta}</div></div>
+      <div class="card stat"><div class="label">Open questions</div><div class="value">${questionCount}</div><div class="meta">${questionMeta}</div></div>
+      <div class="card stat"><div class="label">Research notes</div><div class="value">${noteCount}</div><div class="meta">${noteMeta}</div></div>
+      <div class="card stat"><div class="label">Current manuscript words</div><div class="value">${words}</div><div class="meta">${state.documentId ? 'Active manuscript' : 'No manuscript yet'}</div></div>
+    </div>
+    <div class="grid two-col">
+      <div class="card"><div class="panel-head"><h2>Writing</h2><span>${state.documents.length} manuscripts</span></div><div class="panel-body"><p>${state.documentId ? `${escapeHtml(state.documents.find((item) => item.id === state.documentId)?.title || 'Current manuscript')} · ${state.outline.length} outline sections` : 'Create the first manuscript when you are ready to begin writing.'}</p></div></div>
+      <div class="card"><div class="panel-head"><h2>Research</h2><span>${state.researchClaims === null ? 'Status unavailable' : `${state.researchClaims.length} claims`}</span></div><div class="panel-body"><p>${state.researchCitations === null ? 'Citation status is temporarily unavailable.' : `${state.researchCitations.filter((item) => item.status === 'proposed').length} citation candidates still need review.`}</p></div></div>
+    </div>`
+}
+
+function renderLibrarySurface() {
+  if (state.sources === null) {
+    return `<div class="page-heading"><div><h1>Research Library</h1><p>Your project sources stay attached to the project that owns them.</p></div></div><div id="studio-error" class="studio-error" hidden></div>${surfaceUnavailableView('Sources unavailable', 'Mi-Llama could not load this project’s source list right now.')}`
+  }
+  const rows = state.sources.length
+    ? state.sources.map((source) => `
+      <div class="row">
+        <div class="doc"><div class="doc-icon">${escapeHtml(String(source.kind || 'file').toUpperCase())}</div><div><b>${escapeHtml(source.filename)}</b><small>${escapeHtml(source.media_type || 'Source')}</small></div></div>
+        <div>${escapeHtml(String(source.kind || '—').toUpperCase())}</div>
+        <div><span class="badge ${source.status === 'ready' ? '' : source.status === 'failed' ? 'amber' : 'gray'}">${escapeHtml(source.status || 'unknown')}</span></div>
+        <div>${escapeHtml(formatSurfaceDate(source.updated_at))}</div>
+      </div>`).join('')
+    : `<div class="row"><div class="doc"><div class="doc-icon">＋</div><div><b>No sources yet</b><small>Add the first source to this project.</small></div></div><div>—</div><div><span class="badge gray">Empty</span></div><div>—</div></div>`
+  return `
+    <div class="page-heading"><div><h1>Research Library</h1><p>${state.sources.length} saved sources in ${escapeHtml(currentProject()?.title || 'this project')}.</p></div></div>
+    <div id="studio-error" class="studio-error" hidden></div>
+    <div class="card" style="margin-bottom:16px"><div class="panel-head"><h2>Add source</h2><span>PDF, DOCX, EPUB, TXT, Markdown, HTML</span></div><div class="panel-body"><form id="source-upload-form" class="inline-create" enctype="multipart/form-data"><input id="source-upload-file" type="file" accept=".pdf,.docx,.epub,.txt,.md,.markdown,.html,.htm" required><button class="primary" type="submit">Upload source</button></form></div></div>
+    <div class="card table"><div class="row header"><div>Source</div><div>Format</div><div>Status</div><div>Updated</div></div>${rows}</div>`
+}
+
+function renderResearchSurface() {
+  if (state.researchQuestions === null) {
+    return `<div class="page-heading"><div><h1>Research</h1><p>Questions and claims stay scoped to the current project.</p></div></div><div id="studio-error" class="studio-error" hidden></div>${surfaceUnavailableView('Research questions unavailable', 'Mi-Llama could not load this project’s research questions right now.')}`
+  }
+  const questions = state.researchQuestions.length
+    ? state.researchQuestions.map((item) => `<div class="question"><b>${escapeHtml(item.question)}</b><small>${escapeHtml(item.status)} · priority ${escapeHtml(item.priority)}</small></div>`).join('')
+    : '<div class="question active"><b>No research questions yet</b><small>Add the first question for this project.</small></div>'
+  return `
+    <div class="page-heading"><div><h1>Research</h1><p>${state.researchQuestions.length} questions · ${state.researchClaims === null ? 'claims unavailable' : `${state.researchClaims.length} claims`}.</p></div></div>
+    <div id="studio-error" class="studio-error" hidden></div>
+    <div class="grid two-col">
+      <div class="card"><div class="panel-head"><h2>Research questions</h2><span>${state.researchQuestions.filter((item) => item.status === 'open' || item.status === 'investigating').length} active</span></div><div class="question-list">${questions}</div></div>
+      <div class="card"><div class="panel-head"><h2>Add question</h2><span>Project scoped</span></div><div class="panel-body"><form id="create-research-question-form" class="inline-create"><input id="new-research-question" maxlength="4000" placeholder="What do you need to establish?" required><button class="primary" type="submit">Add question</button></form></div></div>
+    </div>`
+}
+
+function renderNotebookSurface() {
+  if (state.researchNotes === null) {
+    return `<div class="page-heading"><div><h1>Notebook</h1><p>Notes stay with the project that owns their research context.</p></div></div><div id="studio-error" class="studio-error" hidden></div>${surfaceUnavailableView('Notebook unavailable', 'Mi-Llama could not load this project’s research notes right now.')}`
+  }
+  const notes = state.researchNotes.length
+    ? state.researchNotes.map((note) => `<div class="card note"><span class="badge gray">${escapeHtml(note.kind || 'note')}</span><h3>${escapeHtml(note.title || 'Untitled note')}</h3><p>${escapeHtml(textSnippet(note.body))}</p><div class="note-foot"><span>${escapeHtml(formatSurfaceDate(note.updated_at))}</span><span>Saved</span></div></div>`).join('')
+    : '<div class="card note"><span class="badge gray">Note</span><h3>No notes yet</h3><p>Add the first research note for this project.</p><div class="note-foot"><span>Project notebook</span><span>Empty</span></div></div>'
+  return `
+    <div class="page-heading"><div><h1>Notebook</h1><p>${state.researchNotes.length} saved notes in ${escapeHtml(currentProject()?.title || 'this project')}.</p></div></div>
+    <div id="studio-error" class="studio-error" hidden></div>
+    <div class="card" style="margin-bottom:16px"><div class="panel-head"><h2>Add note</h2><span>Saved to this project</span></div><div class="panel-body"><form id="create-research-note-form" class="inline-create"><input id="new-research-note-title" maxlength="240" placeholder="Note title (optional)"><textarea id="new-research-note-body" maxlength="40000" rows="3" placeholder="Write a research note…" required></textarea><button class="primary" type="submit">Add note</button></form></div></div>
+    <div class="notebook">${notes}</div>`
+}
+
+async function reloadProjectSurfaceState() {
+  if (!state.projectId) return
+  const button = $('#reload-project-surface')
+  if (button) button.disabled = true
+  await loadProjectSurfaceState(state.projectId)
+  enhanceCurrentView()
+}
+
+async function uploadProjectSource(event) {
+  event.preventDefault()
+  clearError()
+  const projectId = state.projectId
+  const file = $('#source-upload-file')?.files?.[0]
+  if (!projectId || !file || !state.auth) return
+  const button = event.currentTarget.querySelector('button[type="submit"]')
+  if (button) {
+    button.disabled = true
+    button.textContent = 'Uploading…'
+  }
+  try {
+    const body = new FormData()
+    body.append('file', file, file.name)
+    const response = await state.auth.apiFetch(`/api/projects/${projectId}/sources`, {
+      method: 'POST',
+      body,
+    })
+    if (!response.ok) {
+      await readJson(response)
+      throw new AuthError(apiErrorMessage(response.status), response.status)
+    }
+    if (state.projectId !== projectId) return
+    await loadProjectSurfaceState(projectId)
+    enhanceCurrentView()
+  } catch (error) {
+    showError(error.message || 'Could not upload this source.')
+    if (button) {
+      button.disabled = false
+      button.textContent = 'Upload source'
+    }
+  }
+}
+
+async function createResearchQuestion(event) {
+  event.preventDefault()
+  clearError()
+  const projectId = state.projectId
+  const question = $('#new-research-question')?.value.trim()
+  if (!projectId || !question) return
+  try {
+    await apiJson(`/api/projects/${projectId}/research/questions`, {
+      method: 'POST',
+      body: JSON.stringify({ question, priority: 3 }),
+    })
+    if (state.projectId !== projectId) return
+    await loadProjectSurfaceState(projectId)
+    enhanceCurrentView()
+  } catch (error) {
+    showError(error.message || 'Could not save this research question.')
+  }
+}
+
+async function createResearchNote(event) {
+  event.preventDefault()
+  clearError()
+  const projectId = state.projectId
+  const title = $('#new-research-note-title')?.value.trim() || null
+  const body = $('#new-research-note-body')?.value.trim()
+  if (!projectId || !body) return
+  try {
+    await apiJson(`/api/projects/${projectId}/research/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ title, body, kind: 'note' }),
+    })
+    if (state.projectId !== projectId) return
+    await loadProjectSurfaceState(projectId)
+    enhanceCurrentView()
+  } catch (error) {
+    showError(error.message || 'Could not save this research note.')
+  }
+}
+
+function bindProjectSurfaceActions() {
+  $('#studio-sign-in')?.addEventListener('click', openAuthDialog)
+  $('#reload-project-surface')?.addEventListener('click', reloadProjectSurfaceState)
+  $('#source-upload-form')?.addEventListener('submit', uploadProjectSource)
+  $('#create-research-question-form')?.addEventListener('submit', createResearchQuestion)
+  $('#create-research-note-form')?.addEventListener('submit', createResearchNote)
+}
+
+function renderProjectSurface(view) {
+  const content = $('#content')
+  if (!content) return
+  if (!state.auth?.signedIn) {
+    content.innerHTML = signedOutView()
+    bindProjectSurfaceActions()
+    return
+  }
+  if (!state.projectId) {
+    content.innerHTML = projectGateView(
+      'FIRST PROJECT',
+      'Create a project to begin',
+      'Sources, questions, notes, and manuscripts belong to a project so their context stays together.',
+    )
+    bindProjectSurfaceActions()
+    return
+  }
+  if (view === 'overview') content.innerHTML = renderOverviewSurface()
+  else if (view === 'library') content.innerHTML = renderLibrarySurface()
+  else if (view === 'research') content.innerHTML = renderResearchSurface()
+  else if (view === 'notebook') content.innerHTML = renderNotebookSurface()
+  bindProjectSurfaceActions()
+}
+
+'''
+          studio = studio.replace(marker, insert + marker)
+
+          old = """function enhanceCurrentView() {\n  syncShell()\n  if (currentView() === 'manuscript') renderManuscriptStudio()\n}\n"""
+          new = """function enhanceCurrentView() {\n  syncShell()\n  const view = currentView()\n  if (view === 'manuscript') renderManuscriptStudio()\n  else if (['overview', 'library', 'research', 'notebook'].includes(view)) renderProjectSurface(view)\n}\n"""
+          assert studio.count(old) == 1
+          studio = studio.replace(old, new)
+          studio_path.write_text(studio)
+
+          auth_path = Path('src/mi_llama/workspace_assets/auth.js')
+          auth = auth_path.read_text()
+          old = """    if (options.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')\n"""
+          new = """    const bodyIsFormData = typeof FormData !== 'undefined' && options.body instanceof FormData\n    if (options.body && !bodyIsFormData && !headers.has('Content-Type')) {\n      headers.set('Content-Type', 'application/json')\n    }\n"""
+          assert auth.count(old) == 1
+          auth_path.write_text(auth.replace(old, new))
+
+          test_path = Path('tests/test_workspace_consumer_language.py')
+          tests = test_path.read_text()
+          appendix = r'''
+
+
+def test_project_surfaces_read_canonical_project_data() -> None:
+    studio = (ASSETS / "studio.js").read_text()
+
+    for endpoint in (
+        "/sources`",
+        "/research/questions`",
+        "/research/claims`",
+        "/research/notes`",
+        "/research/citations`",
+    ):
+        assert endpoint in studio
+    assert "Promise.allSettled" in studio
+    assert "if (state.projectId !== projectId) return" in studio
+    assert "renderOverviewSurface" in studio
+    assert "renderLibrarySurface" in studio
+    assert "renderResearchSurface" in studio
+    assert "renderNotebookSurface" in studio
+    assert "sources: null" in studio
+    assert "researchQuestions: null" in studio
+    assert "researchNotes: null" in studio
+
+
+def test_live_project_actions_use_existing_authorities() -> None:
+    studio = (ASSETS / "studio.js").read_text()
+
+    assert 'id="source-upload-form"' in studio
+    assert "const body = new FormData()" in studio
+    assert "body.append('file', file, file.name)" in studio
+    assert 'id="create-research-question-form"' in studio
+    assert "body: JSON.stringify({ question, priority: 3 })" in studio
+    assert 'id="create-research-note-form"' in studio
+    assert "body: JSON.stringify({ title, body, kind: 'note' })" in studio
+    assert "data-view-target=\"manuscript\"" in studio
+
+
+def test_form_data_upload_keeps_browser_multipart_boundary() -> None:
+    auth = (ASSETS / "auth.js").read_text()
+
+    assert "const bodyIsFormData = typeof FormData !== 'undefined'" in auth
+    assert "options.body instanceof FormData" in auth
+    assert "options.body && !bodyIsFormData && !headers.has('Content-Type')" in auth
+'''
+          assert 'test_project_surfaces_read_canonical_project_data' not in tests
+          test_path.write_text(tests.rstrip() + appendix + '\n')
+          PY
+
+          rm .github/workflows/patch-project-aware-surfaces.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/mi_llama/workspace_assets/studio.js src/mi_llama/workspace_assets/auth.js tests/test_workspace_consumer_language.py .github/workflows/patch-project-aware-surfaces.yml
+          git commit -m "Wire live project-aware workspace surfaces"
+          git push origin HEAD:ux/project-aware-surfaces
