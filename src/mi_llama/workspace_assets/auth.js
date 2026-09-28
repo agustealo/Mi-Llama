@@ -58,6 +58,23 @@ async function responseError(response, fallback) {
   }
 }
 
+function authMessage(message, status, fallback) {
+  const normalized = String(message || '').toLowerCase()
+  if (status === 429) return 'Too many sign-in attempts. Try again shortly.'
+  if (status >= 500) return 'Sign-in service is temporarily unavailable. Try again shortly.'
+  if (normalized.includes('email not confirmed')) return 'Confirm your email before signing in.'
+  if (
+    status === 400 ||
+    status === 401 ||
+    normalized.includes('invalid login') ||
+    normalized.includes('invalid credentials') ||
+    normalized.includes('invalid password')
+  ) {
+    return 'Email or password is incorrect.'
+  }
+  return fallback
+}
+
 export class AuthClient {
   constructor(config) {
     this.supabaseUrl = config.supabase_url
@@ -74,7 +91,7 @@ export class AuthClient {
           cache: 'no-store',
         })
         if (!response.ok) {
-          throw new AuthError(await responseError(response, 'Authentication is not configured'), response.status)
+          throw new AuthError('Sign-in is unavailable in this workspace.', response.status)
         }
         return new AuthClient(await response.json())
       })()
@@ -106,7 +123,8 @@ export class AuthClient {
       body: JSON.stringify({ email, password }),
     })
     if (!response.ok) {
-      throw new AuthError(await responseError(response, 'Sign in failed'), response.status)
+      const message = await responseError(response, 'Sign in failed')
+      throw new AuthError(authMessage(message, response.status, 'Could not sign in. Check your details and try again.'), response.status)
     }
     this.session = await response.json()
     storeSession(this.session)
@@ -150,7 +168,7 @@ export class AuthClient {
       if (!response.ok) {
         this.session = null
         storeSession(null)
-        throw new AuthError(await responseError(response, 'Session refresh failed'), response.status)
+        throw new AuthError('Your session has ended. Sign in again.', response.status)
       }
       this.session = await response.json()
       storeSession(this.session)
