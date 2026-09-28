@@ -125,18 +125,18 @@ def test_writing_model_availability_is_capability_facing() -> None:
 
 
 def test_api_errors_are_translated_before_reaching_writer_flows() -> None:
-    studio = (ASSETS / 'studio.js').read_text()
+    studio = (ASSETS / "studio.js").read_text()
 
-    assert 'function apiErrorMessage(status)' in studio
-    assert 'Your session has ended. Sign in again.' in studio
-    assert 'You do not have access to do that in this project.' in studio
-    assert 'That item is no longer available. Refresh and try again.' in studio
-    assert 'This changed since you opened it. Review the latest version and try again.' in studio
-    assert 'Too many requests right now. Try again shortly.' in studio
-    assert 'Mi-Llama could not complete that right now. Try again shortly.' in studio
-    assert 'throw new AuthError(apiErrorMessage(response.status), response.status)' in studio
-    assert 'payload?.detail' not in studio
-    assert 'Request failed (${response.status})' not in studio
+    assert "function apiErrorMessage(status)" in studio
+    assert "Your session has ended. Sign in again." in studio
+    assert "You do not have access to do that in this project." in studio
+    assert "That item is no longer available. Refresh and try again." in studio
+    assert "This changed since you opened it. Review the latest version and try again." in studio
+    assert "Too many requests right now. Try again shortly." in studio
+    assert "Mi-Llama could not complete that right now. Try again shortly." in studio
+    assert "throw new AuthError(apiErrorMessage(response.status), response.status)" in studio
+    assert "payload?.detail" not in studio
+    assert "Request failed (${response.status})" not in studio
 
 
 def test_workspace_shell_keeps_navigation_and_health_contracts() -> None:
