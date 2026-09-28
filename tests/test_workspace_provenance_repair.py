@@ -13,7 +13,7 @@ def test_provenance_repair_preserves_proposal_authority() -> None:
     script = (root / "studio_provenance_repair.js").read_text()
     contract = (root / "citation_closure_contract.js").read_text()
 
-    assert "Prepare restore proposal" in script
+    assert "Draft from earlier wording" in script
     assert "method: 'POST'" in script
     assert "/grounded-proposals`" in script
     assert "getEditorAdapter()?.getSelection()" in script
@@ -23,7 +23,7 @@ def test_provenance_repair_preserves_proposal_authority() -> None:
     assert "operation: 'rewrite'" in contract
     assert "item.manuscriptState !== 'changed'" in contract
     assert "item.provenanceResolved" in contract
-    assert "never overwrites changed text" in script
+    assert "Mi-Llama keeps the earlier sources for reference" in script
     assert "replaceRange(" not in script
     assert "setText(" not in script
 
@@ -32,13 +32,13 @@ def test_provenance_regrounding_uses_canonical_research_action() -> None:
     root = Path(__file__).parents[1] / "src" / "mi_llama" / "workspace_assets"
     script = (root / "studio_provenance_repair.js").read_text()
 
-    assert "Re-ground selected text" in script
+    assert "Find fresh evidence" in script
     assert "#find-evidence-action" in script
     assert "researchAction.dataset.repairOfProposalId = item.proposalId" in script
     assert "researchAction.click()" in script
     assert "delete researchAction.dataset.repairOfProposalId" in script
     assert "#research-evidence-panel" in script
-    assert "repair lineage preserved" in script
+    assert "Searching your project sources for the selected passage." in script
     assert "/research/query" not in script
     assert "EVIDENCE_TRAY_KEY" not in script
 
@@ -76,10 +76,23 @@ def test_provenance_disposition_is_explicit_durable_and_auditable() -> None:
     assert "retired" in script
     assert "superseded" in script
     assert "window.confirm(" in script
-    assert "Resolved provenance history" in script
-    assert "Frozen grounding evidence" in script
+    assert "Past source-history changes" in script
+    assert "Saved evidence" in script
     assert "citation.content" in script
-    assert "citation.content_sha256" in script
+    assert "citation.content_sha256" not in script
     assert "superseding_proposal_id" in script
     assert "localStorage" not in script
     assert "sessionStorage" not in script
+
+
+def test_source_history_ui_hides_internal_lineage_and_disposition_terms() -> None:
+    root = Path(__file__).parents[1] / "src" / "mi_llama" / "workspace_assets"
+    script = (root / "studio_provenance_repair.js").read_text()
+
+    assert "Source history" in script
+    assert "Grounding disposition" not in script
+    assert "Record exact supersession" not in script
+    assert "Accepted repair lineage" not in script
+    assert "Frozen grounding evidence" not in script
+    assert "Resolved provenance history" not in script
+    assert "sha256" not in script.lower()
