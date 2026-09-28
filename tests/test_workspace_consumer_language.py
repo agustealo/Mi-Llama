@@ -180,9 +180,11 @@ def test_static_shell_actions_are_owned_or_removed() -> None:
     assert "location.hash = view" in app
     for dead_label in (
         "Project settings",
+        "Filter",
         "Upload source",
         "Research gaps",
         "New question",
+        "Sort",
         "New note",
         "Review history",
     ):
