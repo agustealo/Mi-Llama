@@ -153,7 +153,10 @@ def compare_png(path: Path) -> tuple[int, int]:
         changed_pixels += 1
         max_delta = max(
             max_delta,
-            *(abs(int(before) - int(after)) for before, after in zip(baseline, current)),
+            *(
+                abs(int(before) - int(after))
+                for before, after in zip(baseline, current, strict=True)
+            ),
         )
 
     return changed_pixels, max_delta
