@@ -86,16 +86,26 @@ function assessmentLabel(assessment) {
   return labels[assessment] || assessment
 }
 
+function relationLabel(relation) {
+  const labels = {
+    supports: 'supporting',
+    contradicts: 'challenging',
+    context: 'context',
+    unclear: 'unclear',
+  }
+  return labels[relation] || relation
+}
+
 function candidateSummary(candidates) {
-  if (!candidates?.length) return 'No project evidence candidates'
+  if (!candidates?.length) return 'No project sources found'
   const counts = new Map()
   for (const candidate of candidates) {
     counts.set(candidate.relation, (counts.get(candidate.relation) || 0) + 1)
   }
   const relations = ['supports', 'contradicts', 'context', 'unclear']
     .filter((relation) => counts.has(relation))
-    .map((relation) => `${counts.get(relation)} ${relation}`)
-  return `${candidates.length} candidates · ${relations.join(' · ')}`
+    .map((relation) => `${counts.get(relation)} ${relationLabel(relation)}`)
+  return `${candidates.length} source${candidates.length === 1 ? '' : 's'} · ${relations.join(' · ')}`
 }
 
 function annotationPayload() {
@@ -241,19 +251,19 @@ function renderIntelligence() {
   if (intelligenceState.stale && intelligenceState.result) {
     const warning = document.createElement('div')
     warning.className = 'writing-intelligence-message stale'
-    warning.textContent = 'The draft changed after this analysis. These findings remain bound to the analyzed revision; checkpoint the current draft before running a new review.'
+    warning.textContent = 'The manuscript changed after this review. Save a new version before running another evidence review.'
     body.appendChild(warning)
   } else if (intelligenceState.result && !intelligenceState.anchorFresh) {
     const warning = document.createElement('div')
     warning.className = 'writing-intelligence-message stale'
-    warning.textContent = 'This review belongs to an older manuscript checkpoint. It remains readable here, but inline passage markers are hidden until the current revision is analyzed.'
+    warning.textContent = 'This review belongs to an older saved version. It remains readable here, but passage markers are hidden until the current version is reviewed.'
     body.appendChild(warning)
   }
 
   if (!intelligenceState.result) {
     const empty = document.createElement('div')
     empty.className = 'writing-intelligence-message'
-    empty.textContent = 'Checkpoint a manuscript revision, then analyze the full revision or a selected passage for evidence support, contradiction, and unresolved claims.'
+    empty.textContent = 'Save a version of the manuscript, then review the full manuscript or a selected passage for supporting evidence, challenges, and claims that need more research.'
     body.appendChild(empty)
     syncActionState()
     return
@@ -262,13 +272,13 @@ function renderIntelligence() {
   const result = intelligenceState.result
   const run = document.createElement('div')
   run.className = 'writing-analysis-run'
-  run.textContent = `Revision review · ${result.findings.length} findings · ${result.run.model}`
+  run.textContent = `Evidence review · ${result.findings.length} finding${result.findings.length === 1 ? '' : 's'}`
   body.appendChild(run)
 
   if (!result.findings.length) {
     const empty = document.createElement('div')
     empty.className = 'writing-intelligence-message'
-    empty.textContent = 'No externally verifiable claims were selected in this analyzed passage.'
+    empty.textContent = 'No externally verifiable claims were selected in this passage.'
     body.appendChild(empty)
     syncActionState()
     return
@@ -320,19 +330,19 @@ async function revisionContext(context) {
     `/api/projects/${context.projectId}/writing/documents/${context.documentId}/draft`,
   )
   if (!draft?.version || !draft.base_revision_id) {
-    throw new Error('Checkpoint this manuscript before running writing intelligence.')
+    throw new Error('Save a version of this manuscript before running an evidence review.')
   }
   const editorText = context.editor.getText()
   if (editorText !== draft.plain_text) {
-    throw new Error('The manuscript still has an unconfirmed local change. Save it before analysis.')
+    throw new Error('The manuscript still has unsaved changes. Save it before starting an evidence review.')
   }
   const revisions = await apiJson(
     `/api/projects/${context.projectId}/writing/documents/${context.documentId}/revisions`,
   )
   const revision = revisions.find((item) => item.id === draft.base_revision_id)
-  if (!revision) throw new Error('The checkpointed manuscript revision could not be loaded.')
+  if (!revision) throw new Error('The saved manuscript version could not be loaded.')
   if (revision.content !== draft.plain_text) {
-    throw new Error('The draft moved beyond its checkpoint. Create a new revision before analysis.')
+    throw new Error('The manuscript changed after its last saved version. Save a new version before reviewing it.')
   }
   return { draft, revision }
 }
@@ -356,7 +366,7 @@ async function loadLatestAnalysis(context) {
   const key = contextKey(context)
   if (!key || intelligenceState.loadingKey === key || intelligenceState.loadedKey === key) return
   intelligenceState.loadingKey = key
-  showIntelligenceMessage('Loading the latest revision review…', 'busy')
+  showIntelligenceMessage('Loading the latest evidence review…', 'busy')
   try {
     const runs = await apiJson(
       `/api/projects/${context.projectId}/writing/documents/${context.documentId}/analysis`,
@@ -375,7 +385,7 @@ async function loadLatestAnalysis(context) {
     intelligenceState.loadedKey = key
     intelligenceState.anchorFresh = false
     context.editor?.clearAnnotations()
-    showIntelligenceMessage(error.message || 'Could not load writing intelligence.', 'error')
+    showIntelligenceMessage(error.message || 'Could not load the evidence review.', 'error')
     syncActionState()
   } finally {
     intelligenceState.loadingKey = null
@@ -387,15 +397,15 @@ async function analyze(scope) {
   const context = manuscriptContext()
   if (!context.projectId || !context.documentId || !context.editor) return
   if (!context.canEdit) {
-    showIntelligenceMessage('Edit access is required to create a new revision analysis.', 'error')
+    showIntelligenceMessage('Editing access is required to run a new evidence review.', 'error')
     return
   }
   if (!context.model) {
-    showIntelligenceMessage('No Ollama model is available for writing intelligence.', 'error')
+    showIntelligenceMessage('No writing model is available for evidence review.', 'error')
     return
   }
 
-  setBusy(true, scope === 'selection' ? 'Analyzing the selected passage…' : 'Analyzing the checkpointed revision…')
+  setBusy(true, scope === 'selection' ? 'Reviewing the selected passage…' : 'Reviewing the saved manuscript…')
   try {
     const checkpoint = await revisionContext(context)
     const request = {
@@ -405,10 +415,10 @@ async function analyze(scope) {
     if (scope === 'selection') {
       const selection = context.editor.getSelection()
       if (selection.end <= selection.start || !selection.text.trim()) {
-        throw new Error('Select manuscript text before analyzing a passage.')
+        throw new Error('Select manuscript text before reviewing a passage.')
       }
       if (checkpoint.revision.content.slice(selection.start, selection.end) !== selection.text) {
-        throw new Error('The selected passage no longer matches the checkpointed revision.')
+        throw new Error('The selected passage no longer matches the saved manuscript version.')
       }
       request.character_start = selection.start
       request.character_end = selection.end
@@ -429,7 +439,7 @@ async function analyze(scope) {
   } catch (error) {
     intelligenceState.anchorFresh = false
     context.editor.clearAnnotations()
-    showIntelligenceMessage(error.message || 'Writing intelligence analysis failed.', 'error')
+    showIntelligenceMessage(error.message || 'Evidence review failed.', 'error')
   } finally {
     setBusy(false)
   }
@@ -456,7 +466,7 @@ function installIntelligenceInteraction() {
     const button = document.createElement('button')
     button.id = 'analyze-selection-action'
     button.className = 'intelligence-selection-action'
-    button.textContent = 'Analyze selection'
+    button.textContent = 'Review selection'
     button.addEventListener('click', () => analyze('selection'))
     toolbar.appendChild(button)
   }
@@ -467,8 +477,8 @@ function installIntelligenceInteraction() {
     section.className = 'writing-intelligence-panel'
     section.innerHTML = `
       <div class="writing-intelligence-head">
-        <div><b>Writing intelligence</b><span class="writing-intelligence-meta">Revision-bound review</span></div>
-        <button id="analyze-revision-action" class="secondary" type="button">Analyze revision</button>
+        <div><b>Evidence review</b><span class="writing-intelligence-meta">Saved-version review</span></div>
+        <button id="analyze-revision-action" class="secondary" type="button">Review manuscript</button>
       </div>
       <div class="writing-intelligence-body"></div>`
     collaborator.appendChild(section)
