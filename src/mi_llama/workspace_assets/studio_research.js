@@ -146,7 +146,10 @@ function removeTrayCitation(citationId) {
   return tray
 }
 
-function clearResearchState(message = 'Select a passage and find project evidence without leaving the manuscript.', clearTray = false) {
+function clearResearchState(
+  message = 'Select a passage to find supporting or contrasting sources without leaving your manuscript.',
+  clearTray = false,
+) {
   researchState.snapshot = null
   researchState.hits = []
   researchState.promotion = null
@@ -188,10 +191,10 @@ async function persistedSnapshot(selection) {
     `/api/projects/${selection.projectId}/writing/documents/${selection.documentId}/draft`,
   )
   if (!draft?.version) {
-    throw new Error('Save the manuscript draft before searching for evidence.')
+    throw new Error('Save the manuscript before searching for sources.')
   }
   if (draft.plain_text !== selection.fullText) {
-    throw new Error('The manuscript is still saving. Wait for the saved state, then search again.')
+    throw new Error('The manuscript is still saving. Wait for it to finish, then search again.')
   }
   if (draft.plain_text.slice(selection.start, selection.end) !== selection.text) {
     throw new Error('The selected passage changed before research started. Select it again.')
@@ -207,12 +210,19 @@ function sourceLabel(hit) {
   return hit.location ? `${hit.source_filename} · ${hit.location}` : hit.source_filename
 }
 
+function stanceLabel(stance) {
+  if (stance === 'supports') return 'Supports this passage'
+  if (stance === 'contradicts') return 'Challenges this passage'
+  if (stance === 'context') return 'Adds context'
+  return stance
+}
+
 function stanceSummary(items) {
   const counts = { supports: 0, contradicts: 0, context: 0 }
   for (const item of items) {
     if (item.stance in counts) counts[item.stance] += 1
   }
-  return `support ${counts.supports} · contradict ${counts.contradicts} · context ${counts.context}`
+  return `supports ${counts.supports} · challenges ${counts.contradicts} · context ${counts.context}`
 }
 
 function groundingTargetFromTray(tray) {
@@ -234,7 +244,7 @@ function renderEvidenceTray(host, tray) {
   const head = document.createElement('div')
   head.className = 'research-tray-head'
   const title = document.createElement('b')
-  title.textContent = `Evidence tray · ${tray.items.length}/${MAX_GROUNDING_CITATIONS}`
+  title.textContent = `Sources for this edit · ${tray.items.length}/${MAX_GROUNDING_CITATIONS}`
   const balance = document.createElement('span')
   balance.textContent = stanceSummary(tray.items)
   head.append(title, balance)
@@ -249,7 +259,7 @@ function renderEvidenceTray(host, tray) {
     const source = document.createElement('strong')
     source.textContent = item.source
     const meta = document.createElement('small')
-    meta.textContent = `${item.stance} · citation ${item.citationStatus}`
+    meta.textContent = stanceLabel(item.stance)
     copy.append(source, meta)
     const remove = document.createElement('button')
     remove.className = 'secondary research-tray-remove'
@@ -288,21 +298,22 @@ function renderSearchResults() {
   const header = document.createElement('div')
   header.className = 'research-result-head'
   const title = document.createElement('b')
-  title.textContent = snapshot.repairOfProposalId ? 'Evidence candidates · provenance repair' : 'Evidence candidates'
+  title.textContent = snapshot.repairOfProposalId ? 'Sources to review · updating source history' : 'Sources to review'
   const meta = document.createElement('span')
-  meta.textContent = `${researchState.hits.length} project hits · draft v${snapshot.draftVersion}`
+  meta.textContent = `${researchState.hits.length} project match${researchState.hits.length === 1 ? '' : 'es'}`
   header.append(title, meta)
   panel.appendChild(header)
 
   const policy = document.createElement('p')
   policy.className = 'research-policy'
-  policy.textContent = 'Retrieval is candidate-only. Promote reviewed passages with an explicit stance, then generate against the bounded evidence tray.'
+  policy.textContent =
+    'Review each source and mark how it relates to the passage. Add only the sources you want Mi-Llama to use.'
   panel.appendChild(policy)
 
   if (researchState.hits.length === 0) {
     const empty = document.createElement('div')
     empty.className = 'research-empty'
-    empty.textContent = 'No indexed project evidence matched this passage.'
+    empty.textContent = 'No project sources matched this passage.'
     panel.appendChild(empty)
     return
   }
@@ -315,9 +326,7 @@ function renderSearchResults() {
     head.className = 'research-hit-head'
     const source = document.createElement('b')
     source.textContent = sourceLabel(hit)
-    const relevance = document.createElement('span')
-    relevance.textContent = `retrieval score ${Number(hit.relevance || 0).toFixed(3)}`
-    head.append(source, relevance)
+    head.append(source)
 
     const excerpt = document.createElement('p')
     excerpt.textContent = hit.content
@@ -326,7 +335,7 @@ function renderSearchResults() {
     actions.className = 'research-hit-actions'
     for (const [stance, label] of [
       ['supports', 'Supports'],
-      ['contradicts', 'Contradicts'],
+      ['contradicts', 'Challenges'],
       ['context', 'Context'],
     ]) {
       const button = document.createElement('button')
@@ -342,7 +351,7 @@ function renderSearchResults() {
 }
 
 async function searchEvidenceForSelection(selection) {
-  setResearchBusy(true, 'Searching the project research index…')
+  setResearchBusy(true, 'Searching your project sources…')
   try {
     const snapshot = await persistedSnapshot(selection)
     const response = await apiJson(`/api/projects/${selection.projectId}/research/query`, {
@@ -356,7 +365,7 @@ async function searchEvidenceForSelection(selection) {
     researchState.tray = trayMatchesSnapshot(tray, snapshot) ? tray : null
     renderSearchResults()
   } catch (error) {
-    showResearchError(error.message || 'Project evidence search failed.')
+    showResearchError(error.message || 'Source search failed.')
   } finally {
     setResearchBusy(false)
   }
@@ -366,7 +375,7 @@ async function findEvidence(event) {
   if (researchState.busy) return
   const selection = currentSelection()
   if (!selection) {
-    showResearchError('Select manuscript text before searching for evidence.')
+    showResearchError('Select manuscript text before searching for sources.')
     return
   }
   if (selection.text.length < 3) {
@@ -374,7 +383,7 @@ async function findEvidence(event) {
     return
   }
   if (selection.text.length > SEARCH_MAX_CHARS) {
-    showResearchError(`Evidence search is limited to ${SEARCH_MAX_CHARS} selected characters at a time.`)
+    showResearchError(`Source search is limited to ${SEARCH_MAX_CHARS} selected characters at a time.`)
     return
   }
   const repairOfProposalId = event?.currentTarget?.dataset?.repairOfProposalId || null
@@ -388,13 +397,13 @@ async function findMoreEvidenceFromTray() {
   if (!tray || !projectId || !documentId || !editor) return
   if (tray.projectId !== projectId || tray.documentId !== documentId) {
     clearEvidenceTray()
-    showResearchError('The evidence tray belonged to another manuscript. Select this passage again.')
+    showResearchError('These sources belonged to another manuscript. Select this passage again.')
     return
   }
   const fullText = editor.getText()
   if (fullText.slice(tray.selectionStart, tray.selectionEnd) !== tray.selectionText) {
     clearEvidenceTray()
-    showResearchError('The evidence-bound manuscript passage changed. Select it again before continuing research.')
+    showResearchError('The passage tied to these sources changed. Select it again before continuing research.')
     return
   }
   await searchEvidenceForSelection({
@@ -415,7 +424,7 @@ function renderGroundedProposalControls(host, target) {
   const label = document.createElement('label')
   label.className = 'research-grounding-operation'
   const text = document.createElement('span')
-  const kind = target.repairOfProposalId ? 'Evidence-grounded repair' : 'Evidence-grounded edit'
+  const kind = target.repairOfProposalId ? 'Source-backed update' : 'Source-backed edit'
   text.textContent = `${kind} · ${target.citationIds.length} source${target.citationIds.length === 1 ? '' : 's'}`
   const operation = document.createElement('select')
   for (const [value, title] of [
@@ -433,7 +442,7 @@ function renderGroundedProposalControls(host, target) {
 
   const button = document.createElement('button')
   button.className = 'primary research-grounded-proposal'
-  button.textContent = target.repairOfProposalId ? 'Generate re-grounded repair' : 'Generate from evidence tray'
+  button.textContent = target.repairOfProposalId ? 'Generate updated edit' : 'Generate with reviewed sources'
   button.addEventListener('click', () => generateGroundedProposal(target, operation.value, button))
   wrap.append(label, button)
   host.appendChild(wrap)
@@ -445,26 +454,26 @@ async function generateGroundedProposal(target, operation, button) {
   if (!projectId || !documentId || !editor || target.citationIds.length === 0) return
   if (editor.getText().slice(target.selectionStart, target.selectionEnd) !== target.selectionText) {
     clearEvidenceTray()
-    showResearchError('The reviewed manuscript passage changed. Build a new evidence tray before grounding a proposal.')
+    showResearchError('The reviewed passage changed. Review its sources again before generating an edit.')
     return
   }
   const model = $('#studio-model')?.value || null
   if (!model) {
-    showResearchError('Select an available Ollama model before generating an evidence-grounded proposal.')
+    showResearchError('Select an available Ollama model before generating a source-backed edit.')
     return
   }
   const prompt = $('#studio-instruction')?.value.trim() || null
 
   researchState.busy = true
   button.disabled = true
-  button.textContent = 'Generating grounded proposal…'
+  button.textContent = 'Generating with reviewed sources…'
   try {
     const draft = await apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/draft`)
     if (!draft || draft.version !== target.draftVersion) {
-      throw new Error('The saved manuscript advanced after evidence review. Review the passage again before generating.')
+      throw new Error('The saved manuscript changed after source review. Review the passage again before generating.')
     }
     if (draft.plain_text.slice(target.selectionStart, target.selectionEnd) !== target.selectionText) {
-      throw new Error('The saved manuscript passage no longer matches the evidence-bound selection.')
+      throw new Error('The saved passage no longer matches the text you reviewed sources for.')
     }
     await apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/grounded-proposals`, {
       method: 'POST',
@@ -482,11 +491,11 @@ async function generateGroundedProposal(target, operation, button) {
     clearEvidenceTray()
     window.location.reload()
   } catch (error) {
-    showResearchError(error.message || 'Mi-Llama could not generate an evidence-grounded proposal.')
+    showResearchError(error.message || 'Mi-Llama could not generate a source-backed edit.')
   } finally {
     researchState.busy = false
     button.disabled = false
-    button.textContent = target.repairOfProposalId ? 'Generate re-grounded repair' : 'Generate from evidence tray'
+    button.textContent = target.repairOfProposalId ? 'Generate updated edit' : 'Generate with reviewed sources'
   }
 }
 
@@ -500,20 +509,20 @@ function renderPromotionTray(tray) {
   card.className = 'research-promotion'
   const badge = document.createElement('span')
   badge.className = 'research-promoted-badge'
-  badge.textContent = `${tray.items.length} reviewed source${tray.items.length === 1 ? '' : 's'} · linked`
+  badge.textContent = `${tray.items.length} reviewed source${tray.items.length === 1 ? '' : 's'}`
   const title = document.createElement('b')
-  title.textContent = tray.repairOfProposalId ? 'Claim evidence tray · provenance repair' : 'Claim evidence tray'
+  title.textContent = tray.repairOfProposalId ? 'Sources for this edit · updating source history' : 'Sources for this edit'
   const text = document.createElement('p')
   text.textContent = tray.repairOfProposalId
-    ? 'Every tray item is canonical evidence bound to this exact manuscript passage. Generation will freeze the selected packet and preserve validated repair lineage.'
-    : 'Every tray item is canonical evidence bound to this exact manuscript passage. Generation will freeze the selected packet and preserve each stance.'
+    ? 'Mi-Llama will use these reviewed sources for the selected passage and keep the update connected to its earlier source history.'
+    : 'Mi-Llama will use only these reviewed sources for the selected passage and keep each source relationship intact.'
   card.append(badge, title, text)
   renderEvidenceTray(card, tray)
   renderGroundedProposalControls(card, groundingTargetFromTray(tray))
 
   const again = document.createElement('button')
   again.className = 'secondary research-again'
-  again.textContent = tray.items.length >= MAX_GROUNDING_CITATIONS ? 'Evidence tray full' : 'Find more evidence for this passage'
+  again.textContent = tray.items.length >= MAX_GROUNDING_CITATIONS ? 'Source list full' : 'Find more sources for this passage'
   again.disabled = tray.items.length >= MAX_GROUNDING_CITATIONS
   again.addEventListener('click', findMoreEvidenceFromTray)
 
@@ -570,7 +579,7 @@ async function promoteEvidence(hit, stance, button) {
   const tray = evidenceTrayForSnapshot(snapshot)
   const alreadyIncluded = tray.items.some((item) => item.source === sourceLabel(hit) && item.stance === stance)
   if (!alreadyIncluded && tray.items.length >= MAX_GROUNDING_CITATIONS) {
-    showResearchError(`The evidence tray is limited to ${MAX_GROUNDING_CITATIONS} reviewed sources. Remove one before adding another.`)
+    showResearchError(`You can review up to ${MAX_GROUNDING_CITATIONS} sources for one edit. Remove one before adding another.`)
     return
   }
 
@@ -582,11 +591,11 @@ async function promoteEvidence(hit, stance, button) {
     editor.getText() !== snapshot.fullText
   ) {
     clearEvidenceTray()
-    showResearchError('The manuscript changed after this evidence search. Search the passage again before promoting evidence.')
+    showResearchError('The manuscript changed after this source search. Search the passage again before adding a source.')
     return
   }
 
-  setResearchBusy(true, 'Committing evidence against an immutable manuscript passage…')
+  setResearchBusy(true, 'Adding reviewed source…')
   button.disabled = true
   try {
     const promotionId = hit.promotionId || crypto.randomUUID()
@@ -624,9 +633,9 @@ async function promoteEvidence(hit, stance, button) {
   } catch (error) {
     if (error instanceof AuthError && error.status === 409) {
       clearEvidenceTray()
-      showResearchError('The saved manuscript changed after this evidence search. Select the passage again and refresh the candidates.')
+      showResearchError('The saved manuscript changed after this source search. Select the passage again and refresh the matches.')
     } else {
-      showResearchError(error.message || 'Evidence promotion failed.')
+      showResearchError(error.message || 'Could not add this source.')
     }
   } finally {
     button.disabled = false
@@ -645,7 +654,7 @@ function installResearchInteraction() {
     const button = document.createElement('button')
     button.id = 'find-evidence-action'
     button.className = 'research-selection-action'
-    button.textContent = 'Find evidence'
+    button.textContent = 'Find sources'
     button.addEventListener('click', findEvidence)
     toolbar.appendChild(button)
   }
@@ -673,7 +682,7 @@ function installResearchInteraction() {
     boundEditor = editor
     unbindEditorChange = editor.onChange(() => {
       if (researchState.snapshot || researchState.hits.length || researchState.promotion || researchState.tray) {
-        clearResearchState('The manuscript changed. Select the passage again to refresh evidence context.', true)
+        clearResearchState('The manuscript changed. Select the passage again to refresh its sources.', true)
       }
     })
   }

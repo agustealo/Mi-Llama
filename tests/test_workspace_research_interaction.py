@@ -14,12 +14,16 @@ def test_workspace_loads_research_interaction_assets() -> None:
 
     assert 'href="studio_research.css"' in index
     assert 'src="studio_research.js"' in index
-    assert "Find evidence" in script
+    assert "Find sources" in script
     assert "/research/query" in script
     assert "/research/promotions" in script
-    assert "candidate-only" in script
     assert "crypto.randomUUID()" in script
-    assert "retrieval score" in script
+    assert "Sources to review" in script
+    assert "Sources for this edit" in script
+    assert "retrieval score" not in script
+    assert "candidate-only" not in script
+    assert "draft v${snapshot.draftVersion}" not in script
+    assert "provenance repair" not in script
 
 
 def test_research_promotion_does_not_drive_checkpoint_ui_or_poll_server() -> None:
@@ -38,13 +42,13 @@ def test_reviewed_evidence_can_form_a_bounded_multi_source_grounding_packet() ->
 
     assert "MAX_GROUNDING_CITATIONS = 8" in script
     assert "EVIDENCE_TRAY_KEY" in script
-    assert "Evidence tray" in script
+    assert "Sources for this edit" in script
     assert "stanceSummary" in script
-    assert "Find more evidence for this passage" in script
+    assert "Find more sources for this passage" in script
     assert "citation_ids: target.citationIds" in script
     assert "citation_ids: [target.citationId]" not in script
     assert "clearEvidenceTray()" in script
-    assert "The manuscript changed. Select the passage again to refresh evidence context." in script
+    assert "The manuscript changed. Select the passage again to refresh its sources." in script
 
 
 def test_evidence_tray_remains_interaction_state_not_a_second_authority() -> None:
@@ -66,16 +70,11 @@ def test_evidence_tray_is_fenced_against_stale_manuscript_state() -> None:
     assert "editor.getText() !== snapshot.fullText" in script
     assert (
         "clearResearchState('The manuscript changed. Select the passage again "
-        "to refresh evidence context.', true)" in script
+        "to refresh its sources.', true)" in script
     )
-    assert (
-        "clearEvidenceTray()\n    showResearchError('The manuscript changed "
-        "after this evidence search." in script
-    )
-    assert (
-        "clearEvidenceTray()\n      showResearchError('The saved manuscript changed "
-        "after this evidence search." in script
-    )
+    assert "clearEvidenceTray()" in script
+    assert "The manuscript changed after this source search." in script
+    assert "The saved manuscript changed after this source search." in script
     assert "draft.version !== target.draftVersion" in script
     assert (
         "draft.plain_text.slice(target.selectionStart, target.selectionEnd) "

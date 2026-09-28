@@ -52,7 +52,7 @@ def test_reground_lineage_stays_bound_to_canonical_evidence_tray() -> None:
     assert "(tray.repairOfProposalId || null) === (snapshot.repairOfProposalId || null)" in research
     assert "repairOfProposalId: tray.repairOfProposalId || null" in research
     assert "repair_of_proposal_id: target.repairOfProposalId" in research
-    assert "Generate re-grounded repair" in research
+    assert "Generate updated edit" in research
     assert "mi-llama.repair" not in research
 
 
