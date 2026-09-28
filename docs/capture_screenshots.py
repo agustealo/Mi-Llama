@@ -50,7 +50,8 @@ def upload_source(page: Page) -> None:
             "mimeType": "text/plain",
             "buffer": (
                 b"Coastal wetlands reduce storm surge and support long-term resilience planning.\n"
-                b"Local adaptation plans should connect infrastructure decisions to reviewed evidence.\n"
+                b"Local adaptation plans should connect infrastructure decisions "
+                b"to reviewed evidence.\n"
             ),
         }
     )

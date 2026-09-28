@@ -39,6 +39,7 @@ from mi_llama.research_structure.models import (
     ResearchQuestion,
     ResearchQuestionStatus,
 )
+from mi_llama.workspace import attach_workspace
 from mi_llama.writing_structure.models import (
     ManuscriptDocument,
     ManuscriptRevision,
@@ -49,7 +50,6 @@ from mi_llama.writing_structure.models import (
     WritingResearchLink,
     WritingResearchLinkKind,
 )
-from mi_llama.workspace import attach_workspace
 
 USER_ID = UUID("11111111-1111-1111-1111-111111111111")
 TOKEN = "product-fixture-token"
