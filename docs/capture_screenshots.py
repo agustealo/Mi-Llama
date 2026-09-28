@@ -29,10 +29,9 @@ def install_authenticated_session(page: Page) -> None:
             "email": "writer@mi-llama.local",
         },
     }
-    page.add_init_script(
-        "([key, value]) => sessionStorage.setItem(key, value)",
-        [SESSION_KEY, json.dumps(session)],
-    )
+    key = json.dumps(SESSION_KEY)
+    value = json.dumps(json.dumps(session))
+    page.add_init_script(f"sessionStorage.setItem({key}, {value})")
 
 
 def create_project(page: Page) -> None:
