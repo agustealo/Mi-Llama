@@ -1,0 +1,40 @@
+name: Refresh PR 53 governed gallery
+
+on:
+  push:
+    branches:
+      - ux/auth-chrome-consumer-language
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ux/auth-chrome-consumer-language
+          fetch-depth: 1
+      - name: Download exact governed gallery artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf /tmp/mi-llama-gallery
+          mkdir -p /tmp/mi-llama-gallery
+          gh run download 36450943917 \
+            --repo agustealo/Mi-Llama \
+            --name mi-llama-product-gallery-86472a1fdeefe6d363de024e20a6472a9b2198af \
+            --dir /tmp/mi-llama-gallery
+          cp /tmp/mi-llama-gallery/*.png docs/assets/screenshots/
+      - name: Commit governed gallery if changed
+        run: |
+          if git diff --quiet -- docs/assets/screenshots; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/assets/screenshots
+          git commit -m "Refresh governed workspace chrome gallery"
+          git push origin HEAD:ux/auth-chrome-consumer-language
