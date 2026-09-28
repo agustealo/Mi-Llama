@@ -111,7 +111,7 @@ def test_dynamic_access_states_are_consumer_safe() -> None:
 def test_writing_model_availability_is_capability_facing() -> None:
     studio = (ASSETS / "studio.js").read_text()
 
-    assert "Writing model<select id="studio-model"" in studio
+    assert 'Writing model<select id="studio-model"' in studio
     assert "Writing assistance unavailable" in studio
     assert "AI editing will return when a writing model is available." in studio
     assert "state.canEdit && writingAvailable" in studio
