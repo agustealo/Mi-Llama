@@ -344,7 +344,11 @@ class FixtureRepository:
     ) -> Source:
         self._check(access_token)
         source = self.sources[source_id].model_copy(
-            update={"status": status, "error_message": error_message, "updated_at": datetime.now(UTC)}
+            update={
+                "status": status,
+                "error_message": error_message,
+                "updated_at": datetime.now(UTC),
+            }
         )
         self.sources[source_id] = source
         return source
@@ -419,7 +423,9 @@ class FixtureRepository:
         changes: dict[str, Any],
     ) -> ResearchQuestion:
         self._check(access_token)
-        item = self.questions[question_id].model_copy(update={**changes, "updated_at": datetime.now(UTC)})
+        item = self.questions[question_id].model_copy(
+            update={**changes, "updated_at": datetime.now(UTC)}
+        )
         self.questions[question_id] = item
         return item
 
@@ -575,9 +581,7 @@ class FixtureRepository:
         self.outline_nodes[node.id] = node
         return node
 
-    async def list_outline_nodes(
-        self, *, access_token: str, project_id: UUID
-    ) -> list[OutlineNode]:
+    async def list_outline_nodes(self, *, access_token: str, project_id: UUID) -> list[OutlineNode]:
         self._check(access_token)
         return [item for item in self.outline_nodes.values() if item.project_id == project_id]
 
@@ -597,7 +601,9 @@ class FixtureRepository:
         changes: dict[str, Any],
     ) -> OutlineNode:
         self._check(access_token)
-        item = self.outline_nodes[node_id].model_copy(update={**changes, "updated_at": datetime.now(UTC)})
+        item = self.outline_nodes[node_id].model_copy(
+            update={**changes, "updated_at": datetime.now(UTC)}
+        )
         self.outline_nodes[node_id] = item
         return item
 
@@ -648,7 +654,9 @@ class FixtureRepository:
         changes: dict[str, Any],
     ) -> ManuscriptDocument:
         self._check(access_token)
-        item = self.documents[document_id].model_copy(update={**changes, "updated_at": datetime.now(UTC)})
+        item = self.documents[document_id].model_copy(
+            update={**changes, "updated_at": datetime.now(UTC)}
+        )
         self.documents[document_id] = item
         return item
 
