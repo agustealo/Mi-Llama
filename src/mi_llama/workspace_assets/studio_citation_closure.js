@@ -88,9 +88,9 @@ function sourceLabel(item) {
 }
 
 function manuscriptStateLabel(value) {
-  if (value === 'exact') return 'accepted wording still matches'
-  if (value === 'relocated') return 'accepted wording moved · text still matches'
-  return 'manuscript changed · re-review'
+  if (value === 'exact') return 'text still matches'
+  if (value === 'relocated') return 'text moved · still matches'
+  return 'text changed · review sources'
 }
 
 function metricItems(health, key) {
@@ -115,7 +115,7 @@ function renderHealthDetails(host, items, label) {
   if (items.length === 0) {
     const empty = document.createElement('p')
     empty.className = 'citation-closure-policy'
-    empty.textContent = 'No accepted grounded edits match this provenance view.'
+    empty.textContent = 'No evidence-backed edits match this view.'
     host.appendChild(empty)
     return
   }
@@ -129,11 +129,11 @@ function renderHealthDetails(host, items, label) {
     const titleNode = document.createElement('strong')
     titleNode.textContent = `${item.operation} · ${manuscriptStateLabel(item.manuscriptState)}`
     const sourceState = document.createElement('small')
-    const counter = item.hasCounterevidence ? ' · counterevidence included' : ''
-    const reground = item.needsRegrounding ? ' · marked needs re-grounding' : ''
+    const counter = item.hasCounterevidence ? ' · contrasting evidence included' : ''
+    const reground = item.needsRegrounding ? ' · needs fresh evidence review' : ''
     sourceState.textContent = item.fullyCited
-      ? `all ${item.citations.length} grounding citation${item.citations.length === 1 ? '' : 's'} inserted${counter}${reground}`
-      : `${item.openCitationCount} citation${item.openCitationCount === 1 ? '' : 's'} still open${counter}${reground}`
+      ? `all ${item.citations.length} citation${item.citations.length === 1 ? '' : 's'} inserted${counter}${reground}`
+      : `${item.openCitationCount} citation${item.openCitationCount === 1 ? '' : 's'} to review${counter}${reground}`
     copy.append(titleNode, sourceState)
 
     const actions = document.createElement('div')
@@ -191,9 +191,9 @@ function renderHealth(panel, health) {
   const head = document.createElement('div')
   head.className = 'citation-closure-head'
   const title = document.createElement('b')
-  title.textContent = 'Manuscript provenance health'
+  title.textContent = 'Source check'
   const meta = document.createElement('span')
-  meta.textContent = `${health.totalGroundedEdits} active grounded edit${health.totalGroundedEdits === 1 ? '' : 's'}`
+  meta.textContent = `${health.totalGroundedEdits} evidence-backed edit${health.totalGroundedEdits === 1 ? '' : 's'}`
   head.append(title, meta)
   section.appendChild(head)
 
@@ -202,23 +202,23 @@ function renderHealth(panel, health) {
 
   const metrics = document.createElement('div')
   metrics.className = 'provenance-health-grid'
-  const cited = healthMetric('fully cited', health.fullyCitedEdits, metricItems(health, 'cited'), details, 'clear')
+  const cited = healthMetric('citations complete', health.fullyCitedEdits, metricItems(health, 'cited'), details, 'clear')
   const open = healthMetric(
-    'citation review open',
+    'citations to review',
     health.openCitationEdits,
     metricItems(health, 'open'),
     details,
     health.openCitationEdits ? 'attention' : 'clear',
   )
   const changed = healthMetric(
-    'changed after grounding',
+    'changed since source review',
     health.changedAfterGrounding,
     metricItems(health, 'changed'),
     details,
     health.changedAfterGrounding ? 'attention' : 'clear',
   )
   const counter = healthMetric(
-    'include counterevidence',
+    'includes contrasting evidence',
     health.counterevidenceEdits,
     metricItems(health, 'counter'),
     details,
@@ -236,13 +236,13 @@ function renderHealth(panel, health) {
       : health.changedAfterGrounding
         ? metricItems(health, 'changed')
         : metricItems(health, 'cited'),
-    defaultMetric.querySelector('span')?.textContent || 'grounded edits',
+    defaultMetric.querySelector('span')?.textContent || 'evidence-backed edits',
   )
 
   const note = document.createElement('p')
   note.className = 'citation-closure-policy'
   note.textContent =
-    'These are independent provenance facts, not a score. Retired and superseded grounding stays in history but leaves the active health view. Counterevidence remains research context, not a defect.'
+    'These counts help you review source coverage. They are not a quality score. Earlier source links stay in history after you mark them replaced or no longer relevant. Contrasting evidence is useful context, not a problem.'
   section.appendChild(note)
   panel.appendChild(section)
 }
@@ -262,7 +262,7 @@ function renderClosure(panel, health, obligations) {
   if (obligations.length === 0) {
     const complete = document.createElement('div')
     complete.className = 'citation-closure-complete'
-    complete.textContent = 'No open citation actions for active accepted grounded edits in this manuscript.'
+    complete.textContent = 'All citations are reviewed for the current evidence-backed edits.'
     panel.appendChild(complete)
     return
   }
@@ -270,17 +270,17 @@ function renderClosure(panel, health, obligations) {
   const head = document.createElement('div')
   head.className = 'citation-closure-head'
   const title = document.createElement('b')
-  title.textContent = 'Citation closure'
+  title.textContent = 'Citations to review'
   const meta = document.createElement('span')
   const openCount = obligations.reduce((total, item) => total + item.openCitations.length, 0)
-  meta.textContent = `${openCount} source${openCount === 1 ? '' : 's'} still require review`
+  meta.textContent = `${openCount} source${openCount === 1 ? '' : 's'} still need review`
   head.append(title, meta)
   panel.appendChild(head)
 
   const policy = document.createElement('p')
   policy.className = 'citation-closure-policy'
   policy.textContent =
-    'Accepted evidence-grounded wording keeps its citation obligations visible. Nothing is inserted automatically; citation review and insertion remain explicit writer actions.'
+    'When you accept an evidence-backed edit, its citations stay visible until you review them. Mi-Llama never inserts citations without your action.'
   panel.appendChild(policy)
 
   for (const obligation of obligations) {
@@ -292,7 +292,7 @@ function renderClosure(panel, health, obligations) {
     const heading = document.createElement('div')
     heading.className = 'citation-closure-card-head'
     const label = document.createElement('b')
-    label.textContent = `${obligation.operation} · accepted grounded edit`
+    label.textContent = `${obligation.operation} · evidence-backed edit`
     const state = document.createElement('span')
     state.textContent = manuscriptStateLabel(obligation.manuscriptState)
     heading.append(label, state)
@@ -302,8 +302,8 @@ function renderClosure(panel, health, obligations) {
       const warning = document.createElement('p')
       warning.className = 'citation-closure-warning'
       warning.textContent = obligation.needsRegrounding
-        ? 'This grounded passage changed and is durably marked needs re-grounding. Its source obligations remain active until the writer repairs or resolves the relationship.'
-        : 'This grounded passage changed after acceptance. Its source obligations remain open until you re-review the evidence and citations.'
+        ? 'This passage changed and is marked for fresh evidence review. Its citations stay open until you review the sources or resolve the old link.'
+        : 'This passage changed after you accepted it. Review the sources and citations again.'
       card.appendChild(warning)
     }
 
@@ -318,8 +318,8 @@ function renderClosure(panel, health, obligations) {
       const detail = document.createElement('small')
       detail.textContent =
         item.closureStatus === 'rejected'
-          ? `${item.stance} · citation rejected · source review required`
-          : `${item.stance} · citation not yet inserted`
+          ? `${item.stance} · citation rejected · review source`
+          : `${item.stance} · citation not inserted yet`
       copy.append(source, detail)
 
       const button = document.createElement('button')
