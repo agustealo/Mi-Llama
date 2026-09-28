@@ -167,9 +167,7 @@ def main() -> None:
     failures: list[str] = []
     for path in paths:
         changed_pixels, max_delta = compare_png(path)
-        print(
-            f"{path}: changed_pixels={changed_pixels}, max_channel_delta={max_delta}"
-        )
+        print(f"{path}: changed_pixels={changed_pixels}, max_channel_delta={max_delta}")
         if changed_pixels > MAX_CHANGED_PIXELS or max_delta > MAX_CHANNEL_DELTA:
             failures.append(
                 f"{path}: {changed_pixels} pixels changed, max channel delta {max_delta} "
