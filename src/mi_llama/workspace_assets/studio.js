@@ -565,6 +565,7 @@ function editorView() {
   const saveMode = state.canEdit ? 'Autosave on' : 'Read only'
   const permission = state.canEdit ? '' : ' readonly'
   const attention = saveAttentionVisible()
+  const writingAvailable = Boolean(state.model)
   const attentionTitle = state.conflict ? 'Manuscript changed elsewhere.' : 'Your latest changes have not been saved yet.'
   const attentionText = state.conflict
     ? 'Your current text is still here and has not been overwritten.'
@@ -613,13 +614,13 @@ function editorView() {
           <img src="mi-llama-mark.svg" alt="">
           <div><b>Mi-Llama</b><span>Manuscript collaborator</span></div>
         </div>
-        <label class="field-label">Model<select id="studio-model"></select></label>
+        <label class="field-label">Writing model<select id="studio-model"></select></label>
         <div class="collaborator-callout">
-          <b>Select before you ask.</b>
-          <p>Mi-Llama works only with the passage you selected and the saved manuscript you reviewed.</p>
+          <b>${writingAvailable ? 'Select before you ask.' : 'Writing assistance is unavailable.'}</b>
+          <p>${writingAvailable ? 'Mi-Llama works only with the passage you selected and the saved manuscript you reviewed.' : 'You can keep writing and saving normally. AI editing will return when a writing model is available.'}</p>
         </div>
         <label class="field-label">Custom instruction<textarea id="studio-instruction" rows="3" placeholder="e.g. Make this more precise without changing the argument"></textarea></label>
-        <button id="custom-proposal" class="secondary collaborator-ask"${state.canEdit ? '' : ' disabled'}>Ask Mi-Llama about selection</button>
+        <button id="custom-proposal" class="secondary collaborator-ask"${state.canEdit && writingAvailable ? '' : ' disabled'}>Ask Mi-Llama about selection</button>
         <div id="proposal-panel" class="proposal-panel"></div>
       </aside>
     </div>`
@@ -674,7 +675,7 @@ function renderModelSelector() {
   if (state.models.length === 0) {
     const option = document.createElement('option')
     option.value = ''
-    option.textContent = 'No Ollama models available'
+    option.textContent = 'Writing assistance unavailable'
     select.appendChild(option)
     select.disabled = true
     return
@@ -697,7 +698,7 @@ function updateSelectionToolbar() {
   const toolbar = $('#selection-toolbar')
   if (!editor || !toolbar) return
   const selection = editor.getSelection()
-  toolbar.hidden = !selection.text.trim() || !state.canEdit || state.conflict || Boolean(state.saveError)
+  toolbar.hidden = !selection.text.trim() || !state.model || !state.canEdit || state.conflict || Boolean(state.saveError)
   const count = $('#selection-count')
   if (count) count.textContent = selection.text ? `${selection.text.length} chars` : ''
 }
@@ -878,7 +879,7 @@ async function requestProposal(operation) {
     return
   }
   if (!state.model) {
-    showError('No Ollama model is available for writing proposals.')
+    showError('Writing assistance is unavailable right now. You can keep writing and saving normally.')
     return
   }
 
