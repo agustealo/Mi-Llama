@@ -79,7 +79,7 @@ async function currentSavedDraft() {
   if (!projectId || !documentId || !editor) throw new Error('The manuscript editor is unavailable.')
   const draft = await apiJson(`/api/projects/${projectId}/writing/documents/${documentId}/draft`)
   if (!draft?.version || editor.getText() !== draft.plain_text) {
-    throw new Error('Save the current manuscript before changing provenance state.')
+    throw new Error('Save the manuscript before updating its source history.')
   }
   return draft
 }
@@ -120,9 +120,9 @@ async function saveDisposition(item, disposition, supersedingProposalId, reason)
 }
 
 function dispositionLabel(value) {
-  if (value === 'retired') return 'No longer applicable'
-  if (value === 'superseded') return 'Superseded'
-  if (value === 'needs_regrounding') return 'Needs re-grounding'
+  if (value === 'retired') return 'No longer relevant'
+  if (value === 'superseded') return 'Replaced by a later edit'
+  if (value === 'needs_regrounding') return 'Needs fresh evidence review'
   return value || 'Resolved'
 }
 
@@ -130,36 +130,36 @@ function dispositionControls(item, proposals, status) {
   const form = document.createElement('div')
   form.className = 'provenance-disposition-form'
   const label = document.createElement('b')
-  label.textContent = 'Grounding disposition'
+  label.textContent = 'Source history'
   form.appendChild(label)
 
   const exactReplacement = repairLineageProposal(item, proposals)
   if (exactReplacement) {
     const lineage = document.createElement('p')
     lineage.className = 'provenance-repair-status'
-    lineage.textContent = `Accepted repair lineage found: ${exactReplacement.id.slice(0, 8)} · draft ${exactReplacement.base_draft_version}.`
+    lineage.textContent = 'An accepted repair is ready to replace this older evidence link.'
     const resolve = document.createElement('button')
     resolve.className = 'primary'
-    resolve.textContent = 'Record exact supersession'
+    resolve.textContent = 'Mark as replaced'
     resolve.addEventListener('click', async () => {
       if (
         !window.confirm(
-          'Record this accepted repair as the exact superseding grounded edit? Historical evidence remains preserved.',
+          'Mark this older evidence link as replaced by the accepted repair? The original sources and wording will remain in history.',
         )
       ) {
         return
       }
       resolve.disabled = true
-      status.textContent = 'Recording exact provenance supersession…'
+      status.textContent = 'Updating source history…'
       try {
         await saveDisposition(
           item,
           'superseded',
           exactReplacement.id,
-          'Resolved by accepted provenance repair lineage.',
+          'Replaced by an accepted repair.',
         )
       } catch (error) {
-        status.textContent = error.message || 'Could not record exact supersession.'
+        status.textContent = error.message || 'Could not update source history.'
         resolve.disabled = false
       }
     })
@@ -168,11 +168,11 @@ function dispositionControls(item, proposals, status) {
   }
 
   const select = document.createElement('select')
-  select.setAttribute('aria-label', 'Grounding disposition')
+  select.setAttribute('aria-label', 'Source history action')
   const options = [
-    ['', 'Choose an explicit disposition…'],
-    ['needs_regrounding', 'Needs re-grounding'],
-    ['retired', 'No longer applicable'],
+    ['', 'Choose what should happen…'],
+    ['needs_regrounding', 'Needs fresh evidence review'],
+    ['retired', 'No longer relevant'],
   ]
   for (const [value, text] of options) {
     const option = document.createElement('option')
@@ -184,11 +184,11 @@ function dispositionControls(item, proposals, status) {
   const reason = document.createElement('textarea')
   reason.rows = 2
   reason.maxLength = 1000
-  reason.placeholder = 'Optional reason for the provenance record'
+  reason.placeholder = 'Optional note about this change'
 
   const save = document.createElement('button')
   save.className = 'secondary'
-  save.textContent = 'Record disposition'
+  save.textContent = 'Save'
   save.disabled = true
 
   select.addEventListener('change', () => {
@@ -200,17 +200,17 @@ function dispositionControls(item, proposals, status) {
     if (
       select.value === 'retired' &&
       !window.confirm(
-        'This preserves historical evidence but removes this grounding relationship from active provenance health. Record this disposition?',
+        'Keep this older source history for reference, but remove it from the passages that still need review?',
       )
     ) {
       return
     }
     save.disabled = true
-    status.textContent = 'Recording durable provenance state…'
+    status.textContent = 'Saving source history…'
     try {
       await saveDisposition(item, select.value, null, reason.value)
     } catch (error) {
-      status.textContent = error.message || 'Could not record provenance state.'
+      status.textContent = error.message || 'Could not save source history.'
       save.disabled = false
     }
   })
@@ -227,19 +227,19 @@ function repairCard(item, proposals) {
   const compare = document.createElement('div')
   compare.className = 'provenance-repair-compare'
   compare.append(
-    compareBlock('Previously accepted grounded wording', item.acceptedText),
-    compareBlock('Current text at the original range', item.currentAtOriginalRange),
+    compareBlock('Earlier evidence-backed wording', item.acceptedText),
+    compareBlock('Current text in that location', item.currentAtOriginalRange),
   )
   card.appendChild(compare)
 
   const source = document.createElement('small')
-  source.textContent = `${item.citationIds.length} grounding citation${item.citationIds.length === 1 ? '' : 's'} remain historically attached to this accepted proposal.`
+  source.textContent = `${item.citationIds.length} source citation${item.citationIds.length === 1 ? '' : 's'} remain attached to this earlier accepted edit.`
   card.appendChild(source)
 
   if (item.needsRegrounding) {
     const durable = document.createElement('p')
     durable.className = 'provenance-repair-status'
-    durable.textContent = 'Durable state: needs re-grounding. This remains active provenance work.'
+    durable.textContent = 'This passage still needs fresh evidence review.'
     card.appendChild(durable)
   }
 
@@ -250,23 +250,23 @@ function repairCard(item, proposals) {
 
   const reground = document.createElement('button')
   reground.className = 'secondary'
-  reground.textContent = 'Re-ground selected text'
+  reground.textContent = 'Find fresh evidence'
   reground.addEventListener('click', () => {
     status.textContent = reGroundSelection(item)
-      ? 'Searching project evidence for the current selection with repair lineage preserved.'
+      ? 'Searching your project sources for the selected passage.'
       : 'Select the current passage in the manuscript first.'
   })
 
   const restore = document.createElement('button')
   restore.className = 'primary'
-  restore.textContent = 'Prepare restore proposal'
+  restore.textContent = 'Draft from earlier wording'
   restore.addEventListener('click', async () => {
     restore.disabled = true
-    status.textContent = 'Preparing reviewable grounded repair proposal…'
+    status.textContent = 'Preparing a reviewable draft from the earlier evidence-backed wording…'
     try {
       await prepareRestore(item)
     } catch (error) {
-      status.textContent = error.message || 'Could not prepare repair proposal.'
+      status.textContent = error.message || 'Could not prepare this draft.'
       restore.disabled = false
     }
   })
@@ -280,7 +280,7 @@ function frozenEvidenceHistory(citations) {
   const details = document.createElement('details')
   details.className = 'provenance-resolved-evidence'
   const summary = document.createElement('summary')
-  summary.textContent = `Frozen grounding evidence · ${citations.length}`
+  summary.textContent = `Saved evidence · ${citations.length}`
   details.appendChild(summary)
 
   for (const citation of citations) {
@@ -293,7 +293,7 @@ function frozenEvidenceHistory(citations) {
     const passage = document.createElement('blockquote')
     passage.textContent = citation.content
     const identity = document.createElement('small')
-    identity.textContent = `citation ${citation.citation_id} · sha256 ${citation.content_sha256}`
+    identity.textContent = 'Saved with this earlier edit'
     source.append(label, passage, identity)
     details.appendChild(source)
   }
@@ -314,18 +314,16 @@ function resolvedCard(item) {
   date.textContent = record?.created_at ? new Date(record.created_at).toLocaleString() : 'Recorded'
   head.append(title, date)
 
-  const historical = compareBlock('Historical accepted grounded wording', item.acceptedText)
+  const historical = compareBlock('Earlier accepted wording', item.acceptedText)
   const meta = document.createElement('small')
-  const superseding = record?.superseding_proposal_id
-    ? ` · superseding proposal ${record.superseding_proposal_id.slice(0, 8)}`
-    : ''
-  meta.textContent = `${item.citations.length} frozen grounding citation${item.citations.length === 1 ? '' : 's'} preserved${superseding}`
+  const replacement = record?.superseding_proposal_id ? ' · replaced by a later accepted repair' : ''
+  meta.textContent = `${item.citations.length} saved source${item.citations.length === 1 ? '' : 's'} preserved${replacement}`
 
   card.append(head, historical, meta)
   if (record?.reason) {
     const reason = document.createElement('p')
     reason.className = 'provenance-repair-status'
-    reason.textContent = `Reason: ${record.reason}`
+    reason.textContent = `Note: ${record.reason}`
     card.appendChild(reason)
   }
   card.appendChild(frozenEvidenceHistory(item.citations))
@@ -337,16 +335,16 @@ function render(panel, repairs, resolved, proposals) {
   const head = document.createElement('div')
   head.className = 'provenance-repair-head'
   const title = document.createElement('b')
-  title.textContent = 'Provenance repair'
+  title.textContent = 'Source history'
   const meta = document.createElement('span')
-  meta.textContent = `${repairs.length} active · ${resolved.length} resolved`
+  meta.textContent = `${repairs.length} to review · ${resolved.length} past`
   head.append(title, meta)
   panel.appendChild(head)
 
   const policy = document.createElement('p')
   policy.className = 'provenance-repair-policy'
   policy.textContent =
-    'Repair and disposition are explicit. Mi-Llama never overwrites changed text or erases historical evidence. Exact supersession is offered only when an accepted grounded proposal carries validated repair lineage.'
+    'When evidence-backed wording changes, Mi-Llama keeps the earlier sources for reference. You choose whether to find fresh evidence, restore the earlier wording, or mark the old link as no longer relevant.'
   panel.appendChild(policy)
 
   for (const item of repairs) panel.appendChild(repairCard(item, proposals))
@@ -355,7 +353,7 @@ function render(panel, repairs, resolved, proposals) {
     const history = document.createElement('details')
     history.className = 'provenance-resolved-history'
     const summary = document.createElement('summary')
-    summary.textContent = `Resolved provenance history · ${resolved.length}`
+    summary.textContent = `Past source-history changes · ${resolved.length}`
     history.appendChild(summary)
     const list = document.createElement('div')
     list.className = 'provenance-resolved-list'
