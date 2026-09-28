@@ -26,7 +26,6 @@ from mi_llama.domain import (
     SourceVersion,
     StoredMessage,
 )
-from mi_llama.main import create_app as create_api_app
 from mi_llama.research_structure.models import (
     CitationCandidate,
     CitationStatus,
@@ -39,7 +38,7 @@ from mi_llama.research_structure.models import (
     ResearchQuestion,
     ResearchQuestionStatus,
 )
-from mi_llama.workspace import attach_workspace
+from mi_llama.workspace import create_app as create_workspace_app
 from mi_llama.writing_structure.models import (
     ManuscriptDocument,
     ManuscriptRevision,
@@ -748,14 +747,13 @@ def build_app():
         supabase_publishable_key="fixture-public-key",
         mindsdb_enabled=False,
     )
-    app = create_api_app(
+    return create_workspace_app(
         settings=settings,
         provider=FixtureProvider(),
         repository=FixtureRepository(),
         storage=FixtureStorage(),
         research_engine=None,
     )
-    return attach_workspace(app)
 
 
 if __name__ == "__main__":
