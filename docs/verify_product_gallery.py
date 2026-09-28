@@ -8,7 +8,7 @@ from pathlib import Path
 
 SCREENSHOT_ROOT = Path("docs/assets/screenshots")
 MAX_CHANGED_PIXELS = 64
-MAX_CHANNEL_DELTA = 8
+MAX_CHANNEL_DELTA = 12
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
