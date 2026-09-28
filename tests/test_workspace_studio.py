@@ -125,6 +125,7 @@ def test_manuscript_ui_hides_internal_storage_and_revision_vocabulary() -> None:
     assert "Save version" in studio
     assert "Autosave on" in studio
     assert "Reload saved copy" in studio
+    assert "Version ${result.revision.revision_number} saved" in studio
     assert "Supabase-scoped" not in studio
     assert "through RLS" not in studio
     assert "authority boundary" not in studio
