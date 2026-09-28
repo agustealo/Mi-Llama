@@ -1,0 +1,112 @@
+name: Patch auth access state contract
+
+on:
+  push:
+    branches:
+      - ux/auth-access-state-contract
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ux/auth-access-state-contract
+          fetch-depth: 1
+      - name: Patch dynamic access states and regression coverage
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          studio_path = Path('src/mi_llama/workspace_assets/studio.js')
+          studio = studio_path.read_text()
+
+          replacements = [
+              (
+                  "const AUTOSAVE_DELAY = 700\n",
+                  "const AUTOSAVE_DELAY = 700\nconst SIGN_IN_UNAVAILABLE = 'Sign-in is unavailable in this workspace.'\n",
+              ),
+              (
+                  "if (!state.auth) throw new AuthError('Authentication is not configured', 503)",
+                  "if (!state.auth) throw new AuthError(SIGN_IN_UNAVAILABLE, 503)",
+              ),
+              (
+                  "      <div id=\"auth-signed-in\" hidden>\n        <h2>Studio session</h2>",
+                  "      <div id=\"auth-signed-in\" hidden>\n        <h2>Signed in to Mi-Llama</h2>",
+              ),
+              (
+                  "  const signedIn = Boolean(state.auth?.signedIn)\n  dialog.querySelector('#auth-signed-out').hidden = signedIn\n  dialog.querySelector('#auth-signed-in').hidden = !signedIn\n  dialog.querySelector('#auth-error').hidden = true\n  dialog.querySelector('#auth-session-error').hidden = true\n  if (signedIn) dialog.querySelector('#auth-user').textContent = state.auth.user?.email || 'Authenticated user'\n",
+                  "  const signedIn = Boolean(state.auth?.signedIn)\n  const unavailable = !state.auth && Boolean(state.authError)\n  const errorNode = dialog.querySelector('#auth-error')\n  const email = dialog.querySelector('#auth-email')\n  const password = dialog.querySelector('#auth-password')\n  const submit = dialog.querySelector('.auth-submit')\n  dialog.querySelector('#auth-signed-out').hidden = signedIn\n  dialog.querySelector('#auth-signed-in').hidden = !signedIn\n  errorNode.hidden = !unavailable\n  errorNode.textContent = unavailable ? SIGN_IN_UNAVAILABLE : ''\n  dialog.querySelector('#auth-session-error').hidden = true\n  email.disabled = unavailable\n  password.disabled = unavailable\n  submit.disabled = unavailable\n  if (signedIn) dialog.querySelector('#auth-user').textContent = state.auth.user?.email || 'Signed in'\n",
+              ),
+              (
+                  "  const submit = dialog.querySelector('.auth-submit')\n  errorNode.hidden = true\n  submit.disabled = true\n",
+                  "  const submit = dialog.querySelector('.auth-submit')\n  if (!state.auth) {\n    errorNode.hidden = false\n    errorNode.textContent = SIGN_IN_UNAVAILABLE\n    submit.disabled = true\n    return\n  }\n  errorNode.hidden = true\n  submit.disabled = true\n",
+              ),
+              (
+                  "    title.textContent = 'Studio session'\n    detail.textContent = email\n  } else {\n    avatar.textContent = 'ML'\n    title.textContent = 'Sign in'\n    detail.textContent = state.authError ? 'Auth unavailable' : 'Open your projects'\n",
+                  "    title.textContent = 'Signed in'\n    detail.textContent = email\n  } else {\n    avatar.textContent = 'ML'\n    title.textContent = 'Sign in'\n    detail.textContent = state.authError ? 'Sign-in unavailable' : 'Open your projects'\n",
+              ),
+              (
+                  "function signedOutView() {\n  return `\n    <div class=\"studio-gate card\">\n      <img src=\"mi-llama-mark.svg\" alt=\"\">\n      <div>\n        <span class=\"eyebrow\">WRITING STUDIO</span>\n        <h1>Your manuscript is project work, not a loose chat.</h1>\n        <p>Sign in to open your projects, manuscripts, saved versions, sources, and Mi-Llama edits.</p>\n        <button id=\"studio-sign-in\" class=\"primary\">Sign in</button>\n      </div>\n    </div>`\n}\n",
+                  "function signedOutView() {\n  const unavailable = !state.auth && Boolean(state.authError)\n  const message = unavailable\n    ? SIGN_IN_UNAVAILABLE\n    : 'Sign in to open your projects, manuscripts, saved versions, sources, and Mi-Llama edits.'\n  const action = unavailable\n    ? '<button id=\"studio-sign-in\" class=\"primary\" disabled>Sign in unavailable</button>'\n    : '<button id=\"studio-sign-in\" class=\"primary\">Sign in</button>'\n  return `\n    <div class=\"studio-gate card\">\n      <img src=\"mi-llama-mark.svg\" alt=\"\">\n      <div>\n        <span class=\"eyebrow\">WRITING STUDIO</span>\n        <h1>Your manuscript is project work, not a loose chat.</h1>\n        <p>${message}</p>\n        ${action}\n      </div>\n    </div>`\n}\n",
+              ),
+              (
+                  "    state.authError = error.message || 'Authentication configuration unavailable'",
+                  "    state.authError = SIGN_IN_UNAVAILABLE",
+              ),
+          ]
+
+          for old, new in replacements:
+              count = studio.count(old)
+              if count == 0:
+                  if new in studio:
+                      continue
+                  raise SystemExit(f'missing expected studio.js patch target: {old[:100]!r}')
+              if count != 1:
+                  raise SystemExit(f'non-unique studio.js patch target ({count}): {old[:100]!r}')
+              studio = studio.replace(old, new, 1)
+
+          studio_path.write_text(studio)
+
+          tests_path = Path('tests/test_workspace_consumer_language.py')
+          tests = tests_path.read_text()
+          marker = "\n\ndef test_workspace_shell_keeps_navigation_and_health_contracts() -> None:\n"
+          addition = """
+
+          def test_dynamic_access_states_are_consumer_safe() -> None:
+              studio = (ASSETS / "studio.js").read_text()
+
+              assert "const SIGN_IN_UNAVAILABLE = 'Sign-in is unavailable in this workspace.'" in studio
+              assert "errorNode.textContent = unavailable ? SIGN_IN_UNAVAILABLE : ''" in studio
+              assert "email.disabled = unavailable" in studio
+              assert "password.disabled = unavailable" in studio
+              assert "submit.disabled = unavailable" in studio
+              assert "if (!state.auth) {" in studio
+              assert "errorNode.textContent = SIGN_IN_UNAVAILABLE" in studio
+              assert "detail.textContent = state.authError ? 'Sign-in unavailable' : 'Open your projects'" in studio
+              assert "title.textContent = 'Signed in'" in studio
+              assert "Sign in unavailable" in studio
+              assert "new AuthError(SIGN_IN_UNAVAILABLE, 503)" in studio
+              assert "state.authError = SIGN_IN_UNAVAILABLE" in studio
+              for phrase in ("Auth unavailable", "Authentication is not configured", "Authentication configuration unavailable"):
+                  assert phrase not in studio
+          """
+          if 'def test_dynamic_access_states_are_consumer_safe' not in tests:
+              if marker not in tests:
+                  raise SystemExit('consumer-language test insertion marker missing')
+              tests = tests.replace(marker, addition + marker, 1)
+              tests_path.write_text(tests)
+          PY
+      - name: Commit patch if changed
+        run: |
+          if git diff --quiet -- src/mi_llama/workspace_assets/studio.js tests/test_workspace_consumer_language.py; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/mi_llama/workspace_assets/studio.js tests/test_workspace_consumer_language.py
+          git commit -m "Harden dynamic sign-in access states"
+          git push origin HEAD:ux/auth-access-state-contract
