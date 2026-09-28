@@ -19,7 +19,9 @@ def test_product_gallery_uses_authenticated_fixture_and_real_api_path() -> None:
     assert "#surface-question" in capture
     assert "#surface-note-body" in capture
     assert 'label in ("Sources", "Open questions", "Research notes")' in capture
-    assert capture.index("assert_overview_truth(page)") < capture.index("capture_views(page, output)")
+    assert capture.index("assert_overview_truth(page)") < capture.index(
+        "capture_views(page, output)"
+    )
     assert "create_workspace_app(" in fixture
     assert "create_api_app(" not in fixture
     assert "attach_workspace(" not in fixture
