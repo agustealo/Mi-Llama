@@ -8,7 +8,7 @@ def test_workspace_shell_uses_writer_facing_language() -> None:
 
     assert "Evidence Review" in script
     assert "Save version" in script
-    assert "Review manuscript" in script
+    assert "Open manuscript" in script
     assert "Project source search" in script
     assert "Sources to review" in script
     assert "Workspace ready" in script
