@@ -1,5 +1,6 @@
 import { apiErrorMessage, AuthClient, AuthError, SIGN_IN_UNAVAILABLE } from './auth.js'
 import { bindTextareaEditor, clearEditorAdapter, documentStateForText, getEditorAdapter } from './editor_adapter.js'
+import { emptyProjectSurfaceState, loadProjectSurfaceState, renderProjectSurface } from './studio_surfaces.js'
 
 const PROJECT_KEY = 'mi-llama.project.v1'
 const DOCUMENT_KEY = 'mi-llama.document.v1'
@@ -13,6 +14,7 @@ const state = {
   documents: [],
   documentId: null,
   outline: [],
+  surface: emptyProjectSurfaceState(),
   draft: null,
   localText: '',
   models: [],
@@ -231,6 +233,7 @@ function resetProjectState() {
   state.documents = []
   state.documentId = null
   state.outline = []
+  state.surface = emptyProjectSurfaceState()
   state.draft = null
   state.localText = ''
   state.proposal = null
@@ -363,6 +366,7 @@ async function loadWritingWorkspace() {
   state.documents = []
   state.documentId = null
   state.outline = []
+  state.surface = emptyProjectSurfaceState()
   state.draft = null
   state.localText = ''
   state.proposal = null
@@ -377,10 +381,13 @@ async function loadWritingWorkspace() {
   state.conflict = false
   if (!state.projectId || !state.auth?.signedIn) return
 
+  const projectId = state.projectId
+  const surfacePromise = loadProjectSurfaceState(apiJson, projectId)
   const [documents, outline] = await Promise.all([
-    apiJson(`/api/projects/${state.projectId}/writing/documents`),
-    apiJson(`/api/projects/${state.projectId}/writing/outline`),
+    apiJson(`/api/projects/${projectId}/writing/documents`),
+    apiJson(`/api/projects/${projectId}/writing/outline`),
   ])
+  if (state.projectId !== projectId) return
   state.documents = documents
   state.outline = outline
   const remembered = getStored(DOCUMENT_KEY)
@@ -389,6 +396,9 @@ async function loadWritingWorkspace() {
     : documents[0]?.id || null
   setStored(DOCUMENT_KEY, state.documentId)
   if (state.documentId) await loadDocumentDraft()
+  const surface = await surfacePromise
+  if (state.projectId !== projectId) return
+  state.surface = surface
 }
 
 async function revisionSeed(document) {
@@ -1247,6 +1257,71 @@ async function createDocument(event) {
   }
 }
 
+async function reloadProjectSurfaceState() {
+  const projectId = state.projectId
+  if (!projectId) return
+  const surface = await loadProjectSurfaceState(apiJson, projectId)
+  if (state.projectId !== projectId) return
+  state.surface = surface
+  enhanceCurrentView()
+}
+
+async function uploadProjectSource(file) {
+  const projectId = state.projectId
+  if (!projectId || !state.auth) return
+  const body = new FormData()
+  body.append('file', file, file.name)
+  const response = await state.auth.apiFetch(`/api/projects/${projectId}/sources`, {
+    method: 'POST',
+    body,
+  })
+  if (!response.ok) {
+    await readJson(response)
+    throw new AuthError(apiErrorMessage(response.status), response.status)
+  }
+}
+
+async function createSurfaceQuestion(question) {
+  const projectId = state.projectId
+  if (!projectId) return
+  await apiJson(`/api/projects/${projectId}/research/questions`, {
+    method: 'POST',
+    body: JSON.stringify({ question, priority: 3 }),
+  })
+}
+
+async function createSurfaceNote({ title, body }) {
+  const projectId = state.projectId
+  if (!projectId) return
+  await apiJson(`/api/projects/${projectId}/research/notes`, {
+    method: 'POST',
+    body: JSON.stringify({ title, body, kind: 'note' }),
+  })
+}
+
+function renderCurrentProjectSurface(view) {
+  const project = state.projects.find((item) => item.id === state.projectId) || null
+  renderProjectSurface({
+    view,
+    signedIn: Boolean(state.auth?.signedIn),
+    signInUnavailable: !state.auth && Boolean(state.authError),
+    project,
+    documents: state.documents,
+    documentId: state.documentId,
+    outline: state.outline,
+    localText: state.localText,
+    surface: state.surface,
+    content: $('#content'),
+    actions: {
+      signIn: openAuthDialog,
+      reload: reloadProjectSurfaceState,
+      uploadSource: uploadProjectSource,
+      createQuestion: createSurfaceQuestion,
+      createNote: createSurfaceNote,
+    },
+  })
+}
+
 function bindShellActions() {
   window.addEventListener('beforeunload', (event) => {
     if (!state.dirty && !state.saving && !state.saveError) return
@@ -1257,7 +1332,11 @@ function bindShellActions() {
 
 function enhanceCurrentView() {
   syncShell()
-  if (currentView() === 'manuscript') renderManuscriptStudio()
+  const view = currentView()
+  if (view === 'manuscript') renderManuscriptStudio()
+  else if (['overview', 'library', 'research', 'notebook'].includes(view)) {
+    renderCurrentProjectSurface(view)
+  }
 }
 
 async function boot() {
