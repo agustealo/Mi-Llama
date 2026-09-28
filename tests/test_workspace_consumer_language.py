@@ -82,6 +82,32 @@ def test_sign_in_failures_are_translated_before_the_dialog_sees_them() -> None:
     assert "throw new AuthError(authMessage(" in auth
 
 
+def test_dynamic_access_states_are_consumer_safe() -> None:
+    studio = (ASSETS / "studio.js").read_text()
+
+    assert "const SIGN_IN_UNAVAILABLE = 'Sign-in is unavailable in this workspace.'" in studio
+    assert "errorNode.textContent = unavailable ? SIGN_IN_UNAVAILABLE : ''" in studio
+    assert "email.disabled = unavailable" in studio
+    assert "password.disabled = unavailable" in studio
+    assert "submit.disabled = unavailable" in studio
+    assert "if (!state.auth) {" in studio
+    assert "errorNode.textContent = SIGN_IN_UNAVAILABLE" in studio
+    assert (
+        "detail.textContent = state.authError ? 'Sign-in unavailable' : 'Open your projects'"
+        in studio
+    )
+    assert "title.textContent = 'Signed in'" in studio
+    assert "Sign in unavailable" in studio
+    assert "new AuthError(SIGN_IN_UNAVAILABLE, 503)" in studio
+    assert "state.authError = SIGN_IN_UNAVAILABLE" in studio
+    for phrase in (
+        "Auth unavailable",
+        "Authentication is not configured",
+        "Authentication configuration unavailable",
+    ):
+        assert phrase not in studio
+
+
 def test_workspace_shell_keeps_navigation_and_health_contracts() -> None:
     script = (ASSETS / "app.js").read_text()
 
