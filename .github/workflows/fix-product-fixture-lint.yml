@@ -1,0 +1,43 @@
+name: Normalize product fixture lint
+
+on:
+  push:
+    branches: [e2e/authenticated-product-fixture]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: e2e/authenticated-product-fixture
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'ruff>=0.12,<1'
+      - name: Fix lint and remove helper
+        run: |
+          ruff check --fix docs/product_fixture_server.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('docs/capture_screenshots.py')
+          text = path.read_text()
+          text = text.replace(
+              '                b"Local adaptation plans should connect infrastructure decisions to reviewed evidence.\\n"',
+              '                b"Local adaptation plans should connect infrastructure decisions "\n'
+              '                b"to reviewed evidence.\\n"',
+          )
+          path.write_text(text)
+          PY
+          ruff format docs/product_fixture_server.py docs/capture_screenshots.py
+          ruff check docs/product_fixture_server.py docs/capture_screenshots.py
+          rm .github/workflows/fix-product-fixture-lint.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/product_fixture_server.py docs/capture_screenshots.py .github/workflows/fix-product-fixture-lint.yml
+          git commit -m 'Normalize authenticated product fixture lint'
+          git push origin HEAD:e2e/authenticated-product-fixture
