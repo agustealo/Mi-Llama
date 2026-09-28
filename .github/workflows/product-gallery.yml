@@ -10,6 +10,7 @@ on:
       - "src/mi_llama/workspace.py"
       - "src/mi_llama/workspace_assets/**"
       - "docs/capture_screenshots.py"
+      - "docs/product_fixture_server.py"
       - "docs/assets/screenshots/**"
       - "pyproject.toml"
       - ".github/workflows/product-gallery.yml"
@@ -22,6 +23,7 @@ on:
       - "src/mi_llama/workspace.py"
       - "src/mi_llama/workspace_assets/**"
       - "docs/capture_screenshots.py"
+      - "docs/product_fixture_server.py"
       - "docs/assets/screenshots/**"
       - "pyproject.toml"
       - ".github/workflows/product-gallery.yml"
@@ -104,16 +106,9 @@ jobs:
           PY
           python -m playwright install --with-deps chromium
 
-      - name: Start packaged Mi-Llama workspace
-        env:
-          MI_LLAMA_HOST: 127.0.0.1
-          MI_LLAMA_PORT: 8765
-          MI_LLAMA_SUPABASE_URL: https://example.supabase.co
-          MI_LLAMA_SUPABASE_PUBLISHABLE_KEY: sb_publishable_docs_capture
-          MI_LLAMA_OLLAMA_BASE_URL: http://127.0.0.1:11434
-          MI_LLAMA_MINDSDB_ENABLED: "false"
+      - name: Start packaged authenticated product fixture
         run: |
-          mi-llama > /tmp/mi-llama.log 2>&1 &
+          python docs/product_fixture_server.py > /tmp/mi-llama.log 2>&1 &
           echo $! > /tmp/mi-llama.pid
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8765/ >/dev/null; then
@@ -124,7 +119,7 @@ jobs:
           cat /tmp/mi-llama.log
           exit 1
 
-      - name: Capture six real product screens
+      - name: Burn authenticated consumer path and capture six real screens
         run: python docs/capture_screenshots.py
 
       - name: Upload generated gallery

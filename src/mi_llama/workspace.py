@@ -8,6 +8,10 @@ from fastapi.staticfiles import StaticFiles
 
 from mi_llama.config import Settings
 from mi_llama.main import create_app as create_api_app
+from mi_llama.providers.base import ModelProvider
+from mi_llama.repositories import Repository
+from mi_llama.research import ResearchEngine
+from mi_llama.storage import ObjectStorage
 
 _WORKSPACE_ROOT = Path(__file__).with_name("workspace_assets")
 
@@ -20,10 +24,23 @@ def attach_workspace(app: FastAPI) -> FastAPI:
     return app
 
 
-def create_app(*, settings: Settings | None = None) -> FastAPI:
-    """Create the normal Mi-Llama API and attach its consumer workspace shell."""
+def create_app(
+    *,
+    settings: Settings | None = None,
+    provider: ModelProvider | None = None,
+    repository: Repository | None = None,
+    storage: ObjectStorage | None = None,
+    research_engine: ResearchEngine | None = None,
+) -> FastAPI:
+    """Create the Mi-Llama API and attach its consumer workspace shell."""
     runtime_settings = settings or Settings()
-    app = create_api_app(settings=runtime_settings)
+    app = create_api_app(
+        settings=runtime_settings,
+        provider=provider,
+        repository=repository,
+        storage=storage,
+        research_engine=research_engine,
+    )
 
     @app.get("/api/client-config")
     async def client_config() -> dict[str, str]:
