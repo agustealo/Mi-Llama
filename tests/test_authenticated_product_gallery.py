@@ -29,6 +29,17 @@ def test_product_gallery_uses_authenticated_fixture_and_real_api_path() -> None:
     assert "FixtureStorage()" in fixture
 
 
+def test_product_gallery_capture_is_deterministic_before_commit_comparison() -> None:
+    capture = (ROOT / "docs" / "capture_screenshots.py").read_text()
+
+    assert 'playwright.chromium.launch(args=["--disable-gpu"])' in capture
+    assert 'animations="disabled"' in capture
+    assert 'caret="hide"' in capture
+    assert "if first != second:" in capture
+    assert "Product screenshot is not byte-stable across consecutive captures" in capture
+    assert ".write_bytes(stable_screenshot(page))" in capture
+
+
 def test_workspace_factory_supports_governed_dependency_injection() -> None:
     workspace = (ROOT / "src" / "mi_llama" / "workspace.py").read_text()
 

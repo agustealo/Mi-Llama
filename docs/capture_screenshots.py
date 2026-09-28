@@ -87,11 +87,20 @@ def assert_overview_truth(page: Page) -> None:
     page.get_by_text("Live project status", exact=False).wait_for()
 
 
+def stable_screenshot(page: Page) -> bytes:
+    first = page.screenshot(full_page=True, animations="disabled", caret="hide")
+    page.wait_for_timeout(100)
+    second = page.screenshot(full_page=True, animations="disabled", caret="hide")
+    if first != second:
+        raise RuntimeError("Product screenshot is not byte-stable across consecutive captures")
+    return first
+
+
 def capture_views(page: Page, output: Path) -> None:
     for view, filename in VIEWS:
         page.goto(f"{BASE_URL}/#{view}", wait_until="networkidle")
         page.wait_for_timeout(250)
-        page.screenshot(path=str(output / filename), full_page=True)
+        (output / filename).write_bytes(stable_screenshot(page))
 
 
 def main() -> None:
@@ -99,7 +108,7 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
+        browser = playwright.chromium.launch(args=["--disable-gpu"])
         page = browser.new_page(
             viewport={"width": 1440, "height": 960},
             device_scale_factor=1,
