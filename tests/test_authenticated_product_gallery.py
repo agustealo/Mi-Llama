@@ -40,6 +40,21 @@ def test_product_gallery_capture_is_deterministic_before_commit_comparison() -> 
     assert ".write_bytes(stable_screenshot(page))" in capture
 
 
+def test_product_gallery_uses_a_bounded_pixel_fidelity_contract() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "product-gallery.yml").read_text()
+    verifier = (ROOT / "docs" / "verify_product_gallery.py").read_text()
+
+    assert "docs/verify_product_gallery.py" in workflow
+    assert "python docs/verify_product_gallery.py" in workflow
+    assert "git diff --exit-code -- docs/assets/screenshots" not in workflow
+    assert "MAX_CHANGED_PIXELS = 64" in verifier
+    assert "MAX_CHANNEL_DELTA = 8" in verifier
+    assert 'subprocess.run(\n        ["git", "show"' in verifier
+    assert "dimensions changed" in verifier
+    assert "expected 6 governed screenshots" in verifier
+    assert "Product screenshots materially differ" in verifier
+
+
 def test_workspace_factory_supports_governed_dependency_injection() -> None:
     workspace = (ROOT / "src" / "mi_llama" / "workspace.py").read_text()
 
