@@ -18,7 +18,7 @@ def test_intelligence_analysis_is_checkpoint_bound_and_never_silent_checkpointin
     assert "draft.base_revision_id" in interaction
     assert "revision.content !== draft.plain_text" in interaction
     assert "editorText !== draft.plain_text" in interaction
-    assert "Checkpoint this manuscript before running writing intelligence." in interaction
+    assert "Save a version of this manuscript before running an evidence review." in interaction
     assert "draft/checkpoint" not in interaction
     assert "revision_id: checkpoint.revision.id" in interaction
     assert "character_start" in interaction
@@ -43,7 +43,7 @@ def test_intelligence_mutations_follow_studio_edit_authority() -> None:
     assert "canEdit: Boolean(editor && !source?.readOnly)" in interaction
     assert "!canEdit || intelligenceState.busy" in interaction
     assert "!manuscriptContext().canEdit" in interaction
-    assert "Edit access is required to create a new revision analysis." in interaction
+    assert "Editing access is required to run a new evidence review." in interaction
     assert "button.disabled = intelligenceState.busy || !canEdit" in interaction
 
 
@@ -69,7 +69,7 @@ def test_finding_cards_reveal_only_fresh_revision_ranges() -> None:
     assert "editor.revealRange(finding.character_start, finding.character_end)" in interaction
     assert "card.classList.add('is-revealable')" in interaction
     assert "Reveal in manuscript." in interaction
-    assert "inline passage markers are hidden" in interaction
+    assert "passage markers are hidden" in interaction
 
 
 def test_intelligence_installer_and_failed_loads_are_observer_safe() -> None:
@@ -80,3 +80,20 @@ def test_intelligence_installer_and_failed_loads_are_observer_safe() -> None:
     assert "intelligenceState.loadedKey = key" in interaction
     assert "MutationObserver" in interaction
     assert "else {\n    renderIntelligence()" not in interaction
+
+
+def test_intelligence_ui_hides_revision_and_retrieval_jargon() -> None:
+    interaction = (ASSETS / "studio_intelligence.js").read_text()
+
+    assert "Evidence review" in interaction
+    assert "Review manuscript" in interaction
+    assert "Review selection" in interaction
+    assert "No project sources found" in interaction
+    assert "Save a version" in interaction
+    assert "Checkpoint a manuscript revision" not in interaction
+    assert "Revision review" not in interaction
+    assert "Revision-bound review" not in interaction
+    assert "Analyze revision" not in interaction
+    assert "Analyze selection" not in interaction
+    assert "evidence candidates" not in interaction
+    assert "No Ollama model" not in interaction
