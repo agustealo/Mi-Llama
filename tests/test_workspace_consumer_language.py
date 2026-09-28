@@ -92,12 +92,19 @@ def test_dynamic_access_states_are_consumer_safe() -> None:
     assert "submit.disabled = unavailable" in studio
     assert "if (!state.auth) {" in studio
     assert "errorNode.textContent = SIGN_IN_UNAVAILABLE" in studio
-    assert "detail.textContent = state.authError ? 'Sign-in unavailable' : 'Open your projects'" in studio
+    assert (
+        "detail.textContent = state.authError ? 'Sign-in unavailable' : 'Open your projects'"
+        in studio
+    )
     assert "title.textContent = 'Signed in'" in studio
     assert "Sign in unavailable" in studio
     assert "new AuthError(SIGN_IN_UNAVAILABLE, 503)" in studio
     assert "state.authError = SIGN_IN_UNAVAILABLE" in studio
-    for phrase in ("Auth unavailable", "Authentication is not configured", "Authentication configuration unavailable"):
+    for phrase in (
+        "Auth unavailable",
+        "Authentication is not configured",
+        "Authentication configuration unavailable",
+    ):
         assert phrase not in studio
 
 
