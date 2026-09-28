@@ -58,6 +58,30 @@ def test_workspace_shell_hides_provider_storage_and_architecture_jargon() -> Non
         assert phrase not in script
 
 
+def test_workspace_chrome_starts_with_product_language() -> None:
+    shell = (ASSETS / "index.html").read_text()
+
+    assert "Writing & Research Studio" in shell
+    assert "Workspace starting" in shell
+    assert "Checking writing and research tools…" in shell
+    assert "Sign in" in shell
+    assert "Open your projects" in shell
+    for phrase in ("Local runtime", "Local workspace", "No account session", "runtime status"):
+        assert phrase not in shell
+
+
+def test_sign_in_failures_are_translated_before_the_dialog_sees_them() -> None:
+    auth = (ASSETS / "auth.js").read_text()
+
+    assert "Email or password is incorrect." in auth
+    assert "Confirm your email before signing in." in auth
+    assert "Too many sign-in attempts. Try again shortly." in auth
+    assert "Sign-in service is temporarily unavailable. Try again shortly." in auth
+    assert "Sign-in is unavailable in this workspace." in auth
+    assert "Your session has ended. Sign in again." in auth
+    assert "throw new AuthError(authMessage(" in auth
+
+
 def test_workspace_shell_keeps_navigation_and_health_contracts() -> None:
     script = (ASSETS / "app.js").read_text()
 
