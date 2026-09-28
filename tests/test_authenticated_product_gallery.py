@@ -11,6 +11,9 @@ def test_product_gallery_uses_authenticated_fixture_and_real_api_path() -> None:
     assert "python docs/product_fixture_server.py" in workflow
     assert "docs/product_fixture_server.py" in workflow
     assert "product-fixture-token" in capture
+    assert "sessionStorage.setItem" in capture
+    assert ".route(" not in capture
+    assert "page.route" not in capture
     assert "#new-project-title" in capture
     assert "#surface-source-file" in capture
     assert "#surface-question" in capture
