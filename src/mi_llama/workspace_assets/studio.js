@@ -4,6 +4,7 @@ import { bindTextareaEditor, clearEditorAdapter, documentStateForText, getEditor
 const PROJECT_KEY = 'mi-llama.project.v1'
 const DOCUMENT_KEY = 'mi-llama.document.v1'
 const AUTOSAVE_DELAY = 700
+const SIGN_IN_UNAVAILABLE = 'Sign-in is unavailable in this workspace.'
 
 const state = {
   auth: null,
@@ -107,7 +108,7 @@ async function readJson(response) {
 }
 
 async function apiJson(path, options = {}) {
-  if (!state.auth) throw new AuthError('Authentication is not configured', 503)
+  if (!state.auth) throw new AuthError(SIGN_IN_UNAVAILABLE, 503)
   const response = await state.auth.apiFetch(path, options)
   if (!response.ok) {
     const payload = await readJson(response)
@@ -136,7 +137,7 @@ function ensureAuthDialog() {
         <button class="primary auth-submit" type="submit">Sign in</button>
       </div>
       <div id="auth-signed-in" hidden>
-        <h2>Studio session</h2>
+        <h2>Signed in to Mi-Llama</h2>
         <p id="auth-user"></p>
         <div id="auth-session-error" class="auth-error" hidden></div>
         <button id="auth-sign-out" class="secondary" type="button">Sign out on this device</button>
@@ -156,11 +157,20 @@ function ensureAuthDialog() {
 function openAuthDialog() {
   const dialog = ensureAuthDialog()
   const signedIn = Boolean(state.auth?.signedIn)
+  const unavailable = !state.auth && Boolean(state.authError)
+  const errorNode = dialog.querySelector('#auth-error')
+  const email = dialog.querySelector('#auth-email')
+  const password = dialog.querySelector('#auth-password')
+  const submit = dialog.querySelector('.auth-submit')
   dialog.querySelector('#auth-signed-out').hidden = signedIn
   dialog.querySelector('#auth-signed-in').hidden = !signedIn
-  dialog.querySelector('#auth-error').hidden = true
+  errorNode.hidden = !unavailable
+  errorNode.textContent = unavailable ? SIGN_IN_UNAVAILABLE : ''
   dialog.querySelector('#auth-session-error').hidden = true
-  if (signedIn) dialog.querySelector('#auth-user').textContent = state.auth.user?.email || 'Authenticated user'
+  email.disabled = unavailable
+  password.disabled = unavailable
+  submit.disabled = unavailable
+  if (signedIn) dialog.querySelector('#auth-user').textContent = state.auth.user?.email || 'Signed in'
   if (!dialog.open) dialog.showModal()
 }
 
@@ -171,6 +181,12 @@ async function signInFromDialog(event) {
   const password = dialog.querySelector('#auth-password').value
   const errorNode = dialog.querySelector('#auth-error')
   const submit = dialog.querySelector('.auth-submit')
+  if (!state.auth) {
+    errorNode.hidden = false
+    errorNode.textContent = SIGN_IN_UNAVAILABLE
+    submit.disabled = true
+    return
+  }
   errorNode.hidden = true
   submit.disabled = true
   submit.textContent = 'Signing in…'
@@ -241,12 +257,12 @@ function syncProfile() {
   if (state.auth?.signedIn) {
     const email = state.auth.user?.email || 'Signed in'
     avatar.textContent = email.slice(0, 2).toUpperCase()
-    title.textContent = 'Studio session'
+    title.textContent = 'Signed in'
     detail.textContent = email
   } else {
     avatar.textContent = 'ML'
     title.textContent = 'Sign in'
-    detail.textContent = state.authError ? 'Auth unavailable' : 'Open your projects'
+    detail.textContent = state.authError ? 'Sign-in unavailable' : 'Open your projects'
   }
 }
 
@@ -444,14 +460,21 @@ async function loadDocumentDraft() {
 }
 
 function signedOutView() {
+  const unavailable = !state.auth && Boolean(state.authError)
+  const message = unavailable
+    ? SIGN_IN_UNAVAILABLE
+    : 'Sign in to open your projects, manuscripts, saved versions, sources, and Mi-Llama edits.'
+  const action = unavailable
+    ? '<button id="studio-sign-in" class="primary" disabled>Sign in unavailable</button>'
+    : '<button id="studio-sign-in" class="primary">Sign in</button>'
   return `
     <div class="studio-gate card">
       <img src="mi-llama-mark.svg" alt="">
       <div>
         <span class="eyebrow">WRITING STUDIO</span>
         <h1>Your manuscript is project work, not a loose chat.</h1>
-        <p>Sign in to open your projects, manuscripts, saved versions, sources, and Mi-Llama edits.</p>
-        <button id="studio-sign-in" class="primary">Sign in</button>
+        <p>${message}</p>
+        ${action}
       </div>
     </div>`
 }
@@ -1242,7 +1265,7 @@ async function boot() {
   try {
     state.auth = await AuthClient.create()
   } catch (error) {
-    state.authError = error.message || 'Authentication configuration unavailable'
+    state.authError = SIGN_IN_UNAVAILABLE
   }
   if (state.auth?.signedIn) await hydrateWorkspace()
   else syncShell()
