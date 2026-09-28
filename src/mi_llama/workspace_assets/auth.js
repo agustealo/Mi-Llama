@@ -75,6 +75,18 @@ function authMessage(message, status, fallback) {
   return fallback
 }
 
+export function apiErrorMessage(status) {
+  if (status === 401) return 'Your session has ended. Sign in again.'
+  if (status === 403) return 'You do not have access to do that in this project.'
+  if (status === 404) return 'That item is no longer available. Refresh and try again.'
+  if (status === 409) return 'This changed since you opened it. Review the latest version and try again.'
+  if (status === 413) return 'That item is too large to process here.'
+  if (status === 422) return 'Some of the information needs attention before this can continue.'
+  if (status === 429) return 'Too many requests right now. Try again shortly.'
+  if (status >= 500) return 'Mi-Llama could not complete that right now. Try again shortly.'
+  return 'Mi-Llama could not complete that request. Check your work and try again.'
+}
+
 export class AuthClient {
   constructor(config) {
     this.supabaseUrl = config.supabase_url
@@ -225,7 +237,8 @@ export class AuthClient {
   async apiJson(path, options = {}) {
     const response = await this.apiFetch(path, options)
     if (!response.ok) {
-      throw new AuthError(await responseError(response, `Request failed (${response.status})`), response.status)
+      await response.text()
+      throw new AuthError(apiErrorMessage(response.status), response.status)
     }
     if (response.status === 204) return null
     return response.json()

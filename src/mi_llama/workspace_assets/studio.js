@@ -1,4 +1,4 @@
-import { AuthClient, AuthError } from './auth.js'
+import { apiErrorMessage, AuthClient, AuthError } from './auth.js'
 import { bindTextareaEditor, clearEditorAdapter, documentStateForText, getEditorAdapter } from './editor_adapter.js'
 
 const PROJECT_KEY = 'mi-llama.project.v1'
@@ -107,17 +107,6 @@ async function readJson(response) {
   }
 }
 
-function apiErrorMessage(status) {
-  if (status === 401) return 'Your session has ended. Sign in again.'
-  if (status === 403) return 'You do not have access to do that in this project.'
-  if (status === 404) return 'That item is no longer available. Refresh and try again.'
-  if (status === 409) return 'This changed since you opened it. Review the latest version and try again.'
-  if (status === 413) return 'That item is too large to process here.'
-  if (status === 422) return 'Some of the information needs attention before this can continue.'
-  if (status === 429) return 'Too many requests right now. Try again shortly.'
-  if (status >= 500) return 'Mi-Llama could not complete that right now. Try again shortly.'
-  return 'Mi-Llama could not complete that request. Check your work and try again.'
-}
 
 async function apiJson(path, options = {}) {
   if (!state.auth) throw new AuthError(SIGN_IN_UNAVAILABLE, 503)
