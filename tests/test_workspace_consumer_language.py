@@ -169,3 +169,28 @@ def test_workspace_shell_keeps_navigation_and_health_contracts() -> None:
     assert "fetch('/health'" in script
     assert "health?.provider?.available" in script
     assert "health?.research === 'ready'" in script
+
+
+def test_static_shell_actions_are_owned_or_removed() -> None:
+    app = (ASSETS / "app.js").read_text()
+
+    assert 'data-view-target="manuscript">Continue writing' in app
+    assert 'data-view-target="manuscript">Open manuscript' in app
+    assert "closest('[data-view-target]')" in app
+    assert "location.hash = view" in app
+    for dead_label in (
+        "Project settings",
+        "Upload source",
+        "Research gaps",
+        "New question",
+        "New note",
+        "Review history",
+    ):
+        assert f">{dead_label}<" not in app
+
+
+def test_source_backed_generation_uses_capability_language() -> None:
+    research = (ASSETS / "studio_research.js").read_text()
+
+    assert "Select an available writing model before generating a source-backed edit." in research
+    assert "Select an available Ollama model before generating a source-backed edit." not in research

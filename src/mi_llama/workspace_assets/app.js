@@ -38,25 +38,25 @@ const templates = {
   overview: () => `${heading(
     'Research that stays attached to the writing.',
     'Mi-Llama keeps sources, evidence, notes, structure, and saved manuscript versions inside one project instead of scattering them across chat threads.',
-    '<button class="secondary">Project settings</button><button class="primary">Continue writing</button>',
+    '<button class="primary" data-view-target="manuscript">Continue writing</button>',
   )}<div class="grid stats"><div class="card stat"><div class="label">Sources</div><div class="value">0</div><div class="meta">Private project library</div></div><div class="card stat"><div class="label">Open questions</div><div class="value">0</div><div class="meta">Research in progress</div></div><div class="card stat"><div class="label">Evidence links</div><div class="value">0</div><div class="meta">Connected to your writing</div></div><div class="card stat"><div class="label">Manuscript words</div><div class="value">0</div><div class="meta">Current draft</div></div></div><div class="grid two-col"><div class="card"><div class="panel-head"><h2>Project flow</h2><span>From sources to manuscript</span></div><div class="panel-body"><div class="flow"><div class="flow-step active"><b>Sources</b><small>Bring in primary and secondary material.</small></div><div class="flow-step"><b>Research</b><small>Ask questions across your project sources.</small></div><div class="flow-step"><b>Evidence</b><small>Review useful passages deliberately.</small></div><div class="flow-step"><b>Notebook</b><small>Develop claims and connections.</small></div><div class="flow-step"><b>Outline</b><small>Shape the long-form structure.</small></div><div class="flow-step"><b>Manuscript</b><small>Write with sources nearby.</small></div></div></div></div><div class="card"><div class="panel-head"><h2>Workspace</h2><span>Private by default</span></div><div class="panel-body activity"><div class="event"><div class="dot">◉</div><div><b>Writing model</b><p>Uses the model configured for this workspace.</p></div></div><div class="event"><div class="dot">◆</div><div><b>Project access</b><p>Sign in to open your private projects and saved work.</p></div></div><div class="event"><div class="dot">◇</div><div><b>Research search</b><p>Available when project research is ready.</p></div></div></div></div></div>`,
 
   library: () => `${heading(
     'Research Library',
     'Your private project source collection. Uploads stay attached to their source and saved version so you can trace where evidence came from.',
-    '<button class="secondary">Filter</button><button class="primary">Upload source</button>',
+    '',
   )}<div class="toolbar"><div class="search">⌕  Search sources, authors, titles…</div><button class="secondary">All formats⌄</button><button class="secondary">All states⌄</button></div><div class="card table"><div class="row header"><div>Source</div><div>Format</div><div>Search</div><div>Updated</div></div><div class="row"><div class="doc"><div class="doc-icon">PDF</div><div><b>No project sources yet</b><small>Upload PDF, DOCX, EPUB, TXT, Markdown, or HTML.</small></div></div><div>—</div><div><span class="badge gray">Not ready</span></div><div>—</div></div></div><div class="grid two-col" style="margin-top:16px"><div class="card"><div class="panel-head"><h2>What happens after upload</h2><span>Prepared for research</span></div><div class="panel-body"><div class="flow" style="grid-template-columns:repeat(4,1fr)"><div class="flow-step active"><b>Upload</b><small>Check access and supported format.</small></div><div class="flow-step"><b>Read</b><small>Extract text while keeping source identity.</small></div><div class="flow-step"><b>Save</b><small>Store the source privately with your project.</small></div><div class="flow-step"><b>Prepare</b><small>Make source passages available to research.</small></div></div></div></div><div class="card"><div class="panel-head"><h2>Source history</h2><span>Always available</span></div><div class="panel-body activity"><div class="event"><div class="dot">✓</div><div><b>Original source preserved</b><p>Earlier source versions remain traceable after updates.</p></div></div><div class="event"><div class="dot">✓</div><div><b>Safe research preparation</b><p>A search-processing problem does not remove your saved source.</p></div></div></div></div></div>`,
 
   research: () => `${heading(
     'Evidence Workspace',
     'Search your project sources, review useful passages, and decide what belongs with a claim before it reaches the manuscript.',
-    '<button class="secondary">Research gaps</button><button class="primary">New question</button>',
+    '',
   )}<div class="research-layout"><div class="card"><div class="panel-head"><h2>Research questions</h2><span>0 open</span></div><div class="question-list"><div class="question active"><b>Start with a question</b><small>Questions organize sources, notes, claims, and follow-up.</small></div><div class="question"><b>Connect claims to sources</b><small>Supporting and challenging material stay visible.</small></div><div class="question"><b>Review citations before use</b><small>Suggested material is never inserted into the manuscript automatically.</small></div></div></div><div class="card"><div class="panel-head"><h2>Sources to review</h2><span>Search results</span></div><div class="panel-body"><div class="evidence-card"><div class="source-line"><span>Waiting for project research</span><span>match —</span></div><div class="quote">Ask a project question to find source passages with their document, location, and saved source details attached.</div><div class="source-line"><span>Project source search</span><span class="badge amber">Review first</span></div></div><div class="evidence-card"><div class="source-line"><span>Evidence review</span><span>writer controlled</span></div><div class="quote">Attach a passage to a claim only after you inspect it. Challenging material stays visible alongside supporting material.</div><div class="source-line"><span>Saved source link</span><span class="badge">Add deliberately</span></div></div></div></div></div>`,
 
   notebook: () => `${heading(
     'Notebook',
     'A project thinking space for notes, questions, claims, challenges, and source-backed synthesis between research and your outline.',
-    '<button class="secondary">Sort</button><button class="primary">New note</button>',
+    '',
   )}<div class="notebook"><div class="card note"><span class="badge amber">Question</span><h3>Build the first research question</h3><p>Use a focused question to begin collecting evidence. Mi-Llama preserves both supporting and challenging source relationships instead of flattening them into one answer.</p><div class="note-foot"><span>0 linked sources</span><span>Open</span></div></div><div class="card note"><span class="badge">Method</span><h3>Evidence before prose</h3><p>Develop claims alongside the research before weaving them into a manuscript. That keeps the source trail understandable as the writing grows.</p><div class="note-foot"><span>Writing method</span><span>Reference</span></div></div><div class="card note"><span class="badge gray">Note</span><h3>Keep project work together</h3><p>Sources, notes, outline structure, and manuscript history remain part of the project instead of disappearing into loose chat fragments.</p><div class="note-foot"><span>Project workflow</span><span>Reference</span></div></div><div class="card note"><span class="badge gray">Gap</span><h3>Research gaps remain visible</h3><p>Open questions, unsupported claims, disputed claims, and citations that still need review can stay visible until you resolve them.</p><div class="note-foot"><span>Research review</span><span>Ready</span></div></div></div>`,
 
   manuscript: () => `${heading(
@@ -68,7 +68,7 @@ const templates = {
   intelligence: () => `${heading(
     'Evidence Review',
     'Review a saved manuscript version for claims that are supported, challenged, or still need more research.',
-    '<button class="secondary">Review history</button><button class="primary">Review manuscript</button>',
+    '<button class="primary" data-view-target="manuscript">Open manuscript</button>',
   )}<div class="intelligence"><div class="card"><div class="panel-head"><h2>Evidence coverage</h2><span>Latest saved version</span></div><div class="score"><div class="score-ring"></div><p style="text-align:center;color:var(--muted);font-size:12px">Coverage appears after you review a saved manuscript version against your project sources.</p></div></div><div class="card"><div class="panel-head"><h2>How review works</h2><span>You stay in control</span></div><div class="checklist"><div class="check"><div class="ok">✓</div><div><b>Focused claim review</b><small>Only the manuscript or passage you choose is reviewed.</small></div><span class="badge">Writing</span></div><div class="check"><div class="ok">✓</div><div><b>Project source search</b><small>Potential evidence comes from sources available to this project.</small></div><span class="badge">Research</span></div><div class="check"><div class="ok">✓</div><div><b>Clear evidence status</b><small>Supporting, challenging, and missing evidence stay distinct.</small></div><span class="badge">Review</span></div><div class="check"><div class="ok">✓</div><div><b>Your decision</b><small>Findings remain suggestions until you review them.</small></div><span class="badge">Writer</span></div></div></div></div><div class="card" style="margin-top:16px"><div class="panel-head"><h2>Review findings</h2><span>0 pending</span></div><div class="panel-body"><div class="evidence-card"><div class="source-line"><span>No review yet</span><span>saved version —</span></div><div class="quote">Save a manuscript version, then review it to see supporting, challenging, contextual, and unclear source relationships.</div></div></div></div>`,
 }
 
@@ -82,6 +82,13 @@ function render() {
   content.innerHTML = templates[view.id]()
   document.title = `${view.label} · Mi-Llama`
 }
+
+addEventListener('click', (event) => {
+  const target = event.target instanceof Element ? event.target.closest('[data-view-target]') : null
+  if (!target) return
+  const view = target.dataset.viewTarget
+  if (views.some((candidate) => candidate.id === view)) location.hash = view
+})
 
 addEventListener('hashchange', render)
 render()
