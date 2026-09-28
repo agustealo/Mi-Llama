@@ -21,8 +21,10 @@ def test_supersession_ui_requires_exact_accepted_repair_lineage() -> None:
     contract = (root / "citation_closure_contract.js").read_text()
 
     assert "repairLineageProposal(item, proposals)" in repair
-    assert "Record exact supersession" in repair
+    assert "exactReplacement.id" in repair
+    assert "Mark as replaced" in repair
     assert "superseding grounded proposal" not in repair.lower()
+    assert "Record exact supersession" not in repair
     assert "proposal?.status === 'accepted'" in contract
     assert (
         "proposal?.context_manifest?.provenance_repair?.repair_of_proposal_id === item.proposalId"
