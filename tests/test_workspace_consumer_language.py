@@ -108,6 +108,20 @@ def test_dynamic_access_states_are_consumer_safe() -> None:
         assert phrase not in studio
 
 
+def test_feature_modules_share_sign_in_unavailable_contract() -> None:
+    auth = (ASSETS / "auth.js").read_text()
+    studio = (ASSETS / "studio.js").read_text()
+
+    assert "export const SIGN_IN_UNAVAILABLE = 'Sign-in is unavailable in this workspace.'" in auth
+    assert "const SIGN_IN_UNAVAILABLE =" not in studio
+    assert "SIGN_IN_UNAVAILABLE" in studio
+    for filename in ("studio_research.js", "studio_citations.js", "studio_intelligence.js"):
+        module = (ASSETS / filename).read_text()
+        assert "SIGN_IN_UNAVAILABLE" in module
+        assert "Authentication is not configured" not in module
+        assert "new AuthError(SIGN_IN_UNAVAILABLE, 503)" in module
+
+
 def test_writing_model_availability_is_capability_facing() -> None:
     studio = (ASSETS / "studio.js").read_text()
 
