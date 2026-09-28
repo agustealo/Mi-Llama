@@ -104,7 +104,7 @@ function renderFlash(flash) {
   const title = document.createElement('b')
   title.textContent = flash.rendered_citation
   const detail = document.createElement('small')
-  detail.textContent = `${styleLabel(flash.style)} · immutable manuscript checkpoint created`
+  detail.textContent = `${styleLabel(flash.style)} · saved to manuscript`
   card.append(badge, title, detail)
   panel.appendChild(card)
 }
@@ -123,25 +123,25 @@ function renderQueue() {
   const title = document.createElement('b')
   title.textContent = 'Citation review'
   const meta = document.createElement('span')
-  meta.textContent = `${state.citations.length} linked candidate${state.citations.length === 1 ? '' : 's'}`
+  meta.textContent = `${state.citations.length} source${state.citations.length === 1 ? '' : 's'} ready`
   header.append(title, meta)
   panel.appendChild(header)
 
   const policy = document.createElement('p')
   policy.className = 'citation-policy'
   policy.textContent =
-    'Citations use versioned bibliographic metadata. Nothing is inserted until you review the source metadata, style preview, and final manuscript change.'
+    'Review the source details and citation style before anything is inserted into your manuscript.'
   panel.appendChild(policy)
 
   if (state.citations.length === 0) {
     const empty = document.createElement('div')
     empty.className = 'citation-empty'
-    empty.textContent = 'Promote manuscript evidence first. Its citation candidate will appear here for review.'
+    empty.textContent = 'Add reviewed evidence to this manuscript. Sources ready for citation review will appear here.'
     panel.appendChild(empty)
     return
   }
 
-  for (const citation of state.citations) {
+  for (const [index, citation] of state.citations.entries()) {
     const card = document.createElement('article')
     card.className = 'citation-row'
     const status = document.createElement('span')
@@ -149,9 +149,9 @@ function renderQueue() {
     status.textContent = citation.status
     const text = document.createElement('div')
     const strong = document.createElement('b')
-    strong.textContent = `Candidate ${citation.id.slice(0, 8)}`
+    strong.textContent = `Source ${index + 1}`
     const small = document.createElement('small')
-    small.textContent = 'Evidence-backed citation candidate'
+    small.textContent = 'Ready to check source details and style'
     text.append(strong, small)
     const button = document.createElement('button')
     button.className = 'secondary'
@@ -181,7 +181,7 @@ async function loadQueue() {
     state.documentId = documentId
     renderQueue()
   } catch (error) {
-    showPanelMessage(error.message || 'Citation candidates could not be loaded.', 'citation-error')
+    showPanelMessage(error.message || 'Citations could not be loaded.', 'citation-error')
   } finally {
     state.loading = false
   }
@@ -261,10 +261,10 @@ function renderInsertedContext(context) {
   const bibliography = document.createElement('p')
   bibliography.textContent = context.insertion.rendered_bibliography
   const detail = document.createElement('small')
-  detail.textContent = `${styleLabel(context.insertion.style)} · metadata v${context.insertion.metadata_version}`
+  detail.textContent = `${styleLabel(context.insertion.style)} · inserted into manuscript`
   const back = document.createElement('button')
   back.className = 'secondary'
-  back.textContent = 'Back to citation queue'
+  back.textContent = 'Back to citation review'
   back.addEventListener('click', renderQueue)
   card.append(badge, cite, bibliography, detail, back)
   panel.appendChild(card)
@@ -286,9 +286,9 @@ function renderCitationForm(context) {
   const heading = document.createElement('div')
   heading.className = 'citation-head'
   const title = document.createElement('b')
-  title.textContent = 'Review bibliographic metadata'
+  title.textContent = 'Review source details'
   const version = document.createElement('span')
-  version.textContent = context.metadata ? `metadata v${context.metadata.version}` : 'metadata not saved'
+  version.textContent = context.metadata ? 'Source details saved' : 'Source details not saved'
   heading.append(title, version)
   form.appendChild(heading)
 
@@ -340,7 +340,7 @@ function renderCitationForm(context) {
   preview.className = 'citation-preview'
   preview.id = 'citation-preview'
   if (state.preview) fillPreview(preview, state.preview)
-  else preview.textContent = 'Save metadata to generate a citation preview.'
+  else preview.textContent = 'Save source details to generate a citation preview.'
   form.appendChild(preview)
 
   const actions = document.createElement('div')
@@ -353,17 +353,17 @@ function renderCitationForm(context) {
   const save = document.createElement('button')
   save.type = 'submit'
   save.className = 'secondary'
-  save.textContent = 'Save & preview'
+  save.textContent = 'Save details & preview'
   const reject = document.createElement('button')
   reject.type = 'button'
   reject.className = 'secondary citation-reject'
-  reject.textContent = 'Reject citation'
+  reject.textContent = 'Skip citation'
   reject.hidden = context.citation.status !== 'proposed'
   reject.addEventListener('click', () => rejectCitation(form, reject))
   const insert = document.createElement('button')
   insert.type = 'button'
   insert.className = 'primary'
-  insert.textContent = 'Accept & insert citation'
+  insert.textContent = 'Insert citation'
   insert.disabled = !context.metadata || !state.preview
   insert.addEventListener('click', () => insertCitation(form, insert))
   actions.append(back, save, reject, insert)
@@ -384,7 +384,7 @@ function fillPreview(host, preview) {
   const bibliography = document.createElement('p')
   bibliography.textContent = preview.bibliography
   const meta = document.createElement('small')
-  meta.textContent = `${styleLabel(preview.style)} · metadata v${preview.metadata_version}`
+  meta.textContent = styleLabel(preview.style)
   host.append(cite, bibliography, meta)
 }
 
@@ -439,9 +439,9 @@ async function saveAndPreview(event, form, insertButton) {
     await previewCitation(form.elements.style.value, form, insertButton)
   } catch (error) {
     if (error instanceof AuthError && error.status === 409) {
-      setFormError(form, 'Citation metadata changed in another session. Reopen this citation before saving.')
+      setFormError(form, 'Source details changed in another session. Reopen this citation before saving.')
     } else {
-      setFormError(form, error.message || 'Citation metadata could not be saved.')
+      setFormError(form, error.message || 'Source details could not be saved.')
     }
   } finally {
     submit.disabled = false
@@ -462,7 +462,7 @@ async function previewCitation(style, form, insertButton) {
     fillPreview(form.querySelector('#citation-preview'), preview)
     insertButton.disabled = false
   } catch (error) {
-    setFormError(form, error.message || 'The selected citation style could not render this metadata.')
+    setFormError(form, error.message || 'The selected citation style could not render this source.')
   }
 }
 
@@ -482,7 +482,7 @@ async function rejectCitation(form, button) {
     state.preview = null
     renderQueue()
   } catch (error) {
-    setFormError(form, error.message || 'Citation rejection failed.')
+    setFormError(form, error.message || 'Could not skip this citation.')
     button.disabled = false
   }
 }
@@ -517,7 +517,7 @@ async function insertCitation(form, button) {
     if (error instanceof AuthError && error.status === 409) {
       setFormError(
         form,
-        'The manuscript or citation metadata changed. Reopen the citation and review the new authoritative state.',
+        'The manuscript or source details changed. Reopen the citation and review the latest saved details.',
       )
     } else {
       setFormError(form, error.message || 'Citation insertion failed.')
@@ -530,7 +530,7 @@ async function openCitation(citation, button) {
   const { projectId } = manuscriptContext()
   if (!projectId) return
   button.disabled = true
-  showPanelMessage('Loading citation provenance…', 'citation-busy')
+  showPanelMessage('Loading source details…', 'citation-busy')
   try {
     state.activeContext = await apiJson(
       `/api/projects/${projectId}/research/citations/${citation.id}/context`,
@@ -547,7 +547,7 @@ async function openCitation(citation, button) {
       if (form && insert) await previewCitation('apa-7', form, insert)
     }
   } catch (error) {
-    showPanelMessage(error.message || 'Citation context could not be loaded.', 'citation-error')
+    showPanelMessage(error.message || 'Citation details could not be loaded.', 'citation-error')
   } finally {
     button.disabled = false
   }
