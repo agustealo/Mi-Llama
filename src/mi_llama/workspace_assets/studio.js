@@ -129,7 +129,7 @@ function ensureAuthDialog() {
       <div class="auth-persona"><img src="mi-llama-mark.svg" alt=""><div><strong>Mi-Llama</strong><span>Writing Studio</span></div></div>
       <div id="auth-signed-out">
         <h2>Sign in to your studio</h2>
-        <p>Your Supabase session scopes projects, manuscripts, research, and AI proposals through RLS.</p>
+        <p>Your sign-in keeps your projects, manuscripts, research, and Mi-Llama work connected to your account.</p>
         <label>Email<input id="auth-email" type="email" autocomplete="email" required></label>
         <label>Password<input id="auth-password" type="password" autocomplete="current-password" required></label>
         <div id="auth-error" class="auth-error" hidden></div>
@@ -450,7 +450,7 @@ function signedOutView() {
       <div>
         <span class="eyebrow">WRITING STUDIO</span>
         <h1>Your manuscript is project work, not a loose chat.</h1>
-        <p>Sign in to load your Supabase-scoped projects, drafts, immutable revisions, evidence, and Mi-Llama writing proposals.</p>
+        <p>Sign in to open your projects, manuscripts, saved versions, sources, and Mi-Llama edits.</p>
         <button id="studio-sign-in" class="primary">Sign in</button>
       </div>
     </div>`
@@ -462,7 +462,7 @@ function noProjectView() {
       <div>
         <span class="eyebrow">FIRST PROJECT</span>
         <h1>Create a writing project</h1>
-        <p>Projects are the authority boundary for manuscripts, sources, evidence, and AI collaboration.</p>
+        <p>Projects keep each manuscript, its sources, and Mi-Llama work together in one place.</p>
         <form id="create-project-form" class="inline-create">
           <input id="new-project-title" maxlength="200" placeholder="Project title" required>
           <button class="primary" type="submit">Create project</button>
@@ -478,7 +478,7 @@ function noDocumentView() {
       <div>
         <span class="eyebrow">MANUSCRIPT</span>
         <h1>Create the first manuscript</h1>
-        <p>A manuscript gets a mutable autosaved draft plus immutable revision checkpoints. AI edits arrive as proposals, never silent mutations.</p>
+        <p>Your manuscript saves as you write. Save a version whenever you want a milestone, and every Mi-Llama edit waits for your approval.</p>
         <form id="create-document-form" class="inline-create">
           <input id="new-document-title" maxlength="300" placeholder="Manuscript title" required>
           <button class="primary" type="submit">Create manuscript</button>
@@ -495,7 +495,7 @@ function renderOutline() {
   if (state.outline.length === 0) {
     const empty = document.createElement('div')
     empty.className = 'outline-item active'
-    empty.textContent = 'No outline nodes yet'
+    empty.textContent = 'No outline sections yet'
     list.appendChild(empty)
     return
   }
@@ -539,33 +539,33 @@ function saveAttentionVisible() {
 
 function editorView() {
   const words = wordCount(state.localText)
-  const version = state.draft?.version ? `Draft v${state.draft.version}` : 'Read only'
+  const saveMode = state.canEdit ? 'Autosave on' : 'Read only'
   const permission = state.canEdit ? '' : ' readonly'
   const attention = saveAttentionVisible()
-  const attentionTitle = state.conflict ? 'Draft changed elsewhere.' : 'Draft save could not be confirmed.'
+  const attentionTitle = state.conflict ? 'Manuscript changed elsewhere.' : 'Your latest changes have not been saved yet.'
   const attentionText = state.conflict
-    ? 'Your local text has not been overwritten.'
-    : 'Your local text is still here. Retry the save or reload the server draft before using AI or leaving this manuscript.'
+    ? 'Your current text is still here and has not been overwritten.'
+    : 'Your text is still here. Retry the save or reload the saved copy before using Mi-Llama or leaving this manuscript.'
   return `
     <div class="page-heading studio-heading">
       <div>
         <h1>Manuscript</h1>
-        <p>Write continuously, checkpoint intentionally, and let Mi-Llama propose changes without taking document authority away from you.</p>
+        <p>Write continuously, save versions when you want a milestone, and review every Mi-Llama edit before it changes your manuscript.</p>
       </div>
       <div class="page-actions">
         <select id="document-select" class="secondary studio-document-select"></select>
-        <button id="checkpoint-revision" class="primary"${state.canEdit ? '' : ' disabled'}>Checkpoint revision</button>
+        <button id="checkpoint-revision" class="primary"${state.canEdit ? '' : ' disabled'}>Save version</button>
       </div>
     </div>
     <div id="studio-error" class="studio-error" hidden></div>
     <div class="studio-layout">
       <aside class="card studio-outline">
-        <div class="panel-head"><h2>Outline</h2><span>${state.outline.length} nodes</span></div>
+        <div class="panel-head"><h2>Outline</h2><span>${state.outline.length} sections</span></div>
         <div id="studio-outline-list" class="outline"></div>
       </aside>
       <section class="card studio-editor-card">
         <div class="studio-editor-meta">
-          <span>${version}</span>
+          <span>${saveMode}</span>
           <span id="studio-word-count">${words} words</span>
           <span id="studio-save-status">${state.status || (state.canEdit ? 'Saved' : 'Read only')}</span>
         </div>
@@ -581,7 +581,7 @@ function editorView() {
           <div><b>${attentionTitle}</b><span>${attentionText}</span></div>
           <div class="proposal-actions">
             <button id="retry-draft-save" class="secondary"${state.conflict || !state.canEdit ? ' disabled' : ''}>Retry save</button>
-            <button id="reload-server-draft" class="secondary">Reload server draft</button>
+            <button id="reload-server-draft" class="secondary">Reload saved copy</button>
           </div>
         </div>
       </section>
@@ -593,7 +593,7 @@ function editorView() {
         <label class="field-label">Model<select id="studio-model"></select></label>
         <div class="collaborator-callout">
           <b>Select before you ask.</b>
-          <p>AI operations are bound to the exact draft version and selected characters you reviewed.</p>
+          <p>Mi-Llama works only with the passage you selected and the saved manuscript you reviewed.</p>
         </div>
         <label class="field-label">Custom instruction<textarea id="studio-instruction" rows="3" placeholder="e.g. Make this more precise without changing the argument"></textarea></label>
         <button id="custom-proposal" class="secondary collaborator-ask"${state.canEdit ? '' : ' disabled'}>Ask Mi-Llama about selection</button>
@@ -748,7 +748,7 @@ async function saveDraftNow() {
       state.dirty = currentEditor
         ? !editorMatchesDraft(currentEditor, updated)
         : state.localText !== (updated.plain_text || '')
-      setStudioStatus(`Saved · v${updated.version}`, 'saved')
+      setStudioStatus('Saved', 'saved')
       if (state.dirty) scheduleSave()
       return true
     } catch (error) {
@@ -756,10 +756,10 @@ async function saveDraftNow() {
       state.saveError = error.message || 'Save failed'
       if (error instanceof AuthError && error.status === 409) {
         state.conflict = true
-        setStudioStatus('Conflict detected', 'danger')
+        setStudioStatus('Newer saved changes found', 'danger')
       } else if (error instanceof AuthError && error.status === 403) {
         state.canEdit = false
-        setStudioStatus('Write access denied', 'danger')
+        setStudioStatus('Editing unavailable', 'danger')
         getEditorAdapter()?.setReadOnly(true)
       } else {
         setStudioStatus('Save failed · retry required', 'danger')
@@ -800,12 +800,12 @@ function syncSaveAttention() {
   const detail = bar.querySelector('span')
   const retry = $('#retry-draft-save')
   if (state.conflict) {
-    title.textContent = 'Draft changed elsewhere.'
-    detail.textContent = 'Your local text has not been overwritten.'
+    title.textContent = 'Manuscript changed elsewhere.'
+    detail.textContent = 'Your current text is still here and has not been overwritten.'
     if (retry) retry.disabled = true
   } else {
-    title.textContent = 'Draft save could not be confirmed.'
-    detail.textContent = 'Your local text is still here. Retry the save or reload the server draft before using AI or leaving this manuscript.'
+    title.textContent = 'Your latest changes have not been saved yet.'
+    detail.textContent = 'Your text is still here. Retry the save or reload the saved copy before using Mi-Llama or leaving this manuscript.'
     if (retry) retry.disabled = !state.canEdit
   }
 }
@@ -815,7 +815,7 @@ async function retryDraftSave() {
   if (state.conflict || !state.canEdit) return
   const ok = await flushDraft()
   syncSaveAttention()
-  if (!ok) showError(state.saveError || 'The draft save still could not be confirmed.')
+  if (!ok) showError(state.saveError || 'Your changes still could not be saved.')
 }
 
 async function reloadServerDraft() {
@@ -832,9 +832,9 @@ async function reloadServerDraft() {
     state.proposal = null
     state.proposalExplanation = null
     renderManuscriptStudio()
-    setStudioStatus(`Reloaded · v${draft.version}`, 'saved')
+    setStudioStatus('Reloaded saved copy', 'saved')
   } catch (error) {
-    showError(error.message || 'Could not reload the server draft')
+    showError(error.message || 'Could not reload the saved copy')
   }
 }
 
@@ -843,7 +843,7 @@ async function requestProposal(operation) {
   const editor = getEditorAdapter()
   if (!editor || !state.canEdit || state.conflict || state.saveError) return
   if (!(await flushDraft())) {
-    showError('Mi-Llama cannot edit from an unconfirmed draft. Retry the save or reload the server copy first.')
+    showError('Mi-Llama needs the manuscript to finish saving first. Retry the save or reload the saved copy.')
     return
   }
 
@@ -980,7 +980,7 @@ function renderProposalPanel() {
   const meta = document.createElement('span')
   const depth = state.proposal.context_manifest?.refinement_depth
   const lineage = Number.isInteger(depth) && depth > 0 ? ` · refinement ${depth}` : ''
-  meta.textContent = `draft v${state.proposal.base_draft_version} · ${state.proposal.model}${lineage}`
+  meta.textContent = `${state.proposal.model}${lineage}`
   heading.append(title, meta)
   panel.appendChild(heading)
   panel.appendChild(proposalTextBlock('Current', state.proposal.original_text, 'proposal-before'))
@@ -1043,7 +1043,7 @@ async function refineProposal(event) {
       state.proposal = null
       state.proposalExplanation = null
       renderProposalPanel()
-      showError('This proposal is stale because the draft changed. Select the passage again to regenerate it.')
+      showError('This proposal is stale because the manuscript changed. Select the passage again to regenerate it.')
     } else {
       renderProposalPanel()
       showError(error.message || 'Mi-Llama could not refine the proposal')
@@ -1073,7 +1073,7 @@ async function explainProposal() {
       state.proposal = null
       state.proposalExplanation = null
       renderProposalPanel()
-      showError('This proposal is stale because the draft changed. Select the passage again to regenerate it.')
+      showError('This proposal is stale because the manuscript changed. Select the passage again to regenerate it.')
     } else {
       renderProposalPanel()
       showError(error.message || 'Mi-Llama could not explain the proposal')
@@ -1107,7 +1107,7 @@ async function acceptProposal() {
     getEditorAdapter()?.setText(state.localText)
     const count = $('#studio-word-count')
     if (count) count.textContent = `${wordCount(state.localText)} words`
-    setStudioStatus(`AI edit accepted · v${state.draft.version}`, 'saved')
+    setStudioStatus('AI edit accepted', 'saved')
     renderProposalPanel()
     updateSelectionToolbar()
   } catch (error) {
@@ -1115,7 +1115,7 @@ async function acceptProposal() {
       state.proposal = null
       state.proposalExplanation = null
       renderProposalPanel()
-      showError('This proposal is stale because the draft changed. Select the passage again to regenerate it.')
+      showError('This proposal is stale because the manuscript changed. Select the passage again to regenerate it.')
     } else {
       showError(error.message || 'Could not accept the proposal')
     }
@@ -1143,12 +1143,12 @@ async function checkpointRevision() {
   if (!state.canEdit || state.conflict || state.saveError || !state.draft?.version) return
   clearError()
   if (!(await flushDraft())) {
-    showError('The draft must be saved before an immutable revision can be checkpointed.')
+    showError('Save the manuscript before saving a version.')
     return
   }
   const button = $('#checkpoint-revision')
   if (button) button.disabled = true
-  setStudioStatus('Creating revision…', 'pending')
+  setStudioStatus('Saving version…', 'pending')
   try {
     const result = await apiJson(
       `/api/projects/${state.projectId}/writing/documents/${state.documentId}/draft/checkpoint`,
@@ -1166,17 +1166,17 @@ async function checkpointRevision() {
     state.proposalExplanation = null
     const index = state.documents.findIndex((item) => item.id === state.documentId)
     if (index >= 0) state.documents[index] = result.document
-    setStudioStatus(`Revision ${result.revision.revision_number} checkpointed · v${result.draft.version}`, 'saved')
+    setStudioStatus(`Version ${result.revision.revision_number} saved`, 'saved')
     renderProposalPanel()
     updateSelectionToolbar()
   } catch (error) {
     if (error instanceof AuthError && error.status === 409) {
       state.conflict = true
-      state.saveError = error.message || 'Checkpoint raced with another draft write'
+      state.saveError = error.message || 'The manuscript changed while this version was being saved'
       syncSaveAttention()
     }
-    showError(error.message || 'Could not create the revision checkpoint')
-    setStudioStatus('Checkpoint failed', 'danger')
+    showError(error.message || 'Could not save this version')
+    setStudioStatus('Save version failed', 'danger')
   } finally {
     if (button) button.disabled = !state.canEdit
   }

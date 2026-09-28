@@ -61,8 +61,9 @@ def test_studio_uses_real_draft_and_proposal_authorities() -> None:
     assert "expected_draft_version" in studio
     assert "selectionStart" in studio
     assert "selectionEnd" in studio
-    assert "Checkpoint revision" in studio
-    assert "Draft changed elsewhere." in studio
+    assert "/draft/checkpoint" in studio
+    assert "Save version" in studio
+    assert "Manuscript changed elsewhere." in studio
 
 
 def test_studio_preserves_structured_state_through_seed_and_autosave() -> None:
@@ -116,3 +117,20 @@ def test_proposal_iteration_stays_reviewable_and_server_authoritative() -> None:
     assert "state.proposal = await apiJson" in studio
     assert "getEditorAdapter()?.setText(state.localText)" in studio
     assert "state.proposalExplanation = result.explanation" in studio
+
+
+def test_manuscript_ui_hides_internal_storage_and_revision_vocabulary() -> None:
+    studio = (ASSETS / "studio.js").read_text()
+
+    assert "Save version" in studio
+    assert "Autosave on" in studio
+    assert "Reload saved copy" in studio
+    assert "Version ${result.revision.revision_number} saved" in studio
+    assert "Supabase-scoped" not in studio
+    assert "through RLS" not in studio
+    assert "authority boundary" not in studio
+    assert "Checkpoint revision" not in studio
+    assert "Draft v${" not in studio
+    assert "draft v${" not in studio
+    assert "immutable revision checkpoints" not in studio
+    assert "exact draft version" not in studio
