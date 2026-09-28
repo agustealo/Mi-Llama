@@ -1,6 +1,7 @@
 from pathlib import Path
 
-ASSETS = Path(__file__).parents[1] / "src" / "mi_llama" / "workspace_assets"
+ROOT = Path(__file__).parents[1]
+ASSETS = ROOT / "src" / "mi_llama" / "workspace_assets"
 
 
 def test_project_surfaces_read_canonical_project_data() -> None:
@@ -58,3 +59,11 @@ def test_studio_owns_project_state_and_rejects_stale_surface_loads() -> None:
     assert "renderProjectSurface" in studio
     assert "if (state.projectId !== projectId) return" in studio
     assert "reload: reloadProjectSurfaceState" in studio
+
+
+def test_release_rails_cover_project_surface_module() -> None:
+    quality = (ROOT / ".github" / "workflows" / "quality.yml").read_text()
+    gallery = (ROOT / ".github" / "workflows" / "product-gallery.yml").read_text()
+
+    assert "node --check src/mi_llama/workspace_assets/studio_surfaces.js" in quality
+    assert '"studio_surfaces.js"' in gallery
