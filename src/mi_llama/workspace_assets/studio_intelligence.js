@@ -1,4 +1,4 @@
-import { AuthClient, AuthError } from './auth.js'
+import { AuthClient, AuthError, SIGN_IN_UNAVAILABLE } from './auth.js'
 import { getEditorAdapter } from './editor_adapter.js'
 
 let authError = null
@@ -24,7 +24,7 @@ const $ = (selector) => document.querySelector(selector)
 
 async function apiJson(path, options = {}) {
   const auth = await authPromise
-  if (!auth) throw authError || new AuthError('Authentication is not configured', 503)
+  if (!auth) throw authError || new AuthError(SIGN_IN_UNAVAILABLE, 503)
   return auth.apiJson(path, options)
 }
 

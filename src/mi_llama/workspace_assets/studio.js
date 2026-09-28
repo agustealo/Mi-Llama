@@ -1,10 +1,9 @@
-import { apiErrorMessage, AuthClient, AuthError } from './auth.js'
+import { apiErrorMessage, AuthClient, AuthError, SIGN_IN_UNAVAILABLE } from './auth.js'
 import { bindTextareaEditor, clearEditorAdapter, documentStateForText, getEditorAdapter } from './editor_adapter.js'
 
 const PROJECT_KEY = 'mi-llama.project.v1'
 const DOCUMENT_KEY = 'mi-llama.document.v1'
 const AUTOSAVE_DELAY = 700
-const SIGN_IN_UNAVAILABLE = 'Sign-in is unavailable in this workspace.'
 
 const state = {
   auth: null,

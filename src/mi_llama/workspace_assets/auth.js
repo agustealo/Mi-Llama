@@ -1,5 +1,6 @@
 const SESSION_KEY = 'mi-llama.supabase.session.v1'
 const REFRESH_SKEW_SECONDS = 60
+export const SIGN_IN_UNAVAILABLE = 'Sign-in is unavailable in this workspace.'
 let sharedClientPromise = null
 let apiFetchInterceptor = null
 
