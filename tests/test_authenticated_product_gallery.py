@@ -19,10 +19,24 @@ def test_product_gallery_uses_authenticated_fixture_and_real_api_path() -> None:
     assert "#surface-question" in capture
     assert "#surface-note-body" in capture
     assert 'label in ("Sources", "Open questions", "Research notes")' in capture
-    assert "create_api_app(" in fixture
-    assert "attach_workspace(app)" in fixture
+    assert "create_workspace_app(" in fixture
+    assert "create_api_app(" not in fixture
+    assert "attach_workspace(" not in fixture
     assert "FixtureRepository()" in fixture
     assert "FixtureStorage()" in fixture
+
+
+def test_workspace_factory_supports_governed_dependency_injection() -> None:
+    workspace = (ROOT / "src" / "mi_llama" / "workspace.py").read_text()
+
+    assert "provider: ModelProvider | None = None" in workspace
+    assert "repository: Repository | None = None" in workspace
+    assert "storage: ObjectStorage | None = None" in workspace
+    assert "research_engine: ResearchEngine | None = None" in workspace
+    assert "provider=provider" in workspace
+    assert "repository=repository" in workspace
+    assert "storage=storage" in workspace
+    assert "research_engine=research_engine" in workspace
 
 
 def test_fixture_does_not_add_a_production_fallback() -> None:
