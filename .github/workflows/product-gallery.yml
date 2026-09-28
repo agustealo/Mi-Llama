@@ -83,6 +83,7 @@ jobs:
               "tiptap_editor.bundle.js",
               "studio.css",
               "studio.js",
+              "studio_surfaces.js",
               "studio_collaborator.css",
               "studio_collaborator.js",
               "rich_editor.css",
