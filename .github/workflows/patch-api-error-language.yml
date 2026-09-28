@@ -23,70 +23,65 @@ jobs:
 
           studio_path = Path('src/mi_llama/workspace_assets/studio.js')
           studio = studio_path.read_text()
-
-          old = '''async function apiJson(path, options = {}) {
-  if (!state.auth) throw new AuthError(SIGN_IN_UNAVAILABLE, 503)
-  const response = await state.auth.apiFetch(path, options)
-  if (!response.ok) {
-    const payload = await readJson(response)
-    throw new AuthError(payload?.detail || `Request failed (${response.status})`, response.status)
-  }
-  return readJson(response)
-}
-'''
-          new = '''function apiErrorMessage(status) {
-  if (status === 401) return 'Your session has ended. Sign in again.'
-  if (status === 403) return 'You do not have access to do that in this project.'
-  if (status === 404) return 'That item is no longer available. Refresh and try again.'
-  if (status === 409) return 'This changed since you opened it. Review the latest version and try again.'
-  if (status === 413) return 'That item is too large to process here.'
-  if (status === 422) return 'Some of the information needs attention before this can continue.'
-  if (status === 429) return 'Too many requests right now. Try again shortly.'
-  if (status >= 500) return 'Mi-Llama could not complete that right now. Try again shortly.'
-  return 'Mi-Llama could not complete that request. Check your work and try again.'
-}
-
-async function apiJson(path, options = {}) {
-  if (!state.auth) throw new AuthError(SIGN_IN_UNAVAILABLE, 503)
-  const response = await state.auth.apiFetch(path, options)
-  if (!response.ok) {
-    await readJson(response)
-    throw new AuthError(apiErrorMessage(response.status), response.status)
-  }
-  return readJson(response)
-}
-'''
-          if old not in studio:
-              if new not in studio:
-                  raise SystemExit('apiJson patch target missing')
-          else:
-              studio = studio.replace(old, new, 1)
-              studio_path.write_text(studio)
+          old = (
+              "async function apiJson(path, options = {}) {\n"
+              "  if (!state.auth) throw new AuthError(SIGN_IN_UNAVAILABLE, 503)\n"
+              "  const response = await state.auth.apiFetch(path, options)\n"
+              "  if (!response.ok) {\n"
+              "    const payload = await readJson(response)\n"
+              "    throw new AuthError(payload?.detail || `Request failed (${response.status})`, response.status)\n"
+              "  }\n"
+              "  return readJson(response)\n"
+              "}\n"
+          )
+          new = (
+              "function apiErrorMessage(status) {\n"
+              "  if (status === 401) return 'Your session has ended. Sign in again.'\n"
+              "  if (status === 403) return 'You do not have access to do that in this project.'\n"
+              "  if (status === 404) return 'That item is no longer available. Refresh and try again.'\n"
+              "  if (status === 409) return 'This changed since you opened it. Review the latest version and try again.'\n"
+              "  if (status === 413) return 'That item is too large to process here.'\n"
+              "  if (status === 422) return 'Some of the information needs attention before this can continue.'\n"
+              "  if (status === 429) return 'Too many requests right now. Try again shortly.'\n"
+              "  if (status >= 500) return 'Mi-Llama could not complete that right now. Try again shortly.'\n"
+              "  return 'Mi-Llama could not complete that request. Check your work and try again.'\n"
+              "}\n\n"
+              "async function apiJson(path, options = {}) {\n"
+              "  if (!state.auth) throw new AuthError(SIGN_IN_UNAVAILABLE, 503)\n"
+              "  const response = await state.auth.apiFetch(path, options)\n"
+              "  if (!response.ok) {\n"
+              "    await readJson(response)\n"
+              "    throw new AuthError(apiErrorMessage(response.status), response.status)\n"
+              "  }\n"
+              "  return readJson(response)\n"
+              "}\n"
+          )
+          if old in studio:
+              studio_path.write_text(studio.replace(old, new, 1))
+          elif new not in studio:
+              raise SystemExit('apiJson patch target missing')
 
           tests_path = Path('tests/test_workspace_consumer_language.py')
           tests = tests_path.read_text()
-          marker = '\n\ndef test_workspace_shell_keeps_navigation_and_health_contracts() -> None:\n'
-          addition = '''
-
-          def test_api_errors_are_translated_before_reaching_writer_flows() -> None:
-              studio = (ASSETS / "studio.js").read_text()
-
-              assert "function apiErrorMessage(status)" in studio
-              assert "Your session has ended. Sign in again." in studio
-              assert "You do not have access to do that in this project." in studio
-              assert "That item is no longer available. Refresh and try again." in studio
-              assert "This changed since you opened it. Review the latest version and try again." in studio
-              assert "Too many requests right now. Try again shortly." in studio
-              assert "Mi-Llama could not complete that right now. Try again shortly." in studio
-              assert "throw new AuthError(apiErrorMessage(response.status), response.status)" in studio
-              assert "payload?.detail" not in studio
-              assert "Request failed (${response.status})" not in studio
-          '''
+          marker = "\n\ndef test_workspace_shell_keeps_navigation_and_health_contracts() -> None:\n"
+          addition = (
+              "\n\ndef test_api_errors_are_translated_before_reaching_writer_flows() -> None:\n"
+              "    studio = (ASSETS / 'studio.js').read_text()\n\n"
+              "    assert 'function apiErrorMessage(status)' in studio\n"
+              "    assert 'Your session has ended. Sign in again.' in studio\n"
+              "    assert 'You do not have access to do that in this project.' in studio\n"
+              "    assert 'That item is no longer available. Refresh and try again.' in studio\n"
+              "    assert 'This changed since you opened it. Review the latest version and try again.' in studio\n"
+              "    assert 'Too many requests right now. Try again shortly.' in studio\n"
+              "    assert 'Mi-Llama could not complete that right now. Try again shortly.' in studio\n"
+              "    assert 'throw new AuthError(apiErrorMessage(response.status), response.status)' in studio\n"
+              "    assert 'payload?.detail' not in studio\n"
+              "    assert 'Request failed (${response.status})' not in studio\n"
+          )
           if 'def test_api_errors_are_translated_before_reaching_writer_flows' not in tests:
               if marker not in tests:
                   raise SystemExit('consumer-language insertion marker missing')
-              tests = tests.replace(marker, addition + marker, 1)
-              tests_path.write_text(tests)
+              tests_path.write_text(tests.replace(marker, addition + marker, 1))
           PY
       - name: Commit patch if changed
         run: |
