@@ -193,4 +193,6 @@ def test_source_backed_generation_uses_capability_language() -> None:
     research = (ASSETS / "studio_research.js").read_text()
 
     assert "Select an available writing model before generating a source-backed edit." in research
-    assert "Select an available Ollama model before generating a source-backed edit." not in research
+    assert (
+        "Select an available Ollama model before generating a source-backed edit." not in research
+    )
