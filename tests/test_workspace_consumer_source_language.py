@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ASSETS = Path(__file__).parents[1] / "src" / "mi_llama" / "workspace_assets"
 
 
