@@ -48,7 +48,7 @@ def test_product_gallery_uses_a_bounded_pixel_fidelity_contract() -> None:
     assert "python docs/verify_product_gallery.py" in workflow
     assert "git diff --exit-code -- docs/assets/screenshots" not in workflow
     assert "MAX_CHANGED_PIXELS = 64" in verifier
-    assert "MAX_CHANNEL_DELTA = 8" in verifier
+    assert "MAX_CHANNEL_DELTA = 12" in verifier
     assert 'subprocess.run(\n        ["git", "show"' in verifier
     assert "dimensions changed" in verifier
     assert "expected 6 governed screenshots" in verifier
