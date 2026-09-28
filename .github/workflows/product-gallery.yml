@@ -10,6 +10,7 @@ on:
       - "src/mi_llama/workspace.py"
       - "src/mi_llama/workspace_assets/**"
       - "docs/capture_screenshots.py"
+      - "docs/verify_product_gallery.py"
       - "docs/product_fixture_server.py"
       - "docs/assets/screenshots/**"
       - "pyproject.toml"
@@ -23,6 +24,7 @@ on:
       - "src/mi_llama/workspace.py"
       - "src/mi_llama/workspace_assets/**"
       - "docs/capture_screenshots.py"
+      - "docs/verify_product_gallery.py"
       - "docs/product_fixture_server.py"
       - "docs/assets/screenshots/**"
       - "pyproject.toml"
@@ -132,11 +134,7 @@ jobs:
           retention-days: 7
 
       - name: Verify committed gallery matches the product
-        run: |
-          if ! git diff --exit-code -- docs/assets/screenshots; then
-            echo "::error::Product screenshots are stale. Download the generated gallery artifact and commit the refreshed PNGs."
-            exit 1
-          fi
+        run: python docs/verify_product_gallery.py
 
       - name: Show server log on failure
         if: failure()
