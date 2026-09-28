@@ -35,7 +35,7 @@ function evidenceDetails(item) {
   details.className = 'proposal-grounding-details'
 
   const summary = document.createElement('summary')
-  summary.textContent = 'Inspect frozen passage'
+  summary.textContent = 'View saved passage'
   details.appendChild(summary)
 
   const passage = document.createElement('blockquote')
@@ -51,7 +51,7 @@ function evidenceDetails(item) {
 
   const provenance = document.createElement('small')
   provenance.className = 'proposal-grounding-provenance'
-  provenance.textContent = `Frozen citation ${item.citation_id} · SHA-256 ${item.content_sha256}`
+  provenance.textContent = 'Saved with this draft'
   details.appendChild(provenance)
   return details
 }
@@ -78,14 +78,15 @@ function renderGroundingReview(panel, proposal) {
   const head = document.createElement('div')
   head.className = 'proposal-grounding-head'
   const title = document.createElement('b')
-  title.textContent = `Reviewed evidence · ${summary.items.length}`
+  title.textContent = `Sources used · ${summary.items.length}`
   const balance = document.createElement('span')
   balance.textContent = summary.label
   head.append(title, balance)
   section.appendChild(head)
 
   const note = document.createElement('p')
-  note.textContent = 'This immutable source packet constrained the grounded proposal. Refinements keep the same packet unless you return to the manuscript and review evidence again.'
+  note.textContent =
+    'These are the sources Mi-Llama used for this draft. Refinements keep the same sources unless you return to the manuscript and review evidence again.'
   section.appendChild(note)
 
   const list = document.createElement('div')
@@ -98,8 +99,7 @@ function renderGroundingReview(panel, proposal) {
     const source = document.createElement('strong')
     source.textContent = sourceLabel(item)
     const meta = document.createElement('small')
-    const integrity = item.content_sha256.slice(0, 10)
-    meta.textContent = `${item.stance} · source integrity ${integrity}`
+    meta.textContent = `${item.stance} · saved with this draft`
     copy.append(source, meta)
     row.append(copy, evidenceDetails(item))
     list.appendChild(row)
