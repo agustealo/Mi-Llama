@@ -108,6 +108,22 @@ def test_dynamic_access_states_are_consumer_safe() -> None:
         assert phrase not in studio
 
 
+def test_writing_model_availability_is_capability_facing() -> None:
+    studio = (ASSETS / "studio.js").read_text()
+
+    assert 'Writing model<select id="studio-model"' in studio
+    assert "Writing assistance unavailable" in studio
+    assert "AI editing will return when a writing model is available." in studio
+    assert "state.canEdit && writingAvailable" in studio
+    assert "!selection.text.trim() || !state.model || !state.canEdit" in studio
+    assert "Writing assistance is unavailable right now." in studio
+    for phrase in (
+        "No Ollama models available",
+        "No Ollama model is available for writing proposals.",
+    ):
+        assert phrase not in studio
+
+
 def test_workspace_shell_keeps_navigation_and_health_contracts() -> None:
     script = (ASSETS / "app.js").read_text()
 
