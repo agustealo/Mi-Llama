@@ -132,13 +132,13 @@ def test_api_errors_are_translated_before_reaching_writer_flows() -> None:
     assert "function apiErrorMessage(status)" not in studio
     assert "apiErrorMessage(response.status)" in auth
     assert "apiErrorMessage, AuthClient, AuthError" in studio
-    assert "Your session has ended. Sign in again." in studio
-    assert "You do not have access to do that in this project." in studio
-    assert "That item is no longer available. Refresh and try again." in studio
-    assert "This changed since you opened it. Review the latest version and try again." in studio
-    assert "Too many requests right now. Try again shortly." in studio
-    assert "Mi-Llama could not complete that right now. Try again shortly." in studio
-    assert "throw new AuthError(apiErrorMessage(response.status), response.status)" in studio
+    assert "Your session has ended. Sign in again." in auth
+    assert "You do not have access to do that in this project." in auth
+    assert "That item is no longer available. Refresh and try again." in auth
+    assert "This changed since you opened it. Review the latest version and try again." in auth
+    assert "Too many requests right now. Try again shortly." in auth
+    assert "Mi-Llama could not complete that right now. Try again shortly." in auth
+    assert "throw new AuthError(apiErrorMessage(response.status), response.status)" in auth
     assert "Request failed (${response.status})" not in auth
     assert "payload?.detail" not in studio
     assert "Request failed (${response.status})" not in studio
