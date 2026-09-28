@@ -83,9 +83,11 @@ def test_sign_in_failures_are_translated_before_the_dialog_sees_them() -> None:
 
 
 def test_dynamic_access_states_are_consumer_safe() -> None:
+    auth = (ASSETS / "auth.js").read_text()
     studio = (ASSETS / "studio.js").read_text()
 
-    assert "const SIGN_IN_UNAVAILABLE = 'Sign-in is unavailable in this workspace.'" in studio
+    assert "export const SIGN_IN_UNAVAILABLE = 'Sign-in is unavailable in this workspace.'" in auth
+    assert "SIGN_IN_UNAVAILABLE" in studio
     assert "errorNode.textContent = unavailable ? SIGN_IN_UNAVAILABLE : ''" in studio
     assert "email.disabled = unavailable" in studio
     assert "password.disabled = unavailable" in studio
