@@ -1,0 +1,100 @@
+name: Patch API error language
+
+on:
+  push:
+    branches:
+      - ux/api-error-language
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ux/api-error-language
+          fetch-depth: 1
+      - name: Normalize writer-facing API failures
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          studio_path = Path('src/mi_llama/workspace_assets/studio.js')
+          studio = studio_path.read_text()
+
+          old = '''async function apiJson(path, options = {}) {
+  if (!state.auth) throw new AuthError(SIGN_IN_UNAVAILABLE, 503)
+  const response = await state.auth.apiFetch(path, options)
+  if (!response.ok) {
+    const payload = await readJson(response)
+    throw new AuthError(payload?.detail || `Request failed (${response.status})`, response.status)
+  }
+  return readJson(response)
+}
+'''
+          new = '''function apiErrorMessage(status) {
+  if (status === 401) return 'Your session has ended. Sign in again.'
+  if (status === 403) return 'You do not have access to do that in this project.'
+  if (status === 404) return 'That item is no longer available. Refresh and try again.'
+  if (status === 409) return 'This changed since you opened it. Review the latest version and try again.'
+  if (status === 413) return 'That item is too large to process here.'
+  if (status === 422) return 'Some of the information needs attention before this can continue.'
+  if (status === 429) return 'Too many requests right now. Try again shortly.'
+  if (status >= 500) return 'Mi-Llama could not complete that right now. Try again shortly.'
+  return 'Mi-Llama could not complete that request. Check your work and try again.'
+}
+
+async function apiJson(path, options = {}) {
+  if (!state.auth) throw new AuthError(SIGN_IN_UNAVAILABLE, 503)
+  const response = await state.auth.apiFetch(path, options)
+  if (!response.ok) {
+    await readJson(response)
+    throw new AuthError(apiErrorMessage(response.status), response.status)
+  }
+  return readJson(response)
+}
+'''
+          if old not in studio:
+              if new not in studio:
+                  raise SystemExit('apiJson patch target missing')
+          else:
+              studio = studio.replace(old, new, 1)
+              studio_path.write_text(studio)
+
+          tests_path = Path('tests/test_workspace_consumer_language.py')
+          tests = tests_path.read_text()
+          marker = '\n\ndef test_workspace_shell_keeps_navigation_and_health_contracts() -> None:\n'
+          addition = '''
+
+          def test_api_errors_are_translated_before_reaching_writer_flows() -> None:
+              studio = (ASSETS / "studio.js").read_text()
+
+              assert "function apiErrorMessage(status)" in studio
+              assert "Your session has ended. Sign in again." in studio
+              assert "You do not have access to do that in this project." in studio
+              assert "That item is no longer available. Refresh and try again." in studio
+              assert "This changed since you opened it. Review the latest version and try again." in studio
+              assert "Too many requests right now. Try again shortly." in studio
+              assert "Mi-Llama could not complete that right now. Try again shortly." in studio
+              assert "throw new AuthError(apiErrorMessage(response.status), response.status)" in studio
+              assert "payload?.detail" not in studio
+              assert "Request failed (${response.status})" not in studio
+          '''
+          if 'def test_api_errors_are_translated_before_reaching_writer_flows' not in tests:
+              if marker not in tests:
+                  raise SystemExit('consumer-language insertion marker missing')
+              tests = tests.replace(marker, addition + marker, 1)
+              tests_path.write_text(tests)
+          PY
+      - name: Commit patch if changed
+        run: |
+          if git diff --quiet -- src/mi_llama/workspace_assets/studio.js tests/test_workspace_consumer_language.py; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/mi_llama/workspace_assets/studio.js tests/test_workspace_consumer_language.py
+          git commit -m "Normalize writer-facing API error messages"
+          git push origin HEAD:ux/api-error-language
