@@ -19,7 +19,10 @@ def test_workspace_shell_hides_provider_storage_and_architecture_jargon() -> Non
 
     forbidden = (
         "Canonical workflow",
+        "Canonical data first",
         "canonical source collection",
+        "provider contract",
+        "Revision-bound provenance",
         "Ollama model runtime",
         "Ollama ready",
         "Ollama unavailable",
