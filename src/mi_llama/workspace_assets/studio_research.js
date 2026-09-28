@@ -459,7 +459,7 @@ async function generateGroundedProposal(target, operation, button) {
   }
   const model = $('#studio-model')?.value || null
   if (!model) {
-    showResearchError('Select an available Ollama model before generating a source-backed edit.')
+    showResearchError('Select an available writing model before generating a source-backed edit.')
     return
   }
   const prompt = $('#studio-instruction')?.value.trim() || null
