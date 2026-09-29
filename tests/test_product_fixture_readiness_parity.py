@@ -1,14 +1,37 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
+import sys
+from pathlib import Path
+from types import ModuleType
 from uuid import uuid4
 
 import pytest
 
-from docs.product_fixture_server import TOKEN
-from docs.product_fixture_strict_server import StrictFixtureRepository
 from mi_llama.domain import SourceChunk, SourceKind, SourceStatus
 from mi_llama.research_structure.models import CreateResearchNoteRequest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_module(name: str, path: Path) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"could not load fixture module: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_fixture = _load_module("product_fixture_server", ROOT / "docs" / "product_fixture_server.py")
+_strict_fixture = _load_module(
+    "product_fixture_strict_server", ROOT / "docs" / "product_fixture_strict_server.py"
+)
+TOKEN = _fixture.TOKEN
+StrictFixtureRepository = _strict_fixture.StrictFixtureRepository
 
 
 async def _seed_source(repo: StrictFixtureRepository):
