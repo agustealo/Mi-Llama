@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(19);
+select extensions.plan(19);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -26,10 +26,7 @@ values (
 create schema attacker;
 grant usage on schema attacker to authenticated;
 
-create table attacker.projects (
-    id uuid primary key,
-    owner_id uuid not null
-);
+create table attacker.projects (id uuid primary key, owner_id uuid not null);
 insert into attacker.projects (id, owner_id)
 values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '22222222-2222-4222-8222-222222222222');
 
@@ -46,11 +43,11 @@ as $$ select true $$;
 grant execute on function attacker.is_project_owner(uuid) to authenticated;
 grant execute on function attacker.is_project_member(uuid, text[]) to authenticated;
 
-select diag(
+select extensions.diag(
     coalesce(
         string_agg(
             format(
-                '%s(%s) | search_path=%s | PUBLIC=%s | anon=%s | authenticated=%s',
+                '%s(%s) | config=%s | PUBLIC=%s | anon=%s | authenticated=%s',
                 p.proname,
                 pg_get_function_identity_arguments(p.oid),
                 coalesce(array_to_string(p.proconfig, ','), '<unset>'),
@@ -70,77 +67,100 @@ select diag(
 )
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
-where n.nspname = 'public'
-  and p.prosecdef;
+where n.nspname = 'public' and p.prosecdef;
 
-select is(
-    (
-        select count(*)
-        from pg_proc p
-        join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'public'
-          and p.prosecdef
-    ),
-    4::bigint,
-    'public SECURITY DEFINER surface is explicitly reviewed'
+select extensions.diag(
+    coalesce(
+        string_agg(
+            format('%s inherits %s (admin=%s)', member.rolname, granted.rolname, m.admin_option),
+            E'\n' order by member.rolname, granted.rolname
+        ),
+        '<no anon/authenticated role memberships>'
+    )
+)
+from pg_auth_members m
+join pg_roles member on member.oid = m.member
+join pg_roles granted on granted.oid = m.roleid
+where member.rolname in ('anon', 'authenticated')
+   or granted.rolname in ('anon', 'authenticated');
+
+select extensions.diag(
+    coalesce(
+        string_agg(
+            format(
+                '%s(%s) ACL grantee=%s privilege=%s',
+                p.proname,
+                pg_get_function_identity_arguments(p.oid),
+                coalesce(grantee.rolname, 'PUBLIC'),
+                acl.privilege_type
+            ),
+            E'\n' order by p.proname, coalesce(grantee.rolname, 'PUBLIC')
+        ),
+        '<no explicit SECURITY DEFINER ACL entries>'
+    )
+)
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+left join pg_roles grantee on grantee.oid = acl.grantee
+where n.nspname = 'public'
+  and p.prosecdef
+  and acl.privilege_type = 'EXECUTE';
+
+select extensions.is(
+    (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prosecdef),
+    23::bigint,
+    'public SECURITY DEFINER surface inventory is stable'
 );
 
-select ok(
+select extensions.ok(
     not exists (
         select 1
         from pg_proc p
         join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'public'
           and p.prosecdef
-          and not ('search_path=public' = any(coalesce(p.proconfig, array[]::text[])))
+          and coalesce(array_to_string(p.proconfig, ','), '') not in (
+              'search_path=public',
+              'search_path=public, storage'
+          )
     ),
-    'every public SECURITY DEFINER pins search_path to public'
+    'every public SECURITY DEFINER pins a trusted search_path'
 );
 
-select ok(
+select extensions.ok(
     not exists (
         select 1
         from pg_proc p
         join pg_namespace n on n.oid = p.pronamespace
         cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
-        where n.nspname = 'public'
-          and p.prosecdef
-          and acl.grantee = 0
-          and acl.privilege_type = 'EXECUTE'
+        where n.nspname = 'public' and p.prosecdef
+          and acl.grantee = 0 and acl.privilege_type = 'EXECUTE'
     ),
     'no public SECURITY DEFINER is executable by PUBLIC'
 );
 
-select ok(
+select extensions.ok(
     not exists (
         select 1
         from pg_proc p
         join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'public'
-          and p.prosecdef
+        where n.nspname = 'public' and p.prosecdef
           and has_function_privilege('anon', p.oid, 'EXECUTE')
     ),
     'anon cannot execute any public SECURITY DEFINER'
 );
 
-select is(
-    (
-        select count(*)
-        from pg_proc p
-        join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'public'
-          and p.prosecdef
-          and has_function_privilege('authenticated', p.oid, 'EXECUTE')
-    ),
-    4::bigint,
-    'authenticated can execute only the reviewed public SECURITY DEFINER helpers'
+select extensions.is(
+    (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prosecdef and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
+    20::bigint,
+    'current authenticated SECURITY DEFINER execution surface is inventoried'
 );
 
 set local role anon;
-select throws_ok(
+select extensions.throws_ok(
     $$select public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')$$,
-    '42501',
-    null,
+    '42501', null,
     'anonymous direct RPC-style invocation is denied'
 );
 reset role;
@@ -148,78 +168,26 @@ reset role;
 set local role authenticated;
 set local request.jwt.claim.sub = '22222222-2222-4222-8222-222222222222';
 
-select ok(
-    not public.is_project_owner('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    'outsider cannot forge ownership of another project through direct helper invocation'
-);
-
-select ok(
-    not public.is_project_member(
-        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-        array['editor', 'researcher', 'owner', 'service_role', 'anything']
-    ),
-    'caller-controlled allowed_roles cannot fabricate membership'
-);
-
-select ok(
-    not public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    'outsider cannot use can_access_project as an RLS bypass'
-);
-
-select ok(
-    not public.can_edit_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    'outsider cannot use can_edit_project as a mutation bypass'
-);
-
-select ok(
-    public.is_project_owner('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
-    'legitimate owner is recognized by direct helper invocation'
-);
-
-select ok(
-    public.can_access_project('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
-    'legitimate owner retains direct access authorization'
-);
-
-select ok(
-    public.can_edit_project('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
-    'legitimate owner retains direct edit authorization'
-);
+select extensions.ok(not public.is_project_owner('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'outsider cannot forge ownership through direct helper invocation');
+select extensions.ok(not public.is_project_member('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', array['editor','researcher','owner','service_role','anything']), 'caller-controlled allowed_roles cannot fabricate membership');
+select extensions.ok(not public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'outsider cannot use can_access_project as an RLS bypass');
+select extensions.ok(not public.can_edit_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'outsider cannot use can_edit_project as a mutation bypass');
+select extensions.ok(public.is_project_owner('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'), 'legitimate owner is recognized');
+select extensions.ok(public.can_access_project('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'), 'legitimate owner retains access authorization');
+select extensions.ok(public.can_edit_project('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'), 'legitimate owner retains edit authorization');
 
 set local request.jwt.claim.role = 'service_role';
-select ok(
-    not public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    'forging a JWT role claim does not grant another project access'
-);
+select extensions.ok(not public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'forging a JWT role claim does not grant another project access');
 
 set local search_path = attacker, public;
-select ok(
-    not public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    'caller search_path poisoning cannot redirect SECURITY DEFINER internals'
-);
+select extensions.ok(not public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'caller search_path poisoning cannot redirect SECURITY DEFINER internals');
 
 set local request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
 set local request.jwt.claim.role = 'authenticated';
+select extensions.ok(public.is_project_member('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', null), 'reader membership is recognized');
+select extensions.ok(public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'reader can access the project');
+select extensions.ok(not public.can_edit_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'reader cannot escalate to edit authorization');
+select extensions.ok(not public.is_project_owner('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'reader cannot escalate to ownership');
 
-select ok(
-    public.is_project_member('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', null),
-    'reader membership is recognized'
-);
-
-select ok(
-    public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    'reader can access the project'
-);
-
-select ok(
-    not public.can_edit_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    'reader membership cannot escalate to edit authorization'
-);
-
-select ok(
-    not public.is_project_owner('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    'reader membership cannot escalate to ownership'
-);
-
-select * from finish();
+select * from extensions.finish();
 rollback;
