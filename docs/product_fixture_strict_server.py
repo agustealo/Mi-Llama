@@ -85,7 +85,9 @@ class StrictFixtureRepository(FixtureRepository):
                 chunk_id=request.source_chunk_id,
             )
             if chunk is None:
-                raise ValueError("research note source chunk must be ready and belong to the same project")
+                raise ValueError(
+                    "research note source chunk must be ready and belong to the same project"
+                )
         return await super().create_research_note(
             access_token=access_token,
             project_id=project_id,
