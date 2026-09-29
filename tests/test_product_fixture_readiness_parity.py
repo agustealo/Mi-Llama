@@ -12,7 +12,9 @@ from mi_llama.research_structure.models import CreateResearchNoteRequest
 
 
 async def _seed_source(repo: StrictFixtureRepository):
-    project = await repo.create_project(access_token=TOKEN, title="Fixture parity", description=None)
+    project = await repo.create_project(
+        access_token=TOKEN, title="Fixture parity", description=None
+    )
     source_id = uuid4()
     version_id = uuid4()
     checksum = "a" * 64
@@ -125,7 +127,9 @@ def test_fixture_hides_chunks_until_source_and_version_are_ready() -> None:
             status=SourceStatus.READY,
             error_message=None,
         )
-        assert await repo.get_source_chunks(access_token=TOKEN, source_version_id=version.id) == [chunk]
+        assert await repo.get_source_chunks(access_token=TOKEN, source_version_id=version.id) == [
+            chunk
+        ]
         assert (
             await repo.get_research_chunk(
                 access_token=TOKEN, project_id=project.id, chunk_id=chunk.id
