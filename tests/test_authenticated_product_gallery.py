@@ -35,6 +35,8 @@ def test_product_gallery_capture_is_deterministic_before_commit_comparison() -> 
     assert 'playwright.chromium.launch(args=["--disable-gpu"])' in capture
     assert 'animations="disabled"' in capture
     assert 'caret="hide"' in capture
+    assert 'GALLERY_DATE = "9/28/2026"' in capture
+    assert "Date.prototype.toLocaleDateString" in capture
     assert "if first != second:" in capture
     assert "Product screenshot is not byte-stable across consecutive captures" in capture
     assert ".write_bytes(stable_screenshot(page))" in capture
