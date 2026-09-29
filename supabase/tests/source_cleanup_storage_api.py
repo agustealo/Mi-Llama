@@ -98,9 +98,7 @@ def admin_rest(method: str, table_and_query: str, payload: object | None = None)
 
 def main() -> None:
     suffix = uuid.uuid4().hex[:12]
-    owner_id, _ = create_user(
-        f"storage-owner-{suffix}@example.test", "MiLlama-Test-Owner-42!"
-    )
+    owner_id, _ = create_user(f"storage-owner-{suffix}@example.test", "MiLlama-Test-Owner-42!")
     editor_id, editor_token = create_user(
         f"storage-editor-{suffix}@example.test", "MiLlama-Test-Editor-42!"
     )
@@ -188,13 +186,16 @@ def main() -> None:
 
     # Cleanup must still work through the real Storage API for the exact object
     # created by this ingest attempt.
-    request(
+    _, body = request(
         "DELETE",
         f"/storage/v1/object/{BUCKET}",
         key=ANON_KEY,
         token=editor_token,
         json_body={"prefixes": [path]},
     )
+    deleted = json.loads(body)
+    if not any(item.get("name") == path for item in deleted):
+        raise AssertionError(f"Storage remove did not report deleted object {path}: {deleted!r}")
 
     # Service-role read is used only to prove the physical object is gone.
     request(
