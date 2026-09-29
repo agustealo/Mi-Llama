@@ -136,6 +136,12 @@ select extensions.ok(
     'revoked creator retains narrow cleanup authority for its processing object'
 );
 
+-- Supabase protects direct storage table deletes because they normally orphan
+-- backend objects. This transaction contains metadata-only fixture rows, so the
+-- local escape hatch lets pgTAP exercise DELETE RLS without pretending that
+-- application code should bypass the Storage API.
+set local storage.allow_delete_query = 'true';
+
 select extensions.results_eq(
     $$
         delete from storage.objects
