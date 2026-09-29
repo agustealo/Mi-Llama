@@ -57,6 +57,10 @@ class RecoveryRepository:
             None,
         )
 
+    async def list_sources(self, *, access_token: str, project_id: UUID) -> list[Source]:
+        del access_token
+        return [item for item in self.sources.values() if item.project_id == project_id]
+
     async def create_source(self, **kwargs: Any) -> Source:
         now = datetime.now(UTC)
         item = Source(

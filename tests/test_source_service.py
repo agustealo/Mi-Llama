@@ -49,6 +49,12 @@ class MemorySourceRepository:
             return self.source
         return None
 
+    async def list_sources(self, *, access_token: str, project_id: UUID) -> list[Source]:
+        del access_token
+        if self.source is not None and self.source.project_id == project_id:
+            return [self.source]
+        return []
+
     async def create_source(self, **kwargs: Any) -> Source:
         now = datetime.now(UTC)
         self.source = Source(
