@@ -86,8 +86,12 @@ def post_rest(table: str, token: str, payload: object) -> list[dict[str, object]
 
 def main() -> None:
     suffix = uuid.uuid4().hex[:12]
-    owner_id, owner_token = create_user(f"storage-owner-{suffix}@example.test", "MiLlama-Test-Owner-42!")
-    editor_id, editor_token = create_user(f"storage-editor-{suffix}@example.test", "MiLlama-Test-Editor-42!")
+    owner_id, owner_token = create_user(
+        f"storage-owner-{suffix}@example.test", "MiLlama-Test-Owner-42!"
+    )
+    editor_id, editor_token = create_user(
+        f"storage-editor-{suffix}@example.test", "MiLlama-Test-Editor-42!"
+    )
 
     project_id = str(uuid.uuid4())
     source_id = str(uuid.uuid4())
