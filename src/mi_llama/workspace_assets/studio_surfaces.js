@@ -28,6 +28,15 @@ function formatDate(value) {
   return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleDateString()
 }
 
+export function sourceLibraryState(sources) {
+  const items = Array.isArray(sources) ? sources : []
+  return {
+    ready: items.filter((source) => source.status === 'ready'),
+    failed: items.filter((source) => source.status === 'failed'),
+    processing: items.filter((source) => source.status === 'processing'),
+  }
+}
+
 export function emptyProjectSurfaceState() {
   return {
     sources: null,
@@ -106,7 +115,8 @@ function renderOverview(context) {
   const activeQuestions = surface.questions?.filter(
     (item) => item.status === 'open' || item.status === 'investigating',
   )
-  const sourceCount = surface.sources === null ? '—' : surface.sources.length
+  const sourceState = surface.sources === null ? null : sourceLibraryState(surface.sources)
+  const sourceCount = sourceState === null ? '—' : sourceState.ready.length
   const questionCount = surface.questions === null ? '—' : activeQuestions.length
   const noteCount = surface.notes === null ? '—' : surface.notes.length
   const words = documentId ? wordCount(localText) : 0
@@ -116,6 +126,14 @@ function renderOverview(context) {
     surface.citations === null
       ? 'Citation status is temporarily unavailable.'
       : `${surface.citations.filter((item) => item.status === 'proposed').length} citation candidates still need review.`
+  const sourceMeta =
+    sourceState === null
+      ? 'Temporarily unavailable'
+      : sourceState.failed.length
+        ? `${sourceState.failed.length} failed import${sourceState.failed.length === 1 ? '' : 's'} need attention`
+        : sourceState.processing.length
+          ? `${sourceState.processing.length} import${sourceState.processing.length === 1 ? '' : 's'} processing`
+          : 'Ready in private project library'
 
   return `
     <div class="page-heading">
@@ -124,7 +142,7 @@ function renderOverview(context) {
     </div>
     <div id="surface-error" class="studio-error" hidden></div>
     <div class="grid stats">
-      <div class="card stat"><div class="label">Sources</div><div class="value">${sourceCount}</div><div class="meta">${surface.sources === null ? 'Temporarily unavailable' : 'Private project library'}</div></div>
+      <div class="card stat"><div class="label">Sources</div><div class="value">${sourceCount}</div><div class="meta">${escapeHtml(sourceMeta)}</div></div>
       <div class="card stat"><div class="label">Open questions</div><div class="value">${questionCount}</div><div class="meta">${surface.questions === null ? 'Temporarily unavailable' : 'Open or investigating'}</div></div>
       <div class="card stat"><div class="label">Research notes</div><div class="value">${noteCount}</div><div class="meta">${surface.notes === null ? 'Temporarily unavailable' : 'Project notebook'}</div></div>
       <div class="card stat"><div class="label">Current manuscript words</div><div class="value">${words}</div><div class="meta">${documentId ? 'Active manuscript' : 'No manuscript yet'}</div></div>
@@ -141,23 +159,36 @@ function renderLibrary(context) {
     return `<div class="page-heading"><div><h1>Research Library</h1><p>Your project sources stay attached to the project that owns them.</p></div></div><div id="surface-error" class="studio-error" hidden></div>${unavailableView('Sources unavailable', 'Mi-Llama could not load this project’s source list right now.')}`
   }
 
+  const sourceState = sourceLibraryState(surface.sources)
   const rows = surface.sources.length
     ? surface.sources
-        .map(
-          (source) => `
+        .map((source) => {
+          const detail =
+            source.status === 'failed'
+              ? 'Import failed · upload this file again to retry.'
+              : source.status === 'processing'
+                ? 'Import in progress.'
+                : source.media_type || 'Source'
+          return `
       <div class="row">
-        <div class="doc"><div class="doc-icon">${escapeHtml(String(source.kind || 'file').toUpperCase())}</div><div><b>${escapeHtml(source.filename)}</b><small>${escapeHtml(source.media_type || 'Source')}</small></div></div>
+        <div class="doc"><div class="doc-icon">${escapeHtml(String(source.kind || 'file').toUpperCase())}</div><div><b>${escapeHtml(source.filename)}</b><small>${escapeHtml(detail)}</small></div></div>
         <div>${escapeHtml(String(source.kind || '—').toUpperCase())}</div>
         <div><span class="badge ${source.status === 'ready' ? '' : source.status === 'failed' ? 'amber' : 'gray'}">${escapeHtml(source.status || 'unknown')}</span></div>
         <div>${escapeHtml(formatDate(source.updated_at))}</div>
-      </div>`,
-        )
+      </div>`
+        })
         .join('')
     : '<div class="row"><div class="doc"><div class="doc-icon">＋</div><div><b>No sources yet</b><small>Add the first source to this project.</small></div></div><div>—</div><div><span class="badge gray">Empty</span></div><div>—</div></div>'
 
+  const statusNotice =
+    sourceState.failed.length || sourceState.processing.length
+      ? `<div class="card" style="margin-bottom:16px"><div class="panel-head"><h2>Import status</h2><span>${sourceState.failed.length ? `${sourceState.failed.length} need attention` : `${sourceState.processing.length} processing`}</span></div><div class="panel-body"><p>${sourceState.failed.length ? `${sourceState.failed.length} source import${sourceState.failed.length === 1 ? '' : 's'} failed. Select the original file below and upload it again to retry. Failed attempts are removed after a successful replacement is ready.` : `${sourceState.processing.length} source import${sourceState.processing.length === 1 ? ' is' : 's are'} still processing.`}</p></div></div>`
+      : ''
+
   return `
-    <div class="page-heading"><div><h1>Research Library</h1><p>${surface.sources.length} saved sources in ${escapeHtml(project.title)}.</p></div></div>
+    <div class="page-heading"><div><h1>Research Library</h1><p>${sourceState.ready.length} saved source${sourceState.ready.length === 1 ? '' : 's'} in ${escapeHtml(project.title)}.</p></div></div>
     <div id="surface-error" class="studio-error" hidden></div>
+    ${statusNotice}
     <div class="card" style="margin-bottom:16px"><div class="panel-head"><h2>Add source</h2><span>PDF, DOCX, EPUB, TXT, Markdown, HTML</span></div><div class="panel-body"><form id="surface-source-upload" class="inline-create" enctype="multipart/form-data"><input id="surface-source-file" type="file" accept=".pdf,.docx,.epub,.txt,.md,.markdown,.html,.htm" required><button class="primary" type="submit">Upload source</button></form></div></div>
     <div class="card table"><div class="row header"><div>Source</div><div>Format</div><div>Status</div><div>Updated</div></div>${rows}</div>`
 }
