@@ -159,6 +159,8 @@ select extensions.is(
     'lease release cannot delete another caller lease'
 );
 
+reset role;
+
 select extensions.is(
     (select count(*) from public.conversation_reply_leases),
     0::bigint,
