@@ -20,6 +20,8 @@ from mi_llama.repositories import Repository, RepositoryProtocolError
 from mi_llama.research import ResearchEngine, ResearchError
 from mi_llama.storage import ObjectStorage
 
+STALE_INGEST_ERROR = "Source processing lease expired"
+
 
 class SourceIngestError(ValueError):
     """The source cannot be accepted as submitted."""
@@ -119,6 +121,12 @@ class SourceService:
             checksum_sha256=checksum,
             size_bytes=len(content),
         )
+        await self._cleanup_expired_duplicates(
+            access_token=access_token,
+            project_id=project_id,
+            checksum_sha256=checksum,
+            active_source_id=source_id,
+        )
         try:
             version = await self._repository.create_source_version(
                 access_token=access_token,
@@ -143,6 +151,10 @@ class SourceService:
 
         uploaded = False
         try:
+            source = await self._renew_ingest_lease(
+                access_token=access_token,
+                source_id=source_id,
+            )
             await self._storage.upload(
                 access_token=access_token,
                 bucket=self._bucket,
@@ -151,6 +163,10 @@ class SourceService:
                 content=content,
             )
             uploaded = True
+            source = await self._renew_ingest_lease(
+                access_token=access_token,
+                source_id=source_id,
+            )
             chunks = _materialize_chunks(
                 prepared_chunks,
                 project_id=project_id,
@@ -160,6 +176,10 @@ class SourceService:
             stored_chunks = await self._repository.create_source_chunks(
                 access_token=access_token,
                 chunks=chunks,
+            )
+            source = await self._renew_ingest_lease(
+                access_token=access_token,
+                source_id=source_id,
             )
             version = await self._repository.set_source_version_ingest_state(
                 access_token=access_token,
@@ -225,6 +245,45 @@ class SourceService:
             version=version,
             chunks=chunks,
         )
+
+    async def _renew_ingest_lease(self, *, access_token: str, source_id: UUID) -> Source:
+        return await self._repository.set_source_ingest_state(
+            access_token=access_token,
+            source_id=source_id,
+            status=SourceStatus.PROCESSING,
+            error_message=None,
+        )
+
+    async def _cleanup_expired_duplicates(
+        self,
+        *,
+        access_token: str,
+        project_id: UUID,
+        checksum_sha256: str,
+        active_source_id: UUID,
+    ) -> None:
+        sources = await self._repository.list_sources(
+            access_token=access_token,
+            project_id=project_id,
+        )
+        for candidate in sources:
+            if (
+                candidate.id == active_source_id
+                or candidate.checksum_sha256 != checksum_sha256
+                or candidate.status is not SourceStatus.FAILED
+                or candidate.error_message != STALE_INGEST_ERROR
+            ):
+                continue
+            version = await self._repository.get_latest_source_version(
+                access_token=access_token,
+                source_id=candidate.id,
+            )
+            if version is None:
+                continue
+            await self._best_effort_delete(
+                access_token=access_token,
+                storage_path=version.storage_path,
+            )
 
     async def _index_if_enabled(
         self,
