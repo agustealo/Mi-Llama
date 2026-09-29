@@ -133,7 +133,7 @@ function renderOverview(context) {
         ? `${sourceState.failed.length} failed import${sourceState.failed.length === 1 ? '' : 's'} need attention`
         : sourceState.processing.length
           ? `${sourceState.processing.length} import${sourceState.processing.length === 1 ? '' : 's'} processing`
-          : 'Ready in private project library'
+          : 'Private project library'
 
   return `
     <div class="page-heading">
@@ -160,6 +160,10 @@ function renderLibrary(context) {
   }
 
   const sourceState = sourceLibraryState(surface.sources)
+  const hasImportWork = Boolean(sourceState.failed.length || sourceState.processing.length)
+  const savedSummary = hasImportWork
+    ? `${sourceState.ready.length} saved source${sourceState.ready.length === 1 ? '' : 's'}`
+    : `${surface.sources.length} saved sources`
   const rows = surface.sources.length
     ? surface.sources
         .map((source) => {
@@ -180,13 +184,12 @@ function renderLibrary(context) {
         .join('')
     : '<div class="row"><div class="doc"><div class="doc-icon">＋</div><div><b>No sources yet</b><small>Add the first source to this project.</small></div></div><div>—</div><div><span class="badge gray">Empty</span></div><div>—</div></div>'
 
-  const statusNotice =
-    sourceState.failed.length || sourceState.processing.length
-      ? `<div class="card" style="margin-bottom:16px"><div class="panel-head"><h2>Import status</h2><span>${sourceState.failed.length ? `${sourceState.failed.length} need attention` : `${sourceState.processing.length} processing`}</span></div><div class="panel-body"><p>${sourceState.failed.length ? `${sourceState.failed.length} source import${sourceState.failed.length === 1 ? '' : 's'} failed. Select the original file below and upload it again to retry. Failed attempts are removed after a successful replacement is ready.` : `${sourceState.processing.length} source import${sourceState.processing.length === 1 ? ' is' : 's are'} still processing.`}</p></div></div>`
-      : ''
+  const statusNotice = hasImportWork
+    ? `<div class="card" style="margin-bottom:16px"><div class="panel-head"><h2>Import status</h2><span>${sourceState.failed.length ? `${sourceState.failed.length} need attention` : `${sourceState.processing.length} processing`}</span></div><div class="panel-body"><p>${sourceState.failed.length ? `${sourceState.failed.length} source import${sourceState.failed.length === 1 ? '' : 's'} failed. Select the original file below and upload it again to retry. Failed attempts are removed after a successful replacement is ready.` : `${sourceState.processing.length} source import${sourceState.processing.length === 1 ? ' is' : 's are'} still processing.`}</p></div></div>`
+    : ''
 
   return `
-    <div class="page-heading"><div><h1>Research Library</h1><p>${sourceState.ready.length} saved source${sourceState.ready.length === 1 ? '' : 's'} in ${escapeHtml(project.title)}.</p></div></div>
+    <div class="page-heading"><div><h1>Research Library</h1><p>${savedSummary} in ${escapeHtml(project.title)}.</p></div></div>
     <div id="surface-error" class="studio-error" hidden></div>
     ${statusNotice}
     <div class="card" style="margin-bottom:16px"><div class="panel-head"><h2>Add source</h2><span>PDF, DOCX, EPUB, TXT, Markdown, HTML</span></div><div class="panel-body"><form id="surface-source-upload" class="inline-create" enctype="multipart/form-data"><input id="surface-source-file" type="file" accept=".pdf,.docx,.epub,.txt,.md,.markdown,.html,.htm" required><button class="primary" type="submit">Upload source</button></form></div></div>
