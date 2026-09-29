@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -182,7 +183,10 @@ class LeaseRepository:
     ) -> Source:
         del access_token
         current = self.sources[source_id]
-        if current.status in {SourceStatus.READY, SourceStatus.FAILED} and status is not current.status:
+        if (
+            current.status in {SourceStatus.READY, SourceStatus.FAILED}
+            and status is not current.status
+        ):
             raise RuntimeError("terminal source status")
         if status is SourceStatus.PROCESSING:
             self.processing_heartbeats += 1
@@ -262,8 +266,6 @@ def make_service(repository: LeaseRepository, storage: LeaseStorage) -> SourceSe
 async def test_retry_expires_stale_processing_source_cleans_blob_and_renews_live_lease() -> None:
     project_id = uuid4()
     content = b"recover abandoned processing source " * 20
-    import hashlib
-
     checksum = hashlib.sha256(content).hexdigest()
     repository = LeaseRepository(project_id, checksum)
     storage = LeaseStorage(repository.stale_path)
