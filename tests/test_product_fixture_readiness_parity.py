@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import sys
 from pathlib import Path
 from uuid import uuid4
@@ -13,9 +14,10 @@ from mi_llama.research_structure.models import CreateResearchNoteRequest
 
 DOCS_DIR = Path(__file__).resolve().parents[1] / "docs"
 sys.path.insert(0, str(DOCS_DIR))
-
-from product_fixture_server import TOKEN  # noqa: E402
-from product_fixture_strict_server import StrictFixtureRepository  # noqa: E402
+_fixture = importlib.import_module("product_fixture_server")
+_strict_fixture = importlib.import_module("product_fixture_strict_server")
+TOKEN = _fixture.TOKEN
+StrictFixtureRepository = _strict_fixture.StrictFixtureRepository
 
 
 async def _seed_source(repo: StrictFixtureRepository):
