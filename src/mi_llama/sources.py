@@ -179,13 +179,9 @@ class SourceService:
                 access_token=access_token,
                 source_id=source_id,
                 version_id=version_id,
+                storage_path=storage_path if uploaded else None,
                 message=message,
             )
-            if uploaded:
-                await self._best_effort_delete(
-                    access_token=access_token,
-                    storage_path=storage_path,
-                )
             raise SourceProcessingError(message) from exc
 
         version = await self._index_if_enabled(
@@ -303,6 +299,7 @@ class SourceService:
         access_token: str,
         source_id: UUID,
         version_id: UUID,
+        storage_path: str | None,
         message: str,
     ) -> None:
         with suppress(Exception):
@@ -311,6 +308,11 @@ class SourceService:
                 version_id=version_id,
                 status=SourceStatus.FAILED,
                 error_message=message,
+            )
+        if storage_path is not None:
+            await self._best_effort_delete(
+                access_token=access_token,
+                storage_path=storage_path,
             )
         with suppress(Exception):
             await self._repository.set_source_ingest_state(
