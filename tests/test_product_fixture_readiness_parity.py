@@ -6,9 +6,9 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
 from mi_llama.domain import SourceChunk, SourceKind, SourceStatus
 from mi_llama.research_structure.models import CreateResearchNoteRequest
-import pytest
 
 
 DOCS_DIR = Path(__file__).resolve().parents[1] / "docs"
