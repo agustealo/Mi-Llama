@@ -18,12 +18,8 @@ from mi_llama.domain import (
 from mi_llama.sources import SourceProcessingError, SourceService
 
 ROOT = Path(__file__).parents[1]
-RECOVERY_MIGRATION = (
-    ROOT / "supabase" / "migrations" / "20260929024500_source_ingest_recovery.sql"
-)
-FOUNDATION_MIGRATION = (
-    ROOT / "supabase" / "migrations" / "20260921225000_research_library.sql"
-)
+RECOVERY_MIGRATION = ROOT / "supabase" / "migrations" / "20260929024500_source_ingest_recovery.sql"
+FOUNDATION_MIGRATION = ROOT / "supabase" / "migrations" / "20260921225000_research_library.sql"
 
 
 class RecoveryRepository:
