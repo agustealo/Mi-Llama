@@ -84,21 +84,23 @@ def create_user(email: str, password: str) -> tuple[str, str]:
     return user_id, token
 
 
-def post_rest(table: str, token: str, payload: object) -> list[dict[str, object]]:
+def admin_rest(method: str, table_and_query: str, payload: object | None = None) -> bytes:
     _, body = request(
-        "POST",
-        f"/rest/v1/{table}",
-        key=ANON_KEY,
-        token=token,
+        method,
+        f"/rest/v1/{table_and_query}",
+        key=SERVICE_ROLE_KEY,
+        token=SERVICE_ROLE_KEY,
         json_body=payload,
-        extra_headers={"Prefer": "return=representation,missing=default"},
+        extra_headers={"Prefer": "return=representation"},
     )
-    return json.loads(body)
+    return body
 
 
 def main() -> None:
     suffix = uuid.uuid4().hex[:12]
-    _, owner_token = create_user(f"storage-owner-{suffix}@example.test", "MiLlama-Test-Owner-42!")
+    owner_id, _ = create_user(
+        f"storage-owner-{suffix}@example.test", "MiLlama-Test-Owner-42!"
+    )
     editor_id, editor_token = create_user(
         f"storage-editor-{suffix}@example.test", "MiLlama-Test-Editor-42!"
     )
@@ -109,25 +111,26 @@ def main() -> None:
     path = f"{project_id}/{source_id}/{version_id}/revoked-cleanup.txt"
     checksum = "a" * 64
 
-    # Let database defaults bind owner/creator fields directly to auth.uid().
-    # The burn should verify the real authenticated request context rather than
-    # duplicating identity claims from an admin response into write payloads.
-    post_rest(
+    # Fixture state is established with service-role REST so this burn remains
+    # focused on Storage RLS. The editor's real user token owns the actual
+    # upload/delete operations under test.
+    admin_rest(
+        "POST",
         "projects",
-        owner_token,
-        {"id": project_id, "title": "Storage API revocation burn"},
+        {"id": project_id, "owner_id": owner_id, "title": "Storage API revocation burn"},
     )
-    post_rest(
+    admin_rest(
+        "POST",
         "project_members",
-        owner_token,
         {"project_id": project_id, "user_id": editor_id, "role": "editor"},
     )
-    post_rest(
+    admin_rest(
+        "POST",
         "sources",
-        editor_token,
         {
             "id": source_id,
             "project_id": project_id,
+            "created_by": editor_id,
             "filename": "revoked-cleanup.txt",
             "media_type": "text/plain",
             "kind": "text",
@@ -136,13 +139,14 @@ def main() -> None:
             "status": "processing",
         },
     )
-    post_rest(
+    admin_rest(
+        "POST",
         "source_versions",
-        editor_token,
         {
             "id": version_id,
             "source_id": source_id,
             "project_id": project_id,
+            "created_by": editor_id,
             "version_number": 1,
             "storage_path": path,
             "checksum_sha256": checksum,
@@ -167,12 +171,7 @@ def main() -> None:
     filters = urllib.parse.urlencode(
         {"project_id": f"eq.{project_id}", "user_id": f"eq.{editor_id}"}
     )
-    request(
-        "DELETE",
-        f"/rest/v1/project_members?{filters}",
-        key=ANON_KEY,
-        token=owner_token,
-    )
+    admin_rest("DELETE", f"project_members?{filters}")
 
     # The revoked editor can no longer mutate source state.
     status, body = request(
