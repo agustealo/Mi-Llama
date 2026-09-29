@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select extensions.plan(22);
+select extensions.plan(24);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -62,6 +62,20 @@ values
     ('public.review_writing_finding(uuid,uuid,text)'::regprocedure, true),
     ('public.sync_revision_editor_state_on_base_advance()'::regprocedure, false),
     ('public.touch_conversation_activity()'::regprocedure, false);
+
+create function public.future_default_privilege_probe()
+returns boolean
+language sql
+as $$ select true $$;
+
+select extensions.ok(
+    not has_function_privilege('anon', 'public.future_default_privilege_probe()'::regprocedure, 'EXECUTE'),
+    'new public functions do not grant EXECUTE to anon by default'
+);
+select extensions.ok(
+    not has_function_privilege('authenticated', 'public.future_default_privilege_probe()'::regprocedure, 'EXECUTE'),
+    'new public functions do not grant EXECUTE to authenticated by default'
+);
 
 create schema attacker;
 grant usage on schema attacker to authenticated;
