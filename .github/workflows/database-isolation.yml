@@ -37,8 +37,8 @@ jobs:
       - name: Verify pinned CLI
         run: supabase --version
 
-      - name: Start local Supabase database
-        run: supabase db start
+      - name: Start local Supabase stack
+        run: supabase start
 
       - name: Run database isolation tests
         run: supabase test db
