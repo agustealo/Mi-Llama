@@ -69,7 +69,19 @@ def create_user(email: str, password: str) -> tuple[str, str]:
         key=ANON_KEY,
         json_body={"email": email, "password": password},
     )
-    return user_id, json.loads(body)["access_token"]
+    token = json.loads(body)["access_token"]
+    _, body = request(
+        "GET",
+        "/auth/v1/user",
+        key=ANON_KEY,
+        token=token,
+    )
+    authenticated_id = json.loads(body)["id"]
+    if authenticated_id != user_id:
+        raise AssertionError(
+            f"GoTrue session identity mismatch: created {user_id}, authenticated {authenticated_id}"
+        )
+    return user_id, token
 
 
 def post_rest(table: str, token: str, payload: object) -> list[dict[str, object]]:
@@ -86,7 +98,7 @@ def post_rest(table: str, token: str, payload: object) -> list[dict[str, object]
 
 def main() -> None:
     suffix = uuid.uuid4().hex[:12]
-    owner_id, owner_token = create_user(
+    _, owner_token = create_user(
         f"storage-owner-{suffix}@example.test", "MiLlama-Test-Owner-42!"
     )
     editor_id, editor_token = create_user(
@@ -99,10 +111,13 @@ def main() -> None:
     path = f"{project_id}/{source_id}/{version_id}/revoked-cleanup.txt"
     checksum = "a" * 64
 
+    # Let database defaults bind owner/creator fields directly to auth.uid().
+    # The burn should verify the real authenticated request context rather than
+    # duplicating identity claims from an admin response into write payloads.
     post_rest(
         "projects",
         owner_token,
-        {"id": project_id, "owner_id": owner_id, "title": "Storage API revocation burn"},
+        {"id": project_id, "title": "Storage API revocation burn"},
     )
     post_rest(
         "project_members",
@@ -115,7 +130,6 @@ def main() -> None:
         {
             "id": source_id,
             "project_id": project_id,
-            "created_by": editor_id,
             "filename": "revoked-cleanup.txt",
             "media_type": "text/plain",
             "kind": "text",
@@ -131,7 +145,6 @@ def main() -> None:
             "id": version_id,
             "source_id": source_id,
             "project_id": project_id,
-            "created_by": editor_id,
             "version_number": 1,
             "storage_path": path,
             "checksum_sha256": checksum,
