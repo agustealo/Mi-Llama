@@ -11,7 +11,6 @@ import pytest
 from mi_llama.domain import SourceChunk, SourceKind, SourceStatus
 from mi_llama.research_structure.models import CreateResearchNoteRequest
 
-
 DOCS_DIR = Path(__file__).resolve().parents[1] / "docs"
 sys.path.insert(0, str(DOCS_DIR))
 _fixture = importlib.import_module("product_fixture_server")
