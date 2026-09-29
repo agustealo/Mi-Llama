@@ -42,6 +42,7 @@ values
     ('public.acquire_conversation_reply_lease(uuid,integer)'::regprocedure, true),
     ('public.apply_writing_proposal(uuid,uuid,uuid,bigint,jsonb,text)'::regprocedure, true),
     ('public.can_access_project(uuid)'::regprocedure, true),
+    ('public.can_cleanup_source_storage_object(text)'::regprocedure, true),
     ('public.can_edit_project(uuid)'::regprocedure, true),
     ('public.checkpoint_manuscript_draft(uuid,uuid,bigint)'::regprocedure, true),
     ('public.cleanup_failed_source_ingests_after_ready()'::regprocedure, false),
