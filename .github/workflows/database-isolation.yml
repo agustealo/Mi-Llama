@@ -43,6 +43,17 @@ jobs:
       - name: Run database isolation tests
         run: supabase test db
 
+      - name: Run Storage API revocation burn
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase status -o env > "$RUNNER_TEMP/supabase-local.env"
+          set -a
+          source "$RUNNER_TEMP/supabase-local.env"
+          set +a
+          python supabase/tests/source_cleanup_storage_api.py
+          rm -f "$RUNNER_TEMP/supabase-local.env"
+
       - name: Stop local Supabase stack
         if: always()
         run: supabase stop --no-backup || true
