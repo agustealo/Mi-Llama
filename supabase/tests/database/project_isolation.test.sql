@@ -184,17 +184,13 @@ select is((select count(*) from public.citation_candidates where claim_id = 'ccc
 select is((select count(*) from public.manuscript_documents where id = 'ffffffff-ffff-4fff-8fff-ffffffffffff'), 0::bigint, 'user B cannot read project A manuscript by guessed id');
 select is((select count(*) from public.writing_research_links where id = '13131313-1313-4313-8313-131313131313'), 0::bigint, 'user B cannot read project A writing-research link');
 
-select is(
-    (
-        with changed as (
-            update public.sources
-            set error_message = 'cross-project mutation'
-            where id = '33333333-3333-4333-8333-333333333333'
-            returning 1
-        )
-        select count(*) from changed
-    ),
-    0::bigint,
+select is_empty(
+    $$
+        update public.sources
+        set error_message = 'cross-project mutation'
+        where id = '33333333-3333-4333-8333-333333333333'
+        returning id
+    $$,
     'user B cannot update project A source'
 );
 
@@ -237,19 +233,16 @@ select throws_ok(
     'user B cannot upload into project A storage path'
 );
 
-select is(
-    (
-        with inserted as (
-            insert into storage.objects (bucket_id, name)
-            values (
-                'mi-llama-sources',
-                'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/88888888-8888-4888-8888-888888888888/99999999-9999-4999-8999-999999999999/b-processing.txt'
-            )
-            returning 1
+select results_eq(
+    $$
+        insert into storage.objects (bucket_id, name)
+        values (
+            'mi-llama-sources',
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/88888888-8888-4888-8888-888888888888/99999999-9999-4999-8999-999999999999/b-processing.txt'
         )
-        select count(*) from inserted
-    ),
-    1::bigint,
+        returning 1::bigint
+    $$,
+    array[1::bigint],
     'user B can upload only a canonically registered project B processing object'
 );
 
