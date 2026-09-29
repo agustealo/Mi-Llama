@@ -105,7 +105,7 @@ jobs:
           present = {path.name for path in assets.iterdir()} if assets.is_dir() else set()
           missing = sorted(required - present)
           if missing:
-              raise SystemExit(f"installed workspace assets: {assets}; missing: {missing}")
+              raise SystemExit(f"installed wheel is missing workspace assets: {missing}")
           print(f"installed workspace assets: {assets}")
           PY
           python -m playwright install --with-deps chromium
