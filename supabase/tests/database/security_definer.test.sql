@@ -209,7 +209,7 @@ select extensions.ok(
     'forging a JWT role claim does not grant another project access'
 );
 
-set local search_path = attacker, public;
+set local search_path = attacker, public, extensions;
 select extensions.ok(
     not public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
     'caller search_path poisoning cannot redirect SECURITY DEFINER internals'
