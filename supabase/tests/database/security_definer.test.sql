@@ -46,6 +46,33 @@ as $$ select true $$;
 grant execute on function attacker.is_project_owner(uuid) to authenticated;
 grant execute on function attacker.is_project_member(uuid, text[]) to authenticated;
 
+select diag(
+    coalesce(
+        string_agg(
+            format(
+                '%s(%s) | search_path=%s | PUBLIC=%s | anon=%s | authenticated=%s',
+                p.proname,
+                pg_get_function_identity_arguments(p.oid),
+                coalesce(array_to_string(p.proconfig, ','), '<unset>'),
+                exists (
+                    select 1
+                    from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+                    where acl.grantee = 0 and acl.privilege_type = 'EXECUTE'
+                ),
+                has_function_privilege('anon', p.oid, 'EXECUTE'),
+                has_function_privilege('authenticated', p.oid, 'EXECUTE')
+            ),
+            E'\n'
+            order by p.proname, pg_get_function_identity_arguments(p.oid)
+        ),
+        '<no public SECURITY DEFINER functions>'
+    )
+)
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.prosecdef;
+
 select is(
     (
         select count(*)
@@ -121,89 +148,76 @@ reset role;
 set local role authenticated;
 set local request.jwt.claim.sub = '22222222-2222-4222-8222-222222222222';
 
-select is(
-    public.is_project_owner('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    false,
+select ok(
+    not public.is_project_owner('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
     'outsider cannot forge ownership of another project through direct helper invocation'
 );
 
-select is(
-    public.is_project_member(
+select ok(
+    not public.is_project_member(
         'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         array['editor', 'researcher', 'owner', 'service_role', 'anything']
     ),
-    false,
     'caller-controlled allowed_roles cannot fabricate membership'
 );
 
-select is(
-    public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    false,
+select ok(
+    not public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
     'outsider cannot use can_access_project as an RLS bypass'
 );
 
-select is(
-    public.can_edit_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    false,
+select ok(
+    not public.can_edit_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
     'outsider cannot use can_edit_project as a mutation bypass'
 );
 
-select is(
+select ok(
     public.is_project_owner('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
-    true,
     'legitimate owner is recognized by direct helper invocation'
 );
 
-select is(
+select ok(
     public.can_access_project('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
-    true,
     'legitimate owner retains direct access authorization'
 );
 
-select is(
+select ok(
     public.can_edit_project('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
-    true,
     'legitimate owner retains direct edit authorization'
 );
 
 set local request.jwt.claim.role = 'service_role';
-select is(
-    public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    false,
+select ok(
+    not public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
     'forging a JWT role claim does not grant another project access'
 );
 
 set local search_path = attacker, public;
-select is(
-    public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    false,
+select ok(
+    not public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
     'caller search_path poisoning cannot redirect SECURITY DEFINER internals'
 );
 
 set local request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
 set local request.jwt.claim.role = 'authenticated';
 
-select is(
+select ok(
     public.is_project_member('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', null),
-    true,
     'reader membership is recognized'
 );
 
-select is(
+select ok(
     public.can_access_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    true,
     'reader can access the project'
 );
 
-select is(
-    public.can_edit_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    false,
+select ok(
+    not public.can_edit_project('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
     'reader membership cannot escalate to edit authorization'
 );
 
-select is(
-    public.is_project_owner('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
-    false,
+select ok(
+    not public.is_project_owner('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
     'reader membership cannot escalate to ownership'
 );
 
