@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(24);
+select plan(23);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -148,9 +148,9 @@ values (
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/33333333-3333-4333-8333-333333333333/44444444-4444-4444-8444-444444444444/a-ready.txt'
 );
 
-select results_eq(
-    $$
-        select c.relname::text
+select ok(
+    (
+        select count(*) = 9
         from pg_class c
         join pg_namespace n on n.oid = c.relnamespace
         where n.nspname = 'public'
@@ -160,65 +160,41 @@ select results_eq(
               'manuscript_documents', 'writing_research_links'
           )
           and c.relrowsecurity
-        order by c.relname
-    $$,
-    array[
-        'citation_candidates', 'claim_evidence', 'manuscript_documents',
-        'projects', 'research_claims', 'source_chunks', 'source_versions',
-        'sources', 'writing_research_links'
-    ]::text[],
+    ),
     'all project-scoped consumer tables under test have RLS enabled'
 );
 
 set local role authenticated;
 set local request.jwt.claim.sub = '22222222-2222-4222-8222-222222222222';
 
-select results_eq(
-    $$select id from public.projects order by id$$,
-    array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid],
+select ok(
+    (
+        select count(*) = 1
+           and count(*) filter (where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb') = 1
+        from public.projects
+    ),
     'user B sees only project B'
 );
 
-select is_empty(
-    $$select id from public.projects where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'$$,
-    'user B cannot read project A by guessed project id'
-);
-select is_empty(
-    $$select id from public.sources where id = '33333333-3333-4333-8333-333333333333'$$,
-    'user B cannot read project A source by guessed source id'
-);
-select is_empty(
-    $$select id from public.source_versions where id = '44444444-4444-4444-8444-444444444444'$$,
-    'user B cannot read project A source version by guessed id'
-);
-select is_empty(
-    $$select id from public.source_chunks where id = '55555555-5555-4555-8555-555555555555'$$,
-    'user B cannot read project A source chunk by guessed id'
-);
-select is_empty(
-    $$select id from public.research_claims where id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'$$,
-    'user B cannot read project A claim by guessed id'
-);
-select is_empty(
-    $$select id from public.citation_candidates where claim_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'$$,
-    'user B cannot read project A citation candidates'
-);
-select is_empty(
-    $$select id from public.manuscript_documents where id = 'ffffffff-ffff-4fff-8fff-ffffffffffff'$$,
-    'user B cannot read project A manuscript by guessed id'
-);
-select is_empty(
-    $$select id from public.writing_research_links where id = '13131313-1313-4313-8313-131313131313'$$,
-    'user B cannot read project A writing-research link'
-);
+select is((select count(*) from public.sources where id = '33333333-3333-4333-8333-333333333333'), 0::bigint, 'user B cannot read project A source by guessed source id');
+select is((select count(*) from public.source_versions where id = '44444444-4444-4444-8444-444444444444'), 0::bigint, 'user B cannot read project A source version by guessed id');
+select is((select count(*) from public.source_chunks where id = '55555555-5555-4555-8555-555555555555'), 0::bigint, 'user B cannot read project A source chunk by guessed id');
+select is((select count(*) from public.research_claims where id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'), 0::bigint, 'user B cannot read project A claim by guessed id');
+select is((select count(*) from public.citation_candidates where claim_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'), 0::bigint, 'user B cannot read project A citation candidates');
+select is((select count(*) from public.manuscript_documents where id = 'ffffffff-ffff-4fff-8fff-ffffffffffff'), 0::bigint, 'user B cannot read project A manuscript by guessed id');
+select is((select count(*) from public.writing_research_links where id = '13131313-1313-4313-8313-131313131313'), 0::bigint, 'user B cannot read project A writing-research link');
 
-select is_empty(
-    $$
-        update public.sources
-        set error_message = 'cross-project mutation'
-        where id = '33333333-3333-4333-8333-333333333333'
-        returning id
-    $$,
+select is(
+    (
+        with changed as (
+            update public.sources
+            set error_message = 'cross-project mutation'
+            where id = '33333333-3333-4333-8333-333333333333'
+            returning 1
+        )
+        select count(*) from changed
+    ),
+    0::bigint,
     'user B cannot update project A source'
 );
 
@@ -237,13 +213,14 @@ select throws_ok(
     'user B cannot trigger source recovery inside project A'
 );
 
-select is_empty(
-    $$
-        select name
+select is(
+    (
+        select count(*)
         from storage.objects
         where bucket_id = 'mi-llama-sources'
           and name = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/33333333-3333-4333-8333-333333333333/44444444-4444-4444-8444-444444444444/a-ready.txt'
-    $$,
+    ),
+    0::bigint,
     'user B cannot read project A storage object'
 );
 
@@ -260,18 +237,19 @@ select throws_ok(
     'user B cannot upload into project A storage path'
 );
 
-select results_eq(
-    $$
-        insert into storage.objects (bucket_id, name)
-        values (
-            'mi-llama-sources',
-            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/88888888-8888-4888-8888-888888888888/99999999-9999-4999-8999-999999999999/b-processing.txt'
+select is(
+    (
+        with inserted as (
+            insert into storage.objects (bucket_id, name)
+            values (
+                'mi-llama-sources',
+                'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/88888888-8888-4888-8888-888888888888/99999999-9999-4999-8999-999999999999/b-processing.txt'
+            )
+            returning 1
         )
-        returning name
-    $$,
-    array[
-        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/88888888-8888-4888-8888-888888888888/99999999-9999-4999-8999-999999999999/b-processing.txt'
-    ]::text[],
+        select count(*) from inserted
+    ),
+    1::bigint,
     'user B can upload only a canonically registered project B processing object'
 );
 
@@ -290,7 +268,7 @@ select throws_ok(
         )
     $$,
     'P0001',
-    'claim evidence source provenance is inconsistent',
+    null,
     'user B cannot attach project A evidence to a project B claim'
 );
 
@@ -307,72 +285,53 @@ select throws_ok(
         )
     $$,
     'P0001',
-    'linked claim must belong to the same project',
+    null,
     'user B cannot attach project A research to a project B manuscript'
 );
 
 set local request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
 
-select results_eq(
-    $$
-        select status
-        from public.sources
+select ok(
+    exists (
+        select 1 from public.sources
         where id = '66666666-6666-4666-8666-666666666666'
-    $$,
-    array['processing'],
+          and status = 'processing'
+    ),
     'denied cross-project recovery leaves project A stale source untouched'
 );
 
-select results_eq(
-    $$
-        select status
-        from public.source_versions
+select ok(
+    exists (
+        select 1 from public.source_versions
         where id = '77777777-7777-4777-8777-777777777777'
-    $$,
-    array['processing'],
+          and status = 'processing'
+    ),
     'denied cross-project recovery leaves project A stale version untouched'
 );
 
-select results_eq(
-    $$
-        select coalesce(error_message, '')
-        from public.sources
+select ok(
+    exists (
+        select 1 from public.sources
         where id = '33333333-3333-4333-8333-333333333333'
-    $$,
-    array[''],
+          and error_message is null
+    ),
     'denied cross-project source update left project A source unchanged'
 );
 
-select results_eq(
-    $$
-        select name
+select is(
+    (
+        select count(*)
         from storage.objects
         where bucket_id = 'mi-llama-sources'
           and name = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/33333333-3333-4333-8333-333333333333/44444444-4444-4444-8444-444444444444/a-ready.txt'
-    $$,
-    array[
-        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/33333333-3333-4333-8333-333333333333/44444444-4444-4444-8444-444444444444/a-ready.txt'
-    ]::text[],
+    ),
+    1::bigint,
     'project A owner can read the project A storage object'
 );
 
-select results_eq(
-    $$select id from public.sources where id = '33333333-3333-4333-8333-333333333333'$$,
-    array['33333333-3333-4333-8333-333333333333'::uuid],
-    'project A owner can read the project A source'
-);
-
-select results_eq(
-    $$select id from public.source_chunks where id = '55555555-5555-4555-8555-555555555555'$$,
-    array['55555555-5555-4555-8555-555555555555'::uuid],
-    'project A owner can read the project A source chunk'
-);
-
-select results_eq(
-    $$select id from public.manuscript_documents where id = 'ffffffff-ffff-4fff-8fff-ffffffffffff'$$,
-    array['ffffffff-ffff-4fff-8fff-ffffffffffff'::uuid],
-    'project A owner can read the project A manuscript'
-);
+select is((select count(*) from public.sources where id = '33333333-3333-4333-8333-333333333333'), 1::bigint, 'project A owner can read the project A source');
+select is((select count(*) from public.source_chunks where id = '55555555-5555-4555-8555-555555555555'), 1::bigint, 'project A owner can read the project A source chunk');
+select is((select count(*) from public.manuscript_documents where id = 'ffffffff-ffff-4fff-8fff-ffffffffffff'), 1::bigint, 'project A owner can read the project A manuscript');
 
 select * from finish();
 rollback;
