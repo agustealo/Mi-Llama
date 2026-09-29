@@ -27,7 +27,9 @@ as $$
     );
 $$;
 
-revoke all on function public.can_cleanup_source_storage_object(text) from public;
+revoke execute on function public.can_cleanup_source_storage_object(text) from public;
+revoke execute on function public.can_cleanup_source_storage_object(text) from anon;
+revoke execute on function public.can_cleanup_source_storage_object(text) from authenticated;
 grant execute on function public.can_cleanup_source_storage_object(text) to authenticated;
 
 drop policy if exists mi_llama_sources_delete_failed_processing on storage.objects;
