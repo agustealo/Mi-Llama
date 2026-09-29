@@ -138,7 +138,7 @@ test('sign out cannot be undone by an in-flight refresh', async () => {
   globalThis.fetch = async (url) => {
     const target = String(url)
     if (target.includes('grant_type=refresh_token')) return refreshResponse
-    if (target.includes('/auth/v1/logout')) return new Response('', { status: 204 })
+    if (target.includes('/auth/v1/logout')) return new Response(null, { status: 204 })
     throw new Error(`unexpected fetch ${url}`)
   }
 
