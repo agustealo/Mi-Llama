@@ -1,0 +1,48 @@
+name: Database Isolation Gate
+
+on:
+  pull_request:
+    paths:
+      - "supabase/**"
+      - ".github/workflows/database-isolation.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - ".github/workflows/database-isolation.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-isolation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  project-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.118.0
+
+      - name: Verify pinned CLI
+        run: supabase --version
+
+      - name: Start local Supabase database
+        run: supabase db start
+
+      - name: Run database isolation tests
+        run: supabase test db
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup || true
