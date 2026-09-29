@@ -8,6 +8,7 @@ from playwright.sync_api import Page, sync_playwright
 
 BASE_URL = "http://127.0.0.1:8765"
 SESSION_KEY = "mi-llama.supabase.session.v1"
+GALLERY_DATE = "9/28/2026"
 VIEWS = (
     ("overview", "01-overview.png"),
     ("library", "02-library.png"),
@@ -32,6 +33,10 @@ def install_authenticated_session(page: Page) -> None:
     key = json.dumps(SESSION_KEY)
     value = json.dumps(json.dumps(session))
     page.add_init_script(f"sessionStorage.setItem({key}, {value})")
+    gallery_date = json.dumps(GALLERY_DATE)
+    page.add_init_script(
+        f"Date.prototype.toLocaleDateString = function () {{ return {gallery_date}; }}"
+    )
 
 
 def create_project(page: Page) -> None:

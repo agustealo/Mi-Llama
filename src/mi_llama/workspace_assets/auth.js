@@ -94,6 +94,7 @@ export class AuthClient {
     this.publishableKey = config.supabase_publishable_key
     this.session = readStoredSession()
     this.refreshPromise = null
+    this.sessionGeneration = 0
   }
 
   static async create() {
@@ -126,6 +127,7 @@ export class AuthClient {
   }
 
   async signIn(email, password) {
+    const generation = ++this.sessionGeneration
     const response = await fetch(`${this.supabaseUrl}/auth/v1/token?grant_type=password`, {
       method: 'POST',
       headers: {
@@ -135,6 +137,9 @@ export class AuthClient {
       },
       body: JSON.stringify({ email, password }),
     })
+    if (generation !== this.sessionGeneration) {
+      throw new AuthError('Sign-in was superseded by a newer session change.', 409)
+    }
     if (!response.ok) {
       const message = await responseError(response, 'Sign in failed')
       throw new AuthError(authMessage(message, response.status, 'Could not sign in. Check your details and try again.'), response.status)
@@ -146,6 +151,9 @@ export class AuthClient {
 
   async signOut() {
     const accessToken = this.session?.access_token
+    ++this.sessionGeneration
+    this.session = null
+    storeSession(null)
     try {
       if (accessToken) {
         await fetch(`${this.supabaseUrl}/auth/v1/logout?scope=local`, {
@@ -163,11 +171,13 @@ export class AuthClient {
   }
 
   async refresh() {
-    if (!this.session?.refresh_token) {
+    const refreshToken = this.session?.refresh_token
+    if (!refreshToken) {
       throw new AuthError('Your session has ended. Sign in again.', 401)
     }
     if (this.refreshPromise) return this.refreshPromise
 
+    const generation = this.sessionGeneration
     this.refreshPromise = (async () => {
       const response = await fetch(`${this.supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
         method: 'POST',
@@ -176,14 +186,22 @@ export class AuthClient {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        body: JSON.stringify({ refresh_token: this.session.refresh_token }),
+        body: JSON.stringify({ refresh_token: refreshToken }),
       })
+      if (generation !== this.sessionGeneration) {
+        throw new AuthError('Session changed while refreshing. Sign in again if needed.', 401)
+      }
       if (!response.ok) {
+        ++this.sessionGeneration
         this.session = null
         storeSession(null)
         throw new AuthError('Your session has ended. Sign in again.', response.status)
       }
-      this.session = await response.json()
+      const refreshedSession = await response.json()
+      if (generation !== this.sessionGeneration) {
+        throw new AuthError('Session changed while refreshing. Sign in again if needed.', 401)
+      }
+      this.session = refreshedSession
       storeSession(this.session)
       return this.session
     })()
