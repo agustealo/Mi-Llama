@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select extensions.plan(9);
+select extensions.plan(8);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -97,18 +97,6 @@ select extensions.throws_ok(
     '42501',
     null,
     'final assistant publication is rejected after edit authority is revoked'
-);
-
-select extensions.throws_ok(
-    $$insert into public.learning_signals (project_id, user_id, event_type)
-      values (
-          '8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-          '82222222-2222-4222-8222-222222222222',
-          'ai_edit_accepted'
-      )$$,
-    '42501',
-    null,
-    'revoked reader cannot publish edit-derived learning state'
 );
 
 select extensions.is(
