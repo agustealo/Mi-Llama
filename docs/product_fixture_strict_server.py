@@ -9,7 +9,10 @@ from mi_llama.domain import Source, SourceChunk, SourceStatus
 from mi_llama.research_structure.models import CreateResearchNoteRequest, ResearchNote
 from mi_llama.workspace import create_app as create_workspace_app
 
-from product_fixture_server import FixtureProvider, FixtureRepository, FixtureStorage, TOKEN
+try:
+    from product_fixture_server import FixtureProvider, FixtureRepository, FixtureStorage
+except ModuleNotFoundError:  # Imported as docs.product_fixture_strict_server in tests.
+    from docs.product_fixture_server import FixtureProvider, FixtureRepository, FixtureStorage
 
 
 class StrictFixtureRepository(FixtureRepository):
