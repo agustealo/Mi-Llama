@@ -32,6 +32,20 @@ revoke execute on function public.can_cleanup_source_storage_object(text) from a
 revoke execute on function public.can_cleanup_source_storage_object(text) from authenticated;
 grant execute on function public.can_cleanup_source_storage_object(text) to authenticated;
 
+drop policy if exists mi_llama_sources_select_cleanup_delete on storage.objects;
+
+create policy mi_llama_sources_select_cleanup_delete
+on storage.objects
+for select
+to authenticated
+using (
+    bucket_id = 'mi-llama-sources'
+    and storage.allow_any_operation(
+        array['object.delete', 'object.delete_many']
+    )
+    and public.can_cleanup_source_storage_object(name)
+);
+
 drop policy if exists mi_llama_sources_delete_failed_processing on storage.objects;
 
 create policy mi_llama_sources_delete_failed_processing
