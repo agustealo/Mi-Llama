@@ -559,9 +559,11 @@ class SupabaseRepository:
         headers = {"Authorization": f"Bearer {access_token}"}
         effective_prefer = prefer
         if method.upper() == "POST" and not path.startswith("/rpc/"):
-            preferences = [] if effective_prefer is None else [
-                item.strip() for item in effective_prefer.split(",") if item.strip()
-            ]
+            preferences = (
+                []
+                if effective_prefer is None
+                else [item.strip() for item in effective_prefer.split(",") if item.strip()]
+            )
             if "missing=default" not in preferences:
                 preferences.append("missing=default")
             effective_prefer = ",".join(preferences)
