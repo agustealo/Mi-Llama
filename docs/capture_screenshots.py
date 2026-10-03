@@ -155,6 +155,8 @@ def main() -> None:
             viewport={"width": 1440, "height": 960},
             device_scale_factor=1,
         )
+        page.on("console", lambda message: print(f"BROWSER {message.type}: {message.text}"))
+        page.on("pageerror", lambda error: print(f"BROWSER PAGE ERROR: {error}"))
         install_authenticated_session(page)
         create_project(page)
         create_manuscript(page)
