@@ -80,3 +80,15 @@ test('manuscript selector does not shadow the browser document authority', async
   assert.ok(studio.includes('for (const manuscript of state.documents)'))
   assert.ok(studio.includes("const option = document.createElement('option')"))
 })
+
+
+test('rich editor schema upgrade activates in place without a page reload race', async () => {
+  const activation = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/rich_editor_activation.js', import.meta.url),
+    'utf8',
+  )
+
+  assert.ok(activation.includes('const updated = await auth.apiJson('))
+  assert.ok(activation.includes('activateTiptapEditor(updated.editor_state || upgradedState, false)'))
+  assert.ok(!activation.includes('window.location.reload()'))
+})
