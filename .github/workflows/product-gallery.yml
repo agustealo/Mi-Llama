@@ -12,6 +12,7 @@ on:
       - "docs/capture_screenshots.py"
       - "docs/verify_product_gallery.py"
       - "docs/product_fixture_server.py"
+      - "docs/product_fixture_strict_server.py"
       - "docs/assets/screenshots/**"
       - "pyproject.toml"
       - ".github/workflows/product-gallery.yml"
@@ -26,6 +27,7 @@ on:
       - "docs/capture_screenshots.py"
       - "docs/verify_product_gallery.py"
       - "docs/product_fixture_server.py"
+      - "docs/product_fixture_strict_server.py"
       - "docs/assets/screenshots/**"
       - "pyproject.toml"
       - ".github/workflows/product-gallery.yml"
@@ -110,7 +112,7 @@ jobs:
 
       - name: Start packaged authenticated product fixture
         run: |
-          python docs/product_fixture_server.py > /tmp/mi-llama.log 2>&1 &
+          python docs/product_fixture_strict_server.py > /tmp/mi-llama.log 2>&1 &
           echo $! > /tmp/mi-llama.pid
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8765/ >/dev/null; then
