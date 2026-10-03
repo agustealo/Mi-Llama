@@ -397,9 +397,6 @@ function queueCitationClosure() {
   })
 }
 
-const content = document.querySelector('#content')
-if (content) {
-  new MutationObserver(queueCitationClosure).observe(content, { childList: true, subtree: true })
-}
 window.addEventListener('hashchange', queueCitationClosure)
+window.addEventListener('mi-llama:manuscript-rendered', queueCitationClosure)
 queueCitationClosure()
