@@ -101,3 +101,17 @@ test('rich editor schema upgrade activates in place without a page reload race',
   assert.equal((activation.match(/window\.location\.reload\(\)/g) || []).length, 1)
   assert.ok(activation.includes("if (error instanceof AuthError && error.status === 409)"))
 })
+
+
+test('rich editor lifecycle owns manuscript render before studio boot', async () => {
+  const html = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/index.html', import.meta.url),
+    'utf8',
+  )
+
+  const richIndex = html.indexOf('src="rich_editor_activation.js"')
+  const studioIndex = html.indexOf('src="studio.js"')
+  assert.ok(richIndex >= 0)
+  assert.ok(studioIndex >= 0)
+  assert.ok(richIndex < studioIndex)
+})
