@@ -6,6 +6,8 @@ import {
 } from './editor_adapter.js'
 
 let activationBusy = false
+let activationQueued = false
+let activationPending = false
 
 function parseJsonBody(options) {
   if (!options?.body || typeof options.body !== 'string') return null
@@ -224,8 +226,24 @@ function activateReadOnlyDraft(editor, draft) {
   ensureFormattingToolbar(richEditor, true)
 }
 
+function scheduleActivation() {
+  if (activationBusy) {
+    activationPending = true
+    return
+  }
+  if (activationQueued) return
+  activationQueued = true
+  queueMicrotask(() => {
+    activationQueued = false
+    void activateCurrentManuscript()
+  })
+}
+
 async function activateCurrentManuscript() {
-  if (activationBusy) return
+  if (activationBusy) {
+    activationPending = true
+    return
+  }
   const context = currentManuscriptContext()
   if (!context) return
   if (context.editor.getDocumentState()?.schema === 'tiptap_v1') {
@@ -292,15 +310,20 @@ async function activateCurrentManuscript() {
     console.error('Rich manuscript editor activation failed', error)
   } finally {
     activationBusy = false
+    if (activationPending) {
+      activationPending = false
+      scheduleActivation()
+    }
   }
 }
 
 const content = document.querySelector('#content')
 if (content) {
-  new MutationObserver(() => queueMicrotask(activateCurrentManuscript)).observe(content, {
+  new MutationObserver(scheduleActivation).observe(content, {
     childList: true,
     subtree: true,
   })
 }
-window.addEventListener('hashchange', () => queueMicrotask(activateCurrentManuscript))
-queueMicrotask(activateCurrentManuscript)
+window.addEventListener('hashchange', scheduleActivation)
+window.addEventListener('mi-llama:manuscript-rendered', scheduleActivation)
+scheduleActivation()
