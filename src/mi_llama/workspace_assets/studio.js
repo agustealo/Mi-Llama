@@ -544,10 +544,10 @@ function renderDocumentSelector() {
   const select = $('#document-select')
   if (!select) return
   select.replaceChildren()
-  for (const document of state.documents) {
+  for (const manuscript of state.documents) {
     const option = document.createElement('option')
-    option.value = document.id
-    option.textContent = document.title
+    option.value = manuscript.id
+    option.textContent = manuscript.title
     select.appendChild(option)
   }
   select.value = state.documentId || ''
