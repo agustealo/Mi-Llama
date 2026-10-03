@@ -248,8 +248,7 @@ async function activateCurrentManuscript() {
   const context = currentManuscriptContext()
   if (!context) return
   if (context.editor.getDocumentState()?.schema === 'tiptap_v1') {
-    const source = context.editor.sourceElement()
-    ensureFormattingToolbar(context.editor, Boolean(source?.readOnly))
+    ensureFormattingToolbar(context.editor, context.editor.isReadOnly())
     return
   }
 
