@@ -401,7 +401,6 @@ function queueRefresh() {
   })
 }
 
-const content = document.querySelector('#content')
-if (content) new MutationObserver(queueRefresh).observe(content, { childList: true, subtree: true })
 window.addEventListener('hashchange', queueRefresh)
+window.addEventListener('mi-llama:manuscript-rendered', queueRefresh)
 queueRefresh()
