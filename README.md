@@ -92,7 +92,7 @@ source .venv/bin/activate
 python -m pip install -e ".[dev]"
 ```
 
-Configure the services you want to use:
+Create a `.env` file in the project root and configure the services you want to use:
 
 ```text
 MI_LLAMA_HOST=127.0.0.1
@@ -108,13 +108,65 @@ MI_LLAMA_MINDSDB_PROJECT=mi_llama
 MI_LLAMA_MINDSDB_EMBEDDING_MODEL=nomic-embed-text
 ```
 
-Then start the application:
+`MI_LLAMA_SUPABASE_URL` and `MI_LLAMA_SUPABASE_PUBLISHABLE_KEY` are the Supabase API gateway URL and the project's publishable key. For a local Docker Supabase stack the gateway is usually `http://127.0.0.1:54321`, and the key is available from your Supabase Studio under Settings → API Keys.
+
+### Apply the database migrations
+
+Mi-Llama requires its schema before first use. Apply every file in `supabase/migrations` in filename order.
+
+With the Supabase CLI:
+
+```bash
+supabase db push
+```
+
+Without the CLI, apply them directly to your Postgres instance:
+
+```bash
+for f in $(ls -1 supabase/migrations | sort); do
+  psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f "supabase/migrations/$f"
+done
+```
+
+This also creates the `mi-llama-sources` storage bucket used for project source files.
+
+### Create the first user
+
+The workspace has no sign-up screen. Sign-in uses Supabase email and password, so create the first account through the Supabase Auth admin API. Get your service role key from Supabase Studio under Settings → API Keys, then run:
+
+```bash
+curl -X POST "$MI_LLAMA_SUPABASE_URL/auth/v1/admin/users" \
+  -H "apikey: YOUR_SERVICE_ROLE_KEY" \
+  -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "choose-a-strong-password",
+    "email_confirmed": true
+  }'
+```
+
+`"email_confirmed": true` is what allows the account to sign in without confirming through email.
+
+Add further users the same way. Mi-Llama has no global administrator role: access is scoped per Project. Whoever creates a Project becomes its owner, and can then add other users as collaborators with the roles `editor`, `researcher`, `reviewer`, or `reader`. Users with no membership in a Project cannot see it.
+
+### Start the application
+
+With the environment activated and dependencies installed, start the workspace:
 
 ```bash
 mi-llama
 ```
 
-Open the workspace in your browser at the address shown by the application.
+The command reads `.env` automatically, so no extra export is needed. Open the workspace in your browser at the address shown by the application, which defaults to `http://127.0.0.1:8765`.
+
+Confirm the services the app connected to:
+
+```bash
+curl http://127.0.0.1:8765/health
+```
+
+Ollama is reported under `provider`, and storage and research indexing under `storage` and `research`.
 
 ## For developers and contributors
 
