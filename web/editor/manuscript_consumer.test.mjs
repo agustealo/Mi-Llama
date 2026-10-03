@@ -145,3 +145,30 @@ test('manuscript modules use explicit lifecycle events instead of descendant mut
     )
   }
 })
+
+
+test('consumer manuscript permissions follow the active editor implementation', async () => {
+  const consumer = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/studio_manuscript_consumer.js', import.meta.url),
+    'utf8',
+  )
+  const intelligence = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/studio_intelligence.js', import.meta.url),
+    'utf8',
+  )
+  const adapter = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/editor_adapter.js', import.meta.url),
+    'utf8',
+  )
+  const tiptap = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/tiptap_adapter.js', import.meta.url),
+    'utf8',
+  )
+
+  assert.ok(consumer.includes('!editor.isReadOnly()'))
+  assert.ok(intelligence.includes('!editor.isReadOnly()'))
+  assert.ok(adapter.includes('isReadOnly()'))
+  assert.ok(tiptap.includes('return !this.editor.isEditable'))
+  assert.ok(!consumer.includes('source?.readOnly'))
+  assert.ok(!intelligence.includes('source?.readOnly'))
+})
