@@ -51,7 +51,25 @@ def create_manuscript(page: Page) -> None:
     page.locator("#new-document-title").fill("Coastal Resilience Draft")
     page.get_by_role("button", name="Create manuscript").click()
     rich_editor = page.locator(".rich-manuscript-editor .ProseMirror")
-    rich_editor.wait_for()
+    page.wait_for_timeout(1000)
+    print(
+        "[manuscript editor probe]",
+        page.evaluate(
+            """async () => {
+                const module = await import('/editor_adapter.js');
+                const editor = module.getEditorAdapter();
+                const source = document.querySelector('#manuscript-editor');
+                return {
+                    schema: editor?.getDocumentState?.()?.schema ?? null,
+                    textareaHidden: Boolean(source?.hidden),
+                    textareaReadOnly: Boolean(source?.readOnly),
+                    richHosts: document.querySelectorAll('.rich-manuscript-editor').length,
+                    proseMirrors: document.querySelectorAll('.rich-manuscript-editor .ProseMirror').length,
+                };
+            }"""
+        ),
+    )
+    rich_editor.wait_for(state="attached")
     page.locator("#manuscript-consumer-bar").wait_for()
     page.get_by_role("button", name="Versions").wait_for()
     rich_editor.fill(
