@@ -47,6 +47,26 @@ def create_project(page: Page) -> None:
     page.get_by_role("heading", name="Create the first manuscript").wait_for()
 
 
+def create_manuscript(page: Page) -> None:
+    page.locator("#new-document-title").fill("Coastal Resilience Draft")
+    page.get_by_role("button", name="Create manuscript").click()
+    page.locator("#manuscript-editor").wait_for()
+    page.locator("#manuscript-consumer-bar").wait_for()
+    page.get_by_role("button", name="Versions").wait_for()
+    page.locator("#manuscript-editor").fill(
+        "Coastal resilience planning works best when claims stay connected to reviewed evidence. "
+        "This manuscript keeps source-backed edits reviewable before they become part of the draft."
+    )
+    page.wait_for_function(
+        "() => document.querySelector('#studio-save-status')?.textContent === 'Saved'"
+    )
+    page.get_by_role("button", name="Save version").click()
+    page.wait_for_function(
+        "() => document.querySelector('#studio-save-status')?.textContent === 'Version 1 saved'"
+    )
+    page.get_by_text("1 saved version", exact=False).wait_for()
+
+
 def upload_source(page: Page) -> None:
     page.goto(f"{BASE_URL}/#library", wait_until="networkidle")
     page.locator("#surface-source-file").set_input_files(
@@ -120,6 +140,7 @@ def main() -> None:
         )
         install_authenticated_session(page)
         create_project(page)
+        create_manuscript(page)
         upload_source(page)
         add_question(page)
         add_note(page)
