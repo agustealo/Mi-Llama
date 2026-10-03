@@ -67,6 +67,9 @@ test('manuscript structural mutations require the canonical draft flush bridge',
   assert.ok(studio.includes('flushDraft,'))
   assert.ok(studio.includes('refreshWorkspace: refreshWritingWorkspace'))
   assert.ok(studio.includes("new CustomEvent('mi-llama:manuscript-checkpoint'"))
+  assert.ok(studio.includes("new CustomEvent('mi-llama:manuscript-rendered'"))
+  assert.ok(source.includes("window.addEventListener('mi-llama:manuscript-rendered'"))
+  assert.ok(source.includes("function scheduleEnhancement()"))
 })
 
 
