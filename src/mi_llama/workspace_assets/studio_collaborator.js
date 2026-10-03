@@ -4,7 +4,6 @@ import { getEditorAdapter } from './editor_adapter.js'
 const MAX_CONTEXT_CHARS = 16_000
 
 let authPromise = null
-let observer = null
 let selectionSyncQueued = false
 
 const collaboratorState = {
@@ -588,12 +587,11 @@ function enhanceCollaborator() {
 function bootCollaborator() {
   const content = document.querySelector('#content')
   if (!content) return
-  observer?.disconnect()
-  observer = new MutationObserver(() => queueMicrotask(enhanceCollaborator))
-  observer.observe(content, { childList: true, subtree: true })
   document.addEventListener('selectionchange', queueContextPreview)
   content.addEventListener('keyup', queueContextPreview)
   content.addEventListener('mouseup', queueContextPreview)
+  window.addEventListener('hashchange', () => queueMicrotask(enhanceCollaborator))
+  window.addEventListener('mi-llama:manuscript-rendered', () => queueMicrotask(enhanceCollaborator))
   enhanceCollaborator()
 }
 
