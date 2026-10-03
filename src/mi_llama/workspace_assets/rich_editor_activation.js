@@ -157,8 +157,9 @@ installApiFetchInterceptor(richEditorApiInterceptor)
 
 function currentManuscriptContext() {
   if ((location.hash || '#overview').slice(1) !== 'manuscript') return null
-  const projectId = document.querySelector('#project-select')?.value || null
-  const documentId = document.querySelector('#document-select')?.value || null
+  const workspace = window.miLlamaManuscript?.getContext?.() || {}
+  const projectId = workspace.projectId || null
+  const documentId = workspace.documentId || null
   const editor = getEditorAdapter()
   if (!projectId || !documentId || !editor) return null
   return { projectId, documentId, editor }
