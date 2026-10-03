@@ -1,5 +1,9 @@
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
+from docs.product_fixture_strict_server import TOKEN, build_app
+
 ROOT = Path(__file__).parents[1]
 
 
@@ -86,3 +90,30 @@ def test_fixture_does_not_add_a_production_fallback() -> None:
 
     assert "product-fixture" not in workspace
     assert "product-fixture" not in main
+
+
+def test_strict_fixture_supports_first_manuscript_draft_bootstrap() -> None:
+    with TestClient(build_app()) as client:
+        headers = {"Authorization": f"Bearer {TOKEN}"}
+        project_response = client.post(
+            "/api/projects",
+            headers=headers,
+            json={"title": "Gallery manuscript", "description": None},
+        )
+        assert project_response.status_code == 201, project_response.text
+        project_id = project_response.json()["id"]
+
+        document_response = client.post(
+            f"/api/projects/{project_id}/writing/documents",
+            headers=headers,
+            json={"outline_node_id": None, "title": "First manuscript"},
+        )
+        assert document_response.status_code == 201, document_response.text
+        document_id = document_response.json()["id"]
+
+        draft_response = client.get(
+            f"/api/projects/{project_id}/writing/documents/{document_id}/draft",
+            headers=headers,
+        )
+        assert draft_response.status_code == 200, draft_response.text
+        assert draft_response.json() is None
