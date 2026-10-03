@@ -676,6 +676,11 @@ function renderManuscriptStudio() {
   $('#reload-server-draft')?.addEventListener('click', reloadServerDraft)
   renderProposalPanel()
   updateSelectionToolbar()
+  window.dispatchEvent(
+    new CustomEvent('mi-llama:manuscript-rendered', {
+      detail: { projectId: state.projectId, documentId: state.documentId },
+    }),
+  )
 }
 
 function renderModelSelector() {
