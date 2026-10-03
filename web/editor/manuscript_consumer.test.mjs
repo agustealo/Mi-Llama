@@ -90,5 +90,11 @@ test('rich editor schema upgrade activates in place without a page reload race',
 
   assert.ok(activation.includes('const updated = await auth.apiJson('))
   assert.ok(activation.includes('activateTiptapEditor(updated.editor_state || upgradedState, false)'))
-  assert.ok(!activation.includes('window.location.reload()'))
+  assert.ok(
+    activation.includes(
+      "const richEditor = activateTiptapEditor(updated.editor_state || upgradedState, false)",
+    ),
+  )
+  assert.equal((activation.match(/window\.location\.reload\(\)/g) || []).length, 1)
+  assert.ok(activation.includes("if (error instanceof AuthError && error.status === 409)"))
 })
