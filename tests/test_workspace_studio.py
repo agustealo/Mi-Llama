@@ -35,7 +35,7 @@ def test_workspace_loads_interactive_writing_studio_module() -> None:
     assert '<script type="module" src="studio.js"></script>' in html
     assert '<script type="module" src="rich_editor_activation.js"></script>' in html
     assert html.index('src="app.js"') < html.index('src="studio.js"')
-    assert html.index('src="studio.js"') < html.index('src="rich_editor_activation.js"')
+    assert html.index('src="rich_editor_activation.js"') < html.index('src="studio.js"')
 
 
 def test_browser_auth_keeps_session_tab_scoped_and_refreshable() -> None:
