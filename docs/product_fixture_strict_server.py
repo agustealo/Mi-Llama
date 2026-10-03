@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -19,13 +18,13 @@ from mi_llama.writing_studio.models import (
 )
 
 try:
-    from product_fixture_server import FixtureProvider, FixtureRepository, FixtureStorage, USER_ID
+    from product_fixture_server import USER_ID, FixtureProvider, FixtureRepository, FixtureStorage
 except ModuleNotFoundError:  # Imported as docs.product_fixture_strict_server in tests.
     from docs.product_fixture_server import (
+        USER_ID,
         FixtureProvider,
         FixtureRepository,
         FixtureStorage,
-        USER_ID,
     )
 
 
