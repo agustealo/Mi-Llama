@@ -17,6 +17,11 @@ def test_product_gallery_uses_authenticated_fixture_and_real_api_path() -> None:
     assert ".route(" not in capture
     assert "page.route" not in capture
     assert "#new-project-title" in capture
+    assert "#new-document-title" in capture
+    assert "#manuscript-editor" in capture
+    assert "#manuscript-consumer-bar" in capture
+    assert "Save version" in capture
+    assert "Version 1 saved" in capture
     assert "#surface-source-file" in capture
     assert "#surface-question" in capture
     assert "#surface-note-body" in capture
