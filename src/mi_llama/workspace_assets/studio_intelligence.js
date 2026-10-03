@@ -30,14 +30,13 @@ async function apiJson(path, options = {}) {
 
 function manuscriptContext() {
   const editor = getEditorAdapter()
-  const source = editor?.sourceElement?.() || null
   const workspace = window.miLlamaManuscript?.getContext?.() || {}
   return {
     projectId: workspace.projectId || null,
     documentId: workspace.documentId || null,
     model: $('#studio-model')?.value || null,
     editor,
-    canEdit: Boolean(editor && !source?.readOnly),
+    canEdit: Boolean(editor && !editor.isReadOnly()),
   }
 }
 
