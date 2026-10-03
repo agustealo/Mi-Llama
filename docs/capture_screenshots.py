@@ -50,7 +50,9 @@ def create_project(page: Page) -> None:
 def create_manuscript(page: Page) -> None:
     page.locator("#new-document-title").fill("Coastal Resilience Draft")
     page.get_by_role("button", name="Create manuscript").click()
-    rich_editor = page.locator(".rich-manuscript-editor .ProseMirror")
+    rich_host = page.locator(".rich-manuscript-editor")
+    rich_host.wait_for()
+    rich_editor = rich_host.locator('[contenteditable="true"]')
     rich_editor.wait_for()
     page.locator("#manuscript-consumer-bar").wait_for()
     page.get_by_role("button", name="Versions").wait_for()
