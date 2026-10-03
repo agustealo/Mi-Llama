@@ -220,7 +220,7 @@ function closeButton() {
 
 async function renderDocumentManager(panel, context) {
   panel.replaceChildren()
-  const document = await apiJson(
+  const manuscript = await apiJson(
     `/api/projects/${context.projectId}/writing/documents/${context.documentId}`,
   )
 
@@ -231,8 +231,8 @@ async function renderDocumentManager(panel, context) {
 
   const form = document.createElement('form')
   form.className = 'manuscript-manage-form'
-  const title = textInput(document.title, 'Manuscript title')
-  const status = selectInput(MANUSCRIPT_STATUSES, document.status)
+  const title = textInput(manuscript.title, 'Manuscript title')
+  const status = selectInput(MANUSCRIPT_STATUSES, manuscript.status)
   title.disabled = !context.canEdit
   status.disabled = !context.canEdit
   form.append(field('Title', title), field('Status', status))
@@ -434,7 +434,7 @@ function formatRevisionDate(value) {
 
 async function renderVersionHistory(panel, context) {
   panel.replaceChildren()
-  const [document, revisions] = await Promise.all([
+  const [manuscript, revisions] = await Promise.all([
     apiJson(`/api/projects/${context.projectId}/writing/documents/${context.documentId}`),
     apiJson(
       `/api/projects/${context.projectId}/writing/documents/${context.documentId}/revisions`,
@@ -459,13 +459,13 @@ async function renderVersionHistory(panel, context) {
   for (const revision of sorted) {
     const item = document.createElement('details')
     item.className = 'manuscript-version-row'
-    if (revision.id === document.current_revision_id) item.dataset.current = 'true'
+    if (revision.id === manuscript.current_revision_id) item.dataset.current = 'true'
 
     const summary = document.createElement('summary')
     const title = document.createElement('b')
     title.textContent = `Version ${revision.revision_number}`
     const meta = document.createElement('span')
-    meta.textContent = `${revision.word_count} words · ${formatRevisionDate(revision.created_at)}${revision.id === document.current_revision_id ? ' · current' : ''}`
+    meta.textContent = `${revision.word_count} words · ${formatRevisionDate(revision.created_at)}${revision.id === manuscript.current_revision_id ? ' · current' : ''}`
     summary.append(title, meta)
 
     const preview = document.createElement('pre')
@@ -520,7 +520,7 @@ async function summaryData(context) {
   ])
 }
 
-function createConsumerBar(context, document, revisions) {
+function createConsumerBar(context, manuscript, revisions) {
   const bar = document.createElement('section')
   bar.id = 'manuscript-consumer-bar'
   bar.className = 'card manuscript-consumer-bar'
@@ -533,10 +533,10 @@ function createConsumerBar(context, document, revisions) {
   eyebrow.className = 'eyebrow'
   eyebrow.textContent = 'MANUSCRIPT WORKSPACE'
   const title = document.createElement('b')
-  title.textContent = document.title
+  title.textContent = manuscript.title
   const meta = document.createElement('small')
   const versionCount = revisions.length
-  meta.textContent = `${statusLabel(document.status, MANUSCRIPT_STATUSES)} · ${versionCount} saved version${versionCount === 1 ? '' : 's'} · autosave protects the live draft`
+  meta.textContent = `${statusLabel(manuscript.status, MANUSCRIPT_STATUSES)} · ${versionCount} saved version${versionCount === 1 ? '' : 's'} · autosave protects the live draft`
   copy.append(eyebrow, title, meta)
   summary.appendChild(copy)
 
@@ -610,9 +610,9 @@ async function enhanceConsumerWorkspace() {
   if (!context.key) return
   const run = ++generation
   try {
-    const [document, revisions] = await summaryData(context)
+    const [manuscript, revisions] = await summaryData(context)
     if (run !== generation || currentContext().key !== context.key) return
-    heading.insertAdjacentElement('afterend', createConsumerBar(context, document, revisions))
+    heading.insertAdjacentElement('afterend', createConsumerBar(context, manuscript, revisions))
   } catch (_error) {
     // The core editor remains usable even if this enhancement cannot load.
   }
