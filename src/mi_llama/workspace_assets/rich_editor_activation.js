@@ -318,13 +318,6 @@ async function activateCurrentManuscript() {
   }
 }
 
-const content = document.querySelector('#content')
-if (content) {
-  new MutationObserver(scheduleActivation).observe(content, {
-    childList: true,
-    subtree: true,
-  })
-}
 window.addEventListener('hashchange', scheduleActivation)
 window.addEventListener('mi-llama:manuscript-rendered', scheduleActivation)
 scheduleActivation()
