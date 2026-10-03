@@ -103,7 +103,7 @@ def test_fixture_does_not_add_a_production_fallback() -> None:
 def test_strict_fixture_supports_first_manuscript_draft_bootstrap() -> None:
     fixture = _strict_fixture_module()
     with TestClient(fixture.build_app()) as client:
-        headers = {"Authorization": f"Bearer {fixture.TOKEN}"}
+        headers = {"Authorization": "Bearer product-fixture-token"}
         project_response = client.post(
             "/api/projects",
             headers=headers,
