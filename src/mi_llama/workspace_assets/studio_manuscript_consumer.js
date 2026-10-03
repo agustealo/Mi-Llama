@@ -157,8 +157,19 @@ function selectManagementButton(mode) {
   })
 }
 
+async function ensureDraftSafe() {
+  const bridge = window.miLlamaManuscript
+  if (!bridge?.flushDraft) return true
+  return bridge.flushDraft()
+}
+
 async function refreshWorkspaceAfterMutation(documentId = null) {
   if (documentId) storeDocumentId(documentId)
+  const bridge = window.miLlamaManuscript
+  if (bridge?.refreshWorkspace) {
+    await bridge.refreshWorkspace(documentId)
+    return
+  }
   dispatchWorkspaceRefresh({ documentId })
 }
 
@@ -239,6 +250,9 @@ async function renderDocumentManager(panel, context) {
     save.disabled = true
     clearMessage()
     try {
+      if (!(await ensureDraftSafe())) {
+        throw new Error('Save or resolve the current draft before changing manuscript details.')
+      }
       await apiJson(
         `/api/projects/${context.projectId}/writing/documents/${context.documentId}`,
         {
@@ -282,6 +296,9 @@ async function renderNewDocument(panel, context) {
     create.disabled = true
     clearMessage()
     try {
+      if (!(await ensureDraftSafe())) {
+        throw new Error('Save or resolve the current draft before creating another manuscript.')
+      }
       const result = await apiJson(
         `/api/projects/${context.projectId}/writing/documents`,
         {
@@ -324,6 +341,9 @@ function outlineRow(node, context, onSaved) {
     if (!value) return
     save.disabled = true
     try {
+      if (!(await ensureDraftSafe())) {
+        throw new Error('Save or resolve the current draft before updating the outline.')
+      }
       await apiJson(
         `/api/projects/${context.projectId}/writing/outline/${node.id}`,
         {
@@ -365,6 +385,9 @@ async function renderOutlineManager(panel, context) {
     if (!value) return
     create.disabled = true
     try {
+      if (!(await ensureDraftSafe())) {
+        throw new Error('Save or resolve the current draft before updating the outline.')
+      }
       await apiJson(`/api/projects/${context.projectId}/writing/outline`, {
         method: 'POST',
         body: JSON.stringify({
