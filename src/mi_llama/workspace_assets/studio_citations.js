@@ -584,12 +584,8 @@ function installCitationAuthority() {
   }
 }
 
-const content = $('#content')
-if (content) {
-  new MutationObserver(() => queueMicrotask(installCitationAuthority)).observe(content, {
-    childList: true,
-    subtree: true,
-  })
-}
 window.addEventListener('hashchange', () => queueMicrotask(installCitationAuthority))
+window.addEventListener('mi-llama:manuscript-rendered', () =>
+  queueMicrotask(installCitationAuthority),
+)
 queueMicrotask(installCitationAuthority)
