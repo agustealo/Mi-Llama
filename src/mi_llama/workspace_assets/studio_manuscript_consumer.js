@@ -49,8 +49,9 @@ export function statusLabel(value, options) {
 }
 
 function currentContext() {
-  const projectId = $('#project-select')?.value || null
-  const documentId = $('#document-select')?.value || null
+  const workspace = window.miLlamaManuscript?.getContext?.() || {}
+  const projectId = workspace.projectId || null
+  const documentId = workspace.documentId || null
   const editor = getEditorAdapter()
   const source = editor?.sourceElement?.() || null
   return {
