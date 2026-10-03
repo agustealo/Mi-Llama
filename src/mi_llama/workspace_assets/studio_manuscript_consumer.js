@@ -19,6 +19,7 @@ let authPromise = null
 let observer = null
 let generation = 0
 let activeMode = null
+let enhancementQueued = false
 
 const $ = (selector) => document.querySelector(selector)
 
@@ -596,6 +597,15 @@ function createConsumerBar(context, manuscript, revisions) {
   return bar
 }
 
+function scheduleEnhancement() {
+  if (enhancementQueued) return
+  enhancementQueued = true
+  queueMicrotask(() => {
+    enhancementQueued = false
+    void enhanceConsumerWorkspace()
+  })
+}
+
 async function enhanceConsumerWorkspace() {
   const content = $('#content')
   const heading = content?.querySelector('.studio-heading')
@@ -622,15 +632,16 @@ function boot() {
   const content = $('#content')
   if (!content) return
   observer?.disconnect()
-  observer = new MutationObserver(() => queueMicrotask(enhanceConsumerWorkspace))
+  observer = new MutationObserver(scheduleEnhancement)
   observer.observe(content, { childList: true, subtree: true })
-  window.addEventListener('hashchange', enhanceConsumerWorkspace)
+  window.addEventListener('hashchange', scheduleEnhancement)
+  window.addEventListener('mi-llama:manuscript-rendered', scheduleEnhancement)
   window.addEventListener('mi-llama:manuscript-checkpoint', () => {
     $('#manuscript-consumer-bar')?.remove()
     closeManagement()
     void enhanceConsumerWorkspace()
   })
-  void enhanceConsumerWorkspace()
+  scheduleEnhancement()
 }
 
 if (typeof document !== 'undefined') {
