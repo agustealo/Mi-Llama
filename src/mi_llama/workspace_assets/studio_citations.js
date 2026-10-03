@@ -43,9 +43,10 @@ async function apiJson(path, options = {}) {
 }
 
 function manuscriptContext() {
+  const workspace = window.miLlamaManuscript?.getContext?.() || {}
   return {
-    projectId: $('#project-select')?.value || null,
-    documentId: $('#document-select')?.value || null,
+    projectId: workspace.projectId || null,
+    documentId: workspace.documentId || null,
     editor: getEditorAdapter(),
     collaborator: $('.collaborator-panel'),
   }
