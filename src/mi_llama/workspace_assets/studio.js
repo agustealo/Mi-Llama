@@ -1348,6 +1348,10 @@ function exposeManuscriptBridge() {
   window.miLlamaManuscript = {
     flushDraft,
     refreshWorkspace: refreshWritingWorkspace,
+    getContext: () => ({
+      projectId: state.projectId,
+      documentId: state.documentId,
+    }),
   }
   window.addEventListener('mi-llama:writing-workspace-refresh', (event) => {
     void refreshWritingWorkspace(event.detail?.documentId || null)
