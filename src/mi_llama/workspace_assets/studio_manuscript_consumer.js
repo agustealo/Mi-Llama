@@ -16,7 +16,6 @@ const OUTLINE_STATUSES = [
 ]
 
 let authPromise = null
-let observer = null
 let generation = 0
 let activeMode = null
 let enhancementQueued = false
@@ -632,9 +631,6 @@ async function enhanceConsumerWorkspace() {
 function boot() {
   const content = $('#content')
   if (!content) return
-  observer?.disconnect()
-  observer = new MutationObserver(scheduleEnhancement)
-  observer.observe(content, { childList: true, subtree: true })
   window.addEventListener('hashchange', scheduleEnhancement)
   window.addEventListener('mi-llama:manuscript-rendered', scheduleEnhancement)
   window.addEventListener('mi-llama:manuscript-checkpoint', () => {
