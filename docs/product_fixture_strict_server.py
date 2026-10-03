@@ -42,7 +42,9 @@ class StrictFixtureProvider(FixtureProvider):
         for message in reversed(list(messages)):
             content = getattr(message, "content", "")
             if "Selected passage:\n" in content:
-                selected = content.split("Selected passage:\n", 1)[1].split("\n\nContext after:", 1)[0]
+                selected = content.split("Selected passage:\n", 1)[1].split(
+                    "\n\nContext after:", 1
+                )[0]
                 break
         return {"replacement": selected.strip() or "Mi-Llama fixture revision"}
 
