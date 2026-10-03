@@ -149,12 +149,6 @@ function queueGroundingReview() {
   })
 }
 
-const content = document.querySelector('#content')
-if (content) {
-  new MutationObserver(queueGroundingReview).observe(content, {
-    childList: true,
-    subtree: true,
-  })
-}
 window.addEventListener('hashchange', queueGroundingReview)
+window.addEventListener('mi-llama:manuscript-rendered', queueGroundingReview)
 queueGroundingReview()
