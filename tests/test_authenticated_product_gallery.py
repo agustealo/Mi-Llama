@@ -1,10 +1,18 @@
+import importlib.util
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from docs.product_fixture_strict_server import TOKEN, build_app
-
 ROOT = Path(__file__).parents[1]
+
+
+def _strict_fixture_module():
+    path = ROOT / "docs" / "product_fixture_strict_server.py"
+    spec = importlib.util.spec_from_file_location("product_fixture_strict_server", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_product_gallery_uses_authenticated_fixture_and_real_api_path() -> None:
@@ -93,8 +101,9 @@ def test_fixture_does_not_add_a_production_fallback() -> None:
 
 
 def test_strict_fixture_supports_first_manuscript_draft_bootstrap() -> None:
-    with TestClient(build_app()) as client:
-        headers = {"Authorization": f"Bearer {TOKEN}"}
+    fixture = _strict_fixture_module()
+    with TestClient(fixture.build_app()) as client:
+        headers = {"Authorization": f"Bearer {fixture.TOKEN}"}
         project_response = client.post(
             "/api/projects",
             headers=headers,
