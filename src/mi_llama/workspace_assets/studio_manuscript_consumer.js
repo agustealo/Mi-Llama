@@ -52,12 +52,11 @@ function currentContext() {
   const projectId = workspace.projectId || null
   const documentId = workspace.documentId || null
   const editor = getEditorAdapter()
-  const source = editor?.sourceElement?.() || null
   return {
     projectId,
     documentId,
     editor,
-    canEdit: Boolean(editor && !source?.readOnly),
+    canEdit: Boolean(editor && !editor.isReadOnly()),
     key: projectId && documentId ? `${projectId}:${documentId}` : null,
   }
 }
