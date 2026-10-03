@@ -66,6 +66,20 @@ def create_manuscript(page: Page) -> None:
     )
     page.get_by_text("1 saved version", exact=False).wait_for()
 
+    page.get_by_role("button", name="Outline", exact=True).click()
+    page.locator(".manuscript-outline-create input").fill("Evidence and argument")
+    page.get_by_role("button", name="Add section").click()
+    page.get_by_text("Evidence and argument", exact=True).wait_for()
+
+    page.get_by_role("button", name="Details", exact=True).click()
+    page.locator("#manuscript-management-panel select").select_option("review")
+    page.get_by_role("button", name="Save details").click()
+    page.get_by_text("Review · 1 saved version", exact=False).wait_for()
+
+    page.get_by_role("button", name="Versions", exact=True).click()
+    page.get_by_text("Version 1", exact=True).wait_for()
+    page.get_by_role("button", name="Close", exact=True).click()
+
 
 def upload_source(page: Page) -> None:
     page.goto(f"{BASE_URL}/#library", wait_until="networkidle")
