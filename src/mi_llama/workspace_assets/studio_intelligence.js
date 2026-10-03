@@ -510,12 +510,8 @@ function installIntelligenceInteraction() {
   }
 }
 
-const content = $('#content')
-if (content) {
-  new MutationObserver(() => queueMicrotask(installIntelligenceInteraction)).observe(content, {
-    childList: true,
-    subtree: true,
-  })
-}
 window.addEventListener('hashchange', () => queueMicrotask(installIntelligenceInteraction))
+window.addEventListener('mi-llama:manuscript-rendered', () =>
+  queueMicrotask(installIntelligenceInteraction),
+)
 queueMicrotask(installIntelligenceInteraction)
