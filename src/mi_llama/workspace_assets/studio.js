@@ -1201,6 +1201,14 @@ async function checkpointRevision() {
     const index = state.documents.findIndex((item) => item.id === state.documentId)
     if (index >= 0) state.documents[index] = result.document
     setStudioStatus(`Version ${result.revision.revision_number} saved`, 'saved')
+    window.dispatchEvent(
+      new CustomEvent('mi-llama:manuscript-checkpoint', {
+        detail: {
+          documentId: state.documentId,
+          revisionNumber: result.revision.revision_number,
+        },
+      }),
+    )
     renderProposalPanel()
     updateSelectionToolbar()
   } catch (error) {
@@ -1322,6 +1330,25 @@ function renderCurrentProjectSurface(view) {
   })
 }
 
+async function refreshWritingWorkspace(documentId = null) {
+  if (!(await flushDraft())) return false
+  if (documentId) setStored(DOCUMENT_KEY, documentId)
+  await loadWritingWorkspace()
+  syncShell()
+  renderManuscriptStudio()
+  return true
+}
+
+function exposeManuscriptBridge() {
+  window.miLlamaManuscript = {
+    flushDraft,
+    refreshWorkspace: refreshWritingWorkspace,
+  }
+  window.addEventListener('mi-llama:writing-workspace-refresh', (event) => {
+    void refreshWritingWorkspace(event.detail?.documentId || null)
+  })
+}
+
 function bindShellActions() {
   window.addEventListener('beforeunload', (event) => {
     if (!state.dirty && !state.saving && !state.saveError) return
@@ -1341,6 +1368,7 @@ function enhanceCurrentView() {
 
 async function boot() {
   bindShellActions()
+  exposeManuscriptBridge()
   await loadModels()
   try {
     state.auth = await AuthClient.create()
