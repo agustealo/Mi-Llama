@@ -16,6 +16,10 @@ from mi_llama.writing_studio.models import (
     WritingProposalOperation,
     WritingProposalStatus,
 )
+from mi_llama.writing_studio.provenance_disposition import (
+    CreateProvenanceDispositionRequest,
+    ProvenanceDisposition,
+)
 
 try:
     from product_fixture_server import USER_ID, FixtureProvider, FixtureRepository, FixtureStorage
@@ -55,6 +59,7 @@ class StrictFixtureRepository(FixtureRepository):
         super().__init__()
         self.manuscript_drafts: dict[UUID, ManuscriptDraft] = {}
         self.writing_proposals: dict[UUID, WritingProposal] = {}
+        self.provenance_dispositions: dict[UUID, ProvenanceDisposition] = {}
 
     def _chunk_is_ready(self, chunk: SourceChunk) -> bool:
         version = self.source_versions.get(chunk.source_version_id)
@@ -162,6 +167,49 @@ class StrictFixtureRepository(FixtureRepository):
 
     async def promote_writing_finding_to_question(self, **kwargs: Any) -> Any:
         raise KeyError(str(kwargs.get("finding_id")))
+
+    async def list_provenance_dispositions(
+        self,
+        *,
+        access_token: str,
+        project_id: UUID,
+        document_id: UUID,
+    ) -> list[ProvenanceDisposition]:
+        self._check(access_token)
+        return sorted(
+            [
+                item
+                for item in self.provenance_dispositions.values()
+                if item.project_id == project_id and item.document_id == document_id
+            ],
+            key=lambda item: item.created_at,
+            reverse=True,
+        )
+
+    async def create_provenance_disposition(
+        self,
+        *,
+        access_token: str,
+        project_id: UUID,
+        document_id: UUID,
+        accepted_proposal_id: UUID,
+        request: CreateProvenanceDispositionRequest,
+    ) -> ProvenanceDisposition:
+        self._check(access_token)
+        item = ProvenanceDisposition(
+            id=uuid4(),
+            project_id=project_id,
+            document_id=document_id,
+            accepted_proposal_id=accepted_proposal_id,
+            disposition=request.disposition,
+            draft_version=request.expected_draft_version,
+            superseding_proposal_id=request.superseding_proposal_id,
+            reason=request.reason,
+            created_by=USER_ID,
+            created_at=datetime.now(UTC),
+        )
+        self.provenance_dispositions[item.id] = item
+        return item
 
     async def get_manuscript_draft(
         self,
