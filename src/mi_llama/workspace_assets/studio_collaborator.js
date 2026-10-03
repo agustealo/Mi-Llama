@@ -37,8 +37,9 @@ async function responseError(response, fallback) {
 }
 
 function workspaceContext() {
-  const projectId = document.querySelector('#project-select')?.value || null
-  const documentId = document.querySelector('#document-select')?.value || null
+  const workspace = window.miLlamaManuscript?.getContext?.() || {}
+  const projectId = workspace.projectId || null
+  const documentId = workspace.documentId || null
   const model = document.querySelector('#studio-model')?.value || null
   const editor = getEditorAdapter()
   return {
