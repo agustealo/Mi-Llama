@@ -87,7 +87,9 @@ def test_rich_editor_activation_is_revision_safe_and_structured() -> None:
     assert "/accept-structured`" in activation
     assert "/insert-structured`" in activation
     assert "previewReplaceRange" in activation
-    assert "MutationObserver" in activation
+    assert "MutationObserver" not in activation
+    assert "mi-llama:manuscript-rendered" in activation
+    assert "adoptServerDraft" in activation
     assert "window.location.reload()" in activation
 
 
