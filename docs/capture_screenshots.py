@@ -153,6 +153,13 @@ def main() -> None:
             viewport={"width": 1440, "height": 960},
             device_scale_factor=1,
         )
+        page.on(
+            "console",
+            lambda message: print(f"[browser console:{message.type}] {message.text}")
+            if message.type == "error"
+            else None,
+        )
+        page.on("pageerror", lambda error: print(f"[browser pageerror] {error}"))
         install_authenticated_session(page)
         create_project(page)
         create_manuscript(page)
