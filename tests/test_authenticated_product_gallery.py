@@ -7,8 +7,10 @@ def test_product_gallery_uses_authenticated_fixture_and_real_api_path() -> None:
     workflow = (ROOT / ".github" / "workflows" / "product-gallery.yml").read_text()
     capture = (ROOT / "docs" / "capture_screenshots.py").read_text()
     fixture = (ROOT / "docs" / "product_fixture_server.py").read_text()
+    strict_fixture = (ROOT / "docs" / "product_fixture_strict_server.py").read_text()
 
-    assert "python docs/product_fixture_server.py" in workflow
+    assert "python docs/product_fixture_strict_server.py" in workflow
+    assert "docs/product_fixture_strict_server.py" in workflow
     assert "docs/product_fixture_server.py" in workflow
     assert "product-fixture-token" in capture
     assert "sessionStorage.setItem" in capture
@@ -27,6 +29,9 @@ def test_product_gallery_uses_authenticated_fixture_and_real_api_path() -> None:
     assert "attach_workspace(" not in fixture
     assert "FixtureRepository()" in fixture
     assert "FixtureStorage()" in fixture
+    assert "class StrictFixtureRepository(FixtureRepository)" in strict_fixture
+    assert "repository=StrictFixtureRepository()" in strict_fixture
+    assert "storage=FixtureStorage()" in strict_fixture
 
 
 def test_product_gallery_capture_is_deterministic_before_commit_comparison() -> None:
