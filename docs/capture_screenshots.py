@@ -50,10 +50,11 @@ def create_project(page: Page) -> None:
 def create_manuscript(page: Page) -> None:
     page.locator("#new-document-title").fill("Coastal Resilience Draft")
     page.get_by_role("button", name="Create manuscript").click()
-    page.locator("#manuscript-editor").wait_for()
+    rich_editor = page.locator(".rich-manuscript-editor .ProseMirror")
+    rich_editor.wait_for()
     page.locator("#manuscript-consumer-bar").wait_for()
     page.get_by_role("button", name="Versions").wait_for()
-    page.locator("#manuscript-editor").fill(
+    rich_editor.fill(
         "Coastal resilience planning works best when claims stay connected to reviewed evidence. "
         "This manuscript keeps source-backed edits reviewable before they become part of the draft."
     )
