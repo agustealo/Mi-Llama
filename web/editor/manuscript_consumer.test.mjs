@@ -68,3 +68,15 @@ test('manuscript structural mutations require the canonical draft flush bridge',
   assert.ok(studio.includes('refreshWorkspace: refreshWritingWorkspace'))
   assert.ok(studio.includes("new CustomEvent('mi-llama:manuscript-checkpoint'"))
 })
+
+
+test('manuscript selector does not shadow the browser document authority', async () => {
+  const studio = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/studio.js', import.meta.url),
+    'utf8',
+  )
+
+  assert.ok(!studio.includes('for (const document of state.documents)'))
+  assert.ok(studio.includes('for (const manuscript of state.documents)'))
+  assert.ok(studio.includes("const option = document.createElement('option')"))
+})
