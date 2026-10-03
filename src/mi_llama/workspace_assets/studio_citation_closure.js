@@ -22,9 +22,10 @@ async function apiJson(path) {
 }
 
 function workspaceIds() {
+  const workspace = window.miLlamaManuscript?.getContext?.() || {}
   return {
-    projectId: document.querySelector('#project-select')?.value || null,
-    documentId: document.querySelector('#document-select')?.value || null,
+    projectId: workspace.projectId || null,
+    documentId: workspace.documentId || null,
   }
 }
 
@@ -396,9 +397,6 @@ function queueCitationClosure() {
   })
 }
 
-const content = document.querySelector('#content')
-if (content) {
-  new MutationObserver(queueCitationClosure).observe(content, { childList: true, subtree: true })
-}
 window.addEventListener('hashchange', queueCitationClosure)
+window.addEventListener('mi-llama:manuscript-rendered', queueCitationClosure)
 queueCitationClosure()

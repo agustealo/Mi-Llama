@@ -23,9 +23,10 @@ async function apiJson(path, options = {}) {
 }
 
 function ids() {
+  const workspace = window.miLlamaManuscript?.getContext?.() || {}
   return {
-    projectId: document.querySelector('#project-select')?.value || null,
-    documentId: document.querySelector('#document-select')?.value || null,
+    projectId: workspace.projectId || null,
+    documentId: workspace.documentId || null,
   }
 }
 
@@ -400,7 +401,6 @@ function queueRefresh() {
   })
 }
 
-const content = document.querySelector('#content')
-if (content) new MutationObserver(queueRefresh).observe(content, { childList: true, subtree: true })
 window.addEventListener('hashchange', queueRefresh)
+window.addEventListener('mi-llama:manuscript-rendered', queueRefresh)
 queueRefresh()

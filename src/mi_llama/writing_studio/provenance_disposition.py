@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Any, Protocol, TypeVar, cast, runtime_checkable
+from typing import Any, Protocol, TypeVar, cast, runtime_checkable
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -337,7 +337,7 @@ def register_provenance_disposition_routes(
     async def list_provenance_dispositions(
         project_id: UUID,
         document_id: UUID,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> list[ProvenanceDisposition]:
         try:
             return await service.list(
@@ -358,7 +358,7 @@ def register_provenance_disposition_routes(
         document_id: UUID,
         proposal_id: UUID,
         request: CreateProvenanceDispositionRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> ProvenanceDisposition:
         try:
             return await service.create(

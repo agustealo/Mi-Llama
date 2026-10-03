@@ -30,13 +30,13 @@ async function apiJson(path, options = {}) {
 
 function manuscriptContext() {
   const editor = getEditorAdapter()
-  const source = editor?.sourceElement?.() || null
+  const workspace = window.miLlamaManuscript?.getContext?.() || {}
   return {
-    projectId: $('#project-select')?.value || null,
-    documentId: $('#document-select')?.value || null,
+    projectId: workspace.projectId || null,
+    documentId: workspace.documentId || null,
     model: $('#studio-model')?.value || null,
     editor,
-    canEdit: Boolean(editor && !source?.readOnly),
+    canEdit: Boolean(editor && !editor.isReadOnly()),
   }
 }
 
@@ -509,12 +509,8 @@ function installIntelligenceInteraction() {
   }
 }
 
-const content = $('#content')
-if (content) {
-  new MutationObserver(() => queueMicrotask(installIntelligenceInteraction)).observe(content, {
-    childList: true,
-    subtree: true,
-  })
-}
 window.addEventListener('hashchange', () => queueMicrotask(installIntelligenceInteraction))
+window.addEventListener('mi-llama:manuscript-rendered', () =>
+  queueMicrotask(installIntelligenceInteraction),
+)
 queueMicrotask(installIntelligenceInteraction)

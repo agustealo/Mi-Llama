@@ -47,6 +47,43 @@ def create_project(page: Page) -> None:
     page.get_by_role("heading", name="Create the first manuscript").wait_for()
 
 
+def create_manuscript(page: Page) -> None:
+    page.locator("#new-document-title").fill("Coastal Resilience Draft")
+    page.get_by_role("button", name="Create manuscript").click()
+    rich_host = page.locator(".rich-manuscript-editor")
+    rich_host.wait_for()
+    rich_editor = rich_host.locator('[contenteditable="true"]')
+    rich_editor.wait_for()
+    page.locator("#manuscript-consumer-bar").wait_for()
+    page.get_by_role("button", name="Versions").wait_for()
+    rich_editor.fill(
+        "Coastal resilience planning works best when claims stay connected to reviewed evidence. "
+        "This manuscript keeps source-backed edits reviewable before they become part of the draft."
+    )
+    page.wait_for_function(
+        "() => document.querySelector('#studio-save-status')?.textContent === 'Saved'"
+    )
+    page.get_by_role("button", name="Save version").click()
+    page.wait_for_function(
+        "() => document.querySelector('#studio-save-status')?.textContent === 'Version 1 saved'"
+    )
+    page.get_by_text("1 saved version", exact=False).wait_for()
+
+    page.get_by_role("button", name="Outline", exact=True).click()
+    page.locator(".manuscript-outline-create input").fill("Evidence and argument")
+    page.get_by_role("button", name="Add section").click()
+    page.get_by_text("Evidence and argument", exact=True).wait_for()
+
+    page.get_by_role("button", name="Details", exact=True).click()
+    page.locator("#manuscript-management-panel select").select_option("review")
+    page.get_by_role("button", name="Save details").click()
+    page.get_by_text("Review · 1 saved version", exact=False).wait_for()
+
+    page.get_by_role("button", name="Versions", exact=True).click()
+    page.get_by_text("Version 1", exact=True).wait_for()
+    page.get_by_role("button", name="Close", exact=True).click()
+
+
 def upload_source(page: Page) -> None:
     page.goto(f"{BASE_URL}/#library", wait_until="networkidle")
     page.locator("#surface-source-file").set_input_files(
@@ -118,8 +155,11 @@ def main() -> None:
             viewport={"width": 1440, "height": 960},
             device_scale_factor=1,
         )
+        page.on("console", lambda message: print(f"BROWSER {message.type}: {message.text}"))
+        page.on("pageerror", lambda error: print(f"BROWSER PAGE ERROR: {error}"))
         install_authenticated_session(page)
         create_project(page)
+        create_manuscript(page)
         upload_source(page)
         add_question(page)
         add_note(page)

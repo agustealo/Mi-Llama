@@ -34,8 +34,8 @@ def test_workspace_loads_interactive_writing_studio_module() -> None:
     assert '<link rel="stylesheet" href="rich_editor.css">' in html
     assert '<script type="module" src="studio.js"></script>' in html
     assert '<script type="module" src="rich_editor_activation.js"></script>' in html
-    assert html.index('src="app.js"') < html.index('src="studio.js"')
-    assert html.index('src="studio.js"') < html.index('src="rich_editor_activation.js"')
+    assert html.index('src="app.js"') < html.index('src="rich_editor_activation.js"')
+    assert html.index('src="rich_editor_activation.js"') < html.index('src="studio.js"')
 
 
 def test_browser_auth_keeps_session_tab_scoped_and_refreshable() -> None:
@@ -87,7 +87,9 @@ def test_rich_editor_activation_is_revision_safe_and_structured() -> None:
     assert "/accept-structured`" in activation
     assert "/insert-structured`" in activation
     assert "previewReplaceRange" in activation
-    assert "MutationObserver" in activation
+    assert "MutationObserver" not in activation
+    assert "mi-llama:manuscript-rendered" in activation
+    assert "adoptServerDraft" in activation
     assert "window.location.reload()" in activation
 
 

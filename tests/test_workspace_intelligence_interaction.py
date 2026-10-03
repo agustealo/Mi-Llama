@@ -78,7 +78,8 @@ def test_intelligence_installer_and_failed_loads_are_observer_safe() -> None:
     assert "key === intelligenceState.loadedKey" in interaction
     assert "context.editor === boundEditor" in interaction
     assert "intelligenceState.loadedKey = key" in interaction
-    assert "MutationObserver" in interaction
+    assert "MutationObserver" not in interaction
+    assert "mi-llama:manuscript-rendered" in interaction
     assert "else {\n    renderIntelligence()" not in interaction
 
 

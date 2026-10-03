@@ -1,6 +1,18 @@
+import importlib.util
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
 ROOT = Path(__file__).parents[1]
+
+
+def _strict_fixture_module():
+    path = ROOT / "docs" / "product_fixture_strict_server.py"
+    spec = importlib.util.spec_from_file_location("product_fixture_strict_server", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_product_gallery_uses_authenticated_fixture_and_real_api_path() -> None:
@@ -17,6 +29,12 @@ def test_product_gallery_uses_authenticated_fixture_and_real_api_path() -> None:
     assert ".route(" not in capture
     assert "page.route" not in capture
     assert "#new-project-title" in capture
+    assert "#new-document-title" in capture
+    assert ".rich-manuscript-editor" in capture
+    assert '[contenteditable="true"]' in capture
+    assert "#manuscript-consumer-bar" in capture
+    assert "Save version" in capture
+    assert "Version 1 saved" in capture
     assert "#surface-source-file" in capture
     assert "#surface-question" in capture
     assert "#surface-note-body" in capture
@@ -81,3 +99,31 @@ def test_fixture_does_not_add_a_production_fallback() -> None:
 
     assert "product-fixture" not in workspace
     assert "product-fixture" not in main
+
+
+def test_strict_fixture_supports_first_manuscript_draft_bootstrap() -> None:
+    fixture = _strict_fixture_module()
+    with TestClient(fixture.build_app()) as client:
+        headers = {"Authorization": "Bearer product-fixture-token"}
+        project_response = client.post(
+            "/api/projects",
+            headers=headers,
+            json={"title": "Gallery manuscript", "description": None},
+        )
+        assert project_response.status_code == 201, project_response.text
+        project_id = project_response.json()["id"]
+
+        document_response = client.post(
+            f"/api/projects/{project_id}/writing/documents",
+            headers=headers,
+            json={"outline_node_id": None, "title": "First manuscript"},
+        )
+        assert document_response.status_code == 201, document_response.text
+        document_id = document_response.json()["id"]
+
+        draft_response = client.get(
+            f"/api/projects/{project_id}/writing/documents/{document_id}/draft",
+            headers=headers,
+        )
+        assert draft_response.status_code == 200, draft_response.text
+        assert draft_response.json() is None

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
-from typing import Annotated, Any
+from typing import Any
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -293,7 +293,7 @@ def register_proposal_iteration_routes(
         document_id: UUID,
         proposal_id: UUID,
         request: RefineWritingProposalRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> WritingProposal:
         try:
             return await service.refine(
@@ -324,7 +324,7 @@ def register_proposal_iteration_routes(
         project_id: UUID,
         document_id: UUID,
         proposal_id: UUID,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> WritingProposalExplanation:
         try:
             return await service.explain(

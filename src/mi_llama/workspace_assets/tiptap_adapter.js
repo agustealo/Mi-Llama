@@ -83,6 +83,10 @@ export class TiptapEditorAdapter {
     this.editor.setEditable(!Boolean(readOnly), false)
   }
 
+  isReadOnly() {
+    return !this.editor.isEditable
+  }
+
   focus() {
     this.editor.commands.focus()
   }
