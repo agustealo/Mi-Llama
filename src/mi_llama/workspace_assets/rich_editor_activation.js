@@ -293,6 +293,9 @@ async function activateCurrentManuscript() {
           }),
         },
       )
+      if (!window.miLlamaManuscript?.adoptServerDraft?.(updated)) {
+        throw new Error('The upgraded manuscript draft no longer matches the active document')
+      }
       const richEditor = activateTiptapEditor(updated.editor_state || upgradedState, false)
       ensureFormattingToolbar(richEditor, false)
     } catch (error) {
