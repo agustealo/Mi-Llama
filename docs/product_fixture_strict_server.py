@@ -21,7 +21,12 @@ from mi_llama.writing_studio.models import (
 try:
     from product_fixture_server import FixtureProvider, FixtureRepository, FixtureStorage, USER_ID
 except ModuleNotFoundError:  # Imported as docs.product_fixture_strict_server in tests.
-    from docs.product_fixture_server import FixtureProvider, FixtureRepository, FixtureStorage, USER_ID
+    from docs.product_fixture_server import (
+        FixtureProvider,
+        FixtureRepository,
+        FixtureStorage,
+        USER_ID,
+    )
 
 
 class StrictFixtureProvider(FixtureProvider):
@@ -127,7 +132,9 @@ class StrictFixtureRepository(FixtureRepository):
         )
 
     async def persist_writing_analysis(self, **kwargs: Any) -> Any:
-        raise NotImplementedError("fixture evidence analysis is created only when explicitly exercised")
+        raise NotImplementedError(
+            "fixture evidence analysis is created only when explicitly exercised"
+        )
 
     async def list_writing_analysis_runs(self, **kwargs: Any) -> list[Any]:
         self._check(kwargs["access_token"])
@@ -237,9 +244,7 @@ class StrictFixtureRepository(FixtureRepository):
         if draft.project_id != project_id or draft.version != expected_draft_version:
             raise RuntimeError("manuscript draft version is stale")
         document = self.documents[document_id]
-        existing = [
-            item for item in self.revisions.values() if item.document_id == document_id
-        ]
+        existing = [item for item in self.revisions.values() if item.document_id == document_id]
         revision = await super().create_manuscript_revision(
             access_token=access_token,
             project_id=project_id,
