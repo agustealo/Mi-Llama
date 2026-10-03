@@ -1335,6 +1335,26 @@ function renderCurrentProjectSurface(view) {
   })
 }
 
+function adoptServerDraft(draft) {
+  if (
+    !draft ||
+    String(draft.project_id || '') !== String(state.projectId || '') ||
+    String(draft.document_id || '') !== String(state.documentId || '') ||
+    !Number.isInteger(draft.version)
+  ) {
+    return false
+  }
+  state.draft = draft
+  state.localText = draft.plain_text || ''
+  state.dirty = false
+  state.saveError = null
+  state.conflict = false
+  setStudioStatus('Saved', 'saved')
+  syncSaveAttention()
+  updateSelectionToolbar()
+  return true
+}
+
 async function refreshWritingWorkspace(documentId = null) {
   if (!(await flushDraft())) return false
   if (documentId) setStored(DOCUMENT_KEY, documentId)
@@ -1352,6 +1372,7 @@ function exposeManuscriptBridge() {
       projectId: state.projectId,
       documentId: state.documentId,
     }),
+    adoptServerDraft,
   }
   window.addEventListener('mi-llama:writing-workspace-refresh', (event) => {
     void refreshWritingWorkspace(event.detail?.documentId || null)
