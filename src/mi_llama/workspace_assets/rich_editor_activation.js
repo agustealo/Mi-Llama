@@ -261,19 +261,21 @@ async function activateCurrentManuscript() {
 
     if (source instanceof HTMLTextAreaElement) source.readOnly = true
     try {
-      await auth.apiJson(
+      const upgradedState = tiptapStateForText(draft.plain_text)
+      const updated = await auth.apiJson(
         `/api/projects/${context.projectId}/writing/documents/${context.documentId}/draft`,
         {
           method: 'PUT',
           body: JSON.stringify({
             expected_version: draft.version,
             base_revision_id: draft.base_revision_id,
-            editor_state: tiptapStateForText(draft.plain_text),
+            editor_state: upgradedState,
             plain_text: draft.plain_text,
           }),
         },
       )
-      window.location.reload()
+      const richEditor = activateTiptapEditor(updated.editor_state || upgradedState, false)
+      ensureFormattingToolbar(richEditor, false)
     } catch (error) {
       if (error instanceof AuthError && error.status === 403) {
         activateReadOnlyDraft(context.editor, draft)
