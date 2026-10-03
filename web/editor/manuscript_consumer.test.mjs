@@ -115,3 +115,33 @@ test('rich editor lifecycle owns manuscript render before studio boot', async ()
   assert.ok(studioIndex >= 0)
   assert.ok(richIndex < studioIndex)
 })
+
+
+test('manuscript modules use explicit lifecycle events instead of descendant mutation polling', async () => {
+  const modules = [
+    'rich_editor_activation.js',
+    'studio_manuscript_consumer.js',
+    'studio_collaborator.js',
+    'studio_research.js',
+    'studio_citations.js',
+    'studio_intelligence.js',
+    'studio_grounding_review.js',
+    'studio_citation_closure.js',
+    'studio_provenance_repair.js',
+  ]
+
+  for (const filename of modules) {
+    const source = await readFile(
+      new URL(`../../src/mi_llama/workspace_assets/${filename}`, import.meta.url),
+      'utf8',
+    )
+    assert.ok(
+      !source.includes('new MutationObserver'),
+      `${filename} must not poll manuscript DOM mutations`,
+    )
+    assert.ok(
+      source.includes('mi-llama:manuscript-rendered'),
+      `${filename} must hydrate from the canonical manuscript lifecycle event`,
+    )
+  }
+})
