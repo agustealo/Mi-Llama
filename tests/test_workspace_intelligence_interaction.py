@@ -40,7 +40,7 @@ def test_intelligence_review_uses_canonical_analysis_and_finding_authorities() -
 def test_intelligence_mutations_follow_studio_edit_authority() -> None:
     interaction = (ASSETS / "studio_intelligence.js").read_text()
 
-    assert "canEdit: Boolean(editor && !source?.readOnly)" in interaction
+    assert "canEdit: Boolean(editor && !editor.isReadOnly())" in interaction
     assert "!canEdit || intelligenceState.busy" in interaction
     assert "!manuscriptContext().canEdit" in interaction
     assert "Editing access is required to run a new evidence review." in interaction
