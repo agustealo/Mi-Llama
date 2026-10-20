@@ -31,9 +31,7 @@ MAX_IMAGE_HEIGHT = 8192
 
 
 def git_output(*arguments: str) -> str:
-    return subprocess.check_output(
-        ["git", *arguments], cwd=ROOT, text=True
-    ).strip()
+    return subprocess.check_output(["git", *arguments], cwd=ROOT, text=True).strip()
 
 
 def load_images(archive: Path) -> dict[str, bytes]:
