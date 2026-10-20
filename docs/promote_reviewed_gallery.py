@@ -10,13 +10,11 @@ declare screenshots approved: --approve records a review decision by the operato
 from __future__ import annotations
 
 import argparse
-import io
+import struct
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
-
-from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 GALLERY = ROOT / "docs" / "assets" / "screenshots"
@@ -51,13 +49,13 @@ def load_images(archive: Path) -> dict[str, bytes]:
             if item.file_size > MAX_FILE_BYTES:
                 raise ValueError(f"Screenshot exceeds size limit: {item.filename}")
             content = zipped.read(item)
-            with Image.open(io.BytesIO(content)) as image:
-                image.verify()
-            with Image.open(io.BytesIO(content)) as image:
-                if image.format != "PNG" or image.width != 1440:
-                    raise ValueError(f"Unexpected capture width/format: {item.filename}")
-                if not 960 <= image.height <= MAX_IMAGE_HEIGHT:
-                    raise ValueError(f"Unexpected full-page height: {item.filename}")
+            if len(content) < 33 or content[:8] != b"\\x89PNG\\r\\n\\x1a\\n":
+                raise ValueError(f"Invalid PNG signature: {item.filename}")
+            if content[12:16] != b"IHDR" or struct.unpack(">I", content[8:12])[0] != 13:
+                raise ValueError(f"Invalid PNG header: {item.filename}")
+            width, height = struct.unpack(">II", content[16:24])
+            if width != 1440 or not 960 <= height <= MAX_IMAGE_HEIGHT:
+                raise ValueError(f"Unexpected full-page dimensions: {item.filename}")
             images[Path(item.filename).name] = content
         return images
 
