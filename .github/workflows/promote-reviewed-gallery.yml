@@ -1,0 +1,106 @@
+name: Promote Reviewed Product Gallery
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Product Gallery run ID containing the reviewed screenshots"
+        required: true
+        type: string
+      expected_source_sha:
+        description: "Exact 40-character commit SHA used for the capture"
+        required: true
+        type: string
+      target_pr_number:
+        description: "Open same-repository PR receiving the screenshot update"
+        required: true
+        type: string
+      approved:
+        description: "Confirm human visual review of all six actual full-page screenshots"
+        required: true
+        type: boolean
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: reviewed-product-gallery-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: inputs.approved
+    runs-on: ubuntu-latest
+    environment: gallery-approval
+    steps:
+      - name: Validate requested source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          TARGET_PR: ${{ inputs.target_pr_number }}
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "Invalid run ID"; exit 1; }
+          [[ "$TARGET_PR" =~ ^[0-9]+$ ]] || { echo "Invalid target PR"; exit 1; }
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid source SHA"; exit 1; }
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
+          event_name="$(jq -r '.event' <<<"$run_json")"
+          workflow_name="$(jq -r '.name' <<<"$run_json")"
+          [[ "$workflow_name" == "Product Gallery" ]] || { echo "Not a Product Gallery run"; exit 1; }
+          [[ "$event_name" == "pull_request" ]] || { echo "Require PR-source Gallery"; exit 1; }
+          jq -e --argjson pr "$TARGET_PR" 'any(.pull_requests[]; .number == $pr)' <<<"$run_json" >/dev/null || { echo "Capture belongs to another PR"; exit 1; }
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$TARGET_PR")"
+          [[ "$(jq -r '.state' <<<"$pr_json")" == "open" ]] || { echo "PR is not open"; exit 1; }
+          [[ "$(jq -r '.head.repo.full_name' <<<"$pr_json")" == "$GITHUB_REPOSITORY" ]] || { echo "Fork PR not allowed"; exit 1; }
+          [[ "$(jq -r '.head.sha' <<<"$pr_json")" == "$SOURCE_SHA" ]] || { echo "PR head changed since capture"; exit 1; }
+          [[ "$(jq -r '.head.ref' <<<"$pr_json")" == "$(jq -r '.head_branch' <<<"$run_json")" ]] || { echo "Source branch mismatch"; exit 1; }
+          [[ "$(jq -r '.merge_commit_sha' <<<"$pr_json")" == "$(jq -r '.head_sha' <<<"$run_json")" ]] || { echo "Gallery did not capture the current PR merge ref"; exit 1; }
+          [[ "$(jq -r '.status' <<<"$run_json")" == "completed" ]] || { echo "Gallery capture not completed"; exit 1; }
+          [[ "$(jq -r '.base.ref' <<<"$pr_json")" == "main" ]] || { echo "Unexpected target PR base"; exit 1; }
+          echo "TARGET_BRANCH=$(jq -r '.head.ref' <<<"$pr_json")" >> "$GITHUB_ENV"
+          echo "Verified source: $SOURCE_SHA"
+
+      - name: Checkout exact captured commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_source_sha }}
+          persist-credentials: false
+
+      - name: Download reviewed gallery from workflow run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_SHA: ${{ inputs.expected_source_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gallery-artifact
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100")"
+          artifact_id="$(jq -r '[.artifacts[] | select(.name | startswith("mi-llama-product-gallery-"))] | if length == 1 then .[0].id else empty end' <<<"$artifacts")"
+          [[ "$artifact_id" =~ ^[0-9]+$ ]] || { echo "Expected exactly one gallery artifact"; exit 1; }
+          artifact_name="$(jq -r --argjson id "$artifact_id" '.artifacts[] | select(.id == $id) | .name' <<<"$artifacts")"
+          run_merge_sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq .head_sha)"
+          [[ "$artifact_name" == "mi-llama-product-gallery-$run_merge_sha" ]] || { echo "Artifact name mismatch"; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > /tmp/gallery-artifact/gallery.zip
+          python docs/promote_reviewed_gallery.py /tmp/gallery-artifact/gallery.zip --head-sha "$SOURCE_SHA" --approve
+
+      - name: Create gallery promotion PR branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ inputs.expected_source_sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="gallery/approved-${SOURCE_SHA:0:12}"
+          git switch -c "$branch"
+          git add docs/assets/screenshots/*.png
+          if git diff --cached --quiet; then
+            echo "Gallery already matches captured screens."
+            exit 0
+          fi
+          git commit -m "docs: promote visually approved product gallery from $SOURCE_SHA"
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push origin "HEAD:refs/heads/$branch"
+          gh pr create --base "$TARGET_BRANCH" --head "$branch" --title "Promote reviewed Product Gallery captures into PR #${{ inputs.target_pr_number }}" --body "Approved full-page authenticated screenshots from Product Gallery run ${{ inputs.source_run_id }} at exact source SHA $SOURCE_SHA. Merge into the existing feature PR before promoting that PR to main. Requires normal CI checks; no threshold changes."

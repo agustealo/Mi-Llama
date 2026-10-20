@@ -172,3 +172,19 @@ test('consumer manuscript permissions follow the active editor implementation', 
   assert.ok(!consumer.includes('source?.readOnly'))
   assert.ok(!intelligence.includes('source?.readOnly'))
 })
+
+test('rich editor keeps writing space without forcing a giant minimum page height', async () => {
+  const css = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/rich_editor.css', import.meta.url),
+    'utf8',
+  )
+  const studioCss = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/studio.css', import.meta.url),
+    'utf8',
+  )
+  assert.ok(css.includes('.rich-manuscript-editor{min-height:0;'))
+  assert.ok(css.includes('min-height:clamp(320px,calc(100dvh - 520px),560px)'))
+  assert.ok(css.includes('overflow:visible'))
+  assert.ok(studioCss.includes('.manuscript-editor[hidden]{display:none}'))
+  assert.ok(!css.includes('overflow:hidden'))
+})
