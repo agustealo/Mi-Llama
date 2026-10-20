@@ -1,0 +1,88 @@
+name: Promote Reviewed Product Gallery
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Product Gallery run ID containing the reviewed screenshots"
+        required: true
+        type: string
+      expected_source_sha:
+        description: "Exact 40-character commit SHA used for the capture"
+        required: true
+        type: string
+      approved:
+        description: "Confirm human visual review of all six actual full-page screenshots"
+        required: true
+        type: boolean
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: reviewed-product-gallery-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: inputs.approved
+    runs-on: ubuntu-latest
+    environment: gallery-approval
+    steps:
+      - name: Validate requested source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_SHA: ${{ inputs.expected_source_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "Invalid run ID"; exit 1; }
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid source SHA"; exit 1; }
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
+          actual_sha="$(jq -r '.head_sha' <<<"$run_json")"
+          event_name="$(jq -r '.event' <<<"$run_json")"
+          workflow_name="$(jq -r '.name' <<<"$run_json")"
+          [[ "$actual_sha" == "$SOURCE_SHA" ]] || { echo "Run SHA mismatch"; exit 1; }
+          [[ "$workflow_name" == "Product Gallery" ]] || { echo "Not a Product Gallery run"; exit 1; }
+          [[ "$event_name" == "pull_request" || "$event_name" == "workflow_dispatch" ]] || exit 1
+          echo "Verified source: $SOURCE_SHA"
+
+      - name: Checkout exact captured commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_source_sha }}
+          persist-credentials: false
+
+      - name: Download reviewed gallery from workflow run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_SHA: ${{ inputs.expected_source_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gallery-artifact
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts" --paginate)"
+          artifact_id="$(jq -r '[.artifacts[] | select(.name | startswith("mi-llama-product-gallery-"))] | if length == 1 then .[0].id else empty end' <<<"$artifacts")"
+          [[ "$artifact_id" =~ ^[0-9]+$ ]] || { echo "Expected exactly one gallery artifact"; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > /tmp/gallery-artifact/gallery.zip
+          python docs/promote_reviewed_gallery.py /tmp/gallery-artifact/gallery.zip --head-sha "$SOURCE_SHA" --approve
+
+      - name: Create gallery promotion PR branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ inputs.expected_source_sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="gallery/approved-${SOURCE_SHA:0:12}"
+          git switch -c "$branch"
+          git add docs/assets/screenshots/*.png
+          if git diff --cached --quiet; then
+            echo "Gallery already matches captured screens."
+            exit 0
+          fi
+          git commit -m "docs: promote visually approved product gallery from $SOURCE_SHA"
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push origin "HEAD:refs/heads/$branch"
+          gh pr create --base main --head "$branch" --title "Promote reviewed Product Gallery captures" --body "Approved full-page authenticated screenshots from Product Gallery run ${{ inputs.source_run_id }} at exact source SHA $SOURCE_SHA. Requires normal CI checks and final visual review; no threshold changes."
