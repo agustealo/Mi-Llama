@@ -169,7 +169,13 @@ def main() -> None:
 
     failures: list[str] = []
     for path in paths:
-        changed_pixels, max_delta = compare_png(path)
+        try:
+            changed_pixels, max_delta = compare_png(path)
+        except (RuntimeError, ValueError) as error:
+            failures.append(f"{path}: {error}")
+            print(f"{path}: comparison failed: {error}")
+            continue
+
         print(f"{path}: changed_pixels={changed_pixels}, max_channel_delta={max_delta}")
         if changed_pixels > MAX_CHANGED_PIXELS or max_delta > MAX_CHANNEL_DELTA:
             failures.append(
