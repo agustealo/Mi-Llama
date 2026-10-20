@@ -47,10 +47,8 @@ jobs:
           [[ "$TARGET_PR" =~ ^[0-9]+$ ]] || { echo "Invalid target PR"; exit 1; }
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid source SHA"; exit 1; }
           run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
-          actual_sha="$(jq -r '.head_sha' <<<"$run_json")"
           event_name="$(jq -r '.event' <<<"$run_json")"
           workflow_name="$(jq -r '.name' <<<"$run_json")"
-          [[ "$actual_sha" == "$SOURCE_SHA" ]] || { echo "Run SHA mismatch"; exit 1; }
           [[ "$workflow_name" == "Product Gallery" ]] || { echo "Not a Product Gallery run"; exit 1; }
           [[ "$event_name" == "pull_request" ]] || { echo "Require PR-source Gallery"; exit 1; }
           jq -e --argjson pr "$TARGET_PR" 'any(.pull_requests[]; .number == $pr)' <<<"$run_json" >/dev/null || { echo "Capture belongs to another PR"; exit 1; }
@@ -58,6 +56,9 @@ jobs:
           [[ "$(jq -r '.state' <<<"$pr_json")" == "open" ]] || { echo "PR is not open"; exit 1; }
           [[ "$(jq -r '.head.repo.full_name' <<<"$pr_json")" == "$GITHUB_REPOSITORY" ]] || { echo "Fork PR not allowed"; exit 1; }
           [[ "$(jq -r '.head.sha' <<<"$pr_json")" == "$SOURCE_SHA" ]] || { echo "PR head changed since capture"; exit 1; }
+          [[ "$(jq -r '.head.ref' <<<"$pr_json")" == "$(jq -r '.head_branch' <<<"$run_json")" ]] || { echo "Source branch mismatch"; exit 1; }
+          [[ "$(jq -r '.merge_commit_sha' <<<"$pr_json")" == "$(jq -r '.head_sha' <<<"$run_json")" ]] || { echo "Gallery did not capture the current PR merge ref"; exit 1; }
+          [[ "$(jq -r '.status' <<<"$run_json")" == "completed" ]] || { echo "Gallery capture not completed"; exit 1; }
           [[ "$(jq -r '.base.ref' <<<"$pr_json")" == "main" ]] || { echo "Unexpected target PR base"; exit 1; }
           echo "TARGET_BRANCH=$(jq -r '.head.ref' <<<"$pr_json")" >> "$GITHUB_ENV"
           echo "Verified source: $SOURCE_SHA"
@@ -79,6 +80,9 @@ jobs:
           artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100")"
           artifact_id="$(jq -r '[.artifacts[] | select(.name | startswith("mi-llama-product-gallery-"))] | if length == 1 then .[0].id else empty end' <<<"$artifacts")"
           [[ "$artifact_id" =~ ^[0-9]+$ ]] || { echo "Expected exactly one gallery artifact"; exit 1; }
+          artifact_name="$(jq -r --argjson id "$artifact_id" '.artifacts[] | select(.id == $id) | .name' <<<"$artifacts")"
+          run_merge_sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq .head_sha)"
+          [[ "$artifact_name" == "mi-llama-product-gallery-$run_merge_sha" ]] || { echo "Artifact name mismatch"; exit 1; }
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > /tmp/gallery-artifact/gallery.zip
           python docs/promote_reviewed_gallery.py /tmp/gallery-artifact/gallery.zip --head-sha "$SOURCE_SHA" --approve
 
