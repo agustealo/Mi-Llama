@@ -43,9 +43,10 @@ async function apiJson(path, options = {}) {
 }
 
 function manuscriptContext() {
+  const workspace = window.miLlamaManuscript?.getContext?.() || {}
   return {
-    projectId: $('#project-select')?.value || null,
-    documentId: $('#document-select')?.value || null,
+    projectId: workspace.projectId || null,
+    documentId: workspace.documentId || null,
     editor: getEditorAdapter(),
     collaborator: $('.collaborator-panel'),
   }
@@ -583,12 +584,8 @@ function installCitationAuthority() {
   }
 }
 
-const content = $('#content')
-if (content) {
-  new MutationObserver(() => queueMicrotask(installCitationAuthority)).observe(content, {
-    childList: true,
-    subtree: true,
-  })
-}
 window.addEventListener('hashchange', () => queueMicrotask(installCitationAuthority))
+window.addEventListener('mi-llama:manuscript-rendered', () =>
+  queueMicrotask(installCitationAuthority),
+)
 queueMicrotask(installCitationAuthority)

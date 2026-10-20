@@ -47,6 +47,63 @@ def create_project(page: Page) -> None:
     page.get_by_role("heading", name="Create the first manuscript").wait_for()
 
 
+def assert_single_manuscript_editor(page: Page) -> None:
+    """The rich editor must exclusively own the visible manuscript editing surface."""
+    rich_host = page.locator(".rich-manuscript-editor")
+    rich_host.wait_for(state="visible")
+    assert rich_host.count() == 1, "Expected exactly one rich manuscript host"
+
+    source = page.locator("textarea.manuscript-editor")
+    assert source.count() == 1, "Expected the canonical fallback textarea"
+    assert source.evaluate("(node) => node.hidden"), "Rich editor did not hide fallback textarea"
+    assert source.is_hidden(), "Inactive textarea is visually exposed"
+    assert source.evaluate("(node) => getComputedStyle(node).display") == "none", (
+        "Inactive textarea still occupies layout space"
+    )
+
+    editable = rich_host.locator('[contenteditable="true"]')
+    assert editable.count() == 1, "Expected exactly one editable Tiptap surface"
+    assert editable.is_visible(), "Active Tiptap surface is not visible"
+
+
+def create_manuscript(page: Page) -> None:
+    page.locator("#new-document-title").fill("Coastal Resilience Draft")
+    page.get_by_role("button", name="Create manuscript").click()
+    rich_host = page.locator(".rich-manuscript-editor")
+    rich_host.wait_for()
+    rich_editor = rich_host.locator('[contenteditable="true"]')
+    rich_editor.wait_for()
+    assert_single_manuscript_editor(page)
+    page.locator("#manuscript-consumer-bar").wait_for()
+    page.get_by_role("button", name="Versions").wait_for()
+    rich_editor.fill(
+        "Coastal resilience planning works best when claims stay connected to reviewed evidence. "
+        "This manuscript keeps source-backed edits reviewable before they become part of the draft."
+    )
+    page.wait_for_function(
+        "() => document.querySelector('#studio-save-status')?.textContent === 'Saved'"
+    )
+    page.get_by_role("button", name="Save version").click()
+    page.wait_for_function(
+        "() => document.querySelector('#studio-save-status')?.textContent === 'Version 1 saved'"
+    )
+    page.get_by_text("1 saved version", exact=False).wait_for()
+
+    page.get_by_role("button", name="Outline", exact=True).click()
+    page.locator(".manuscript-outline-create input").fill("Evidence and argument")
+    page.get_by_role("button", name="Add section").click()
+    page.get_by_text("Evidence and argument", exact=True).wait_for()
+
+    page.get_by_role("button", name="Details", exact=True).click()
+    page.locator("#manuscript-management-panel select").select_option("review")
+    page.get_by_role("button", name="Save details").click()
+    page.get_by_text("Review · 1 saved version", exact=False).wait_for()
+
+    page.get_by_role("button", name="Versions", exact=True).click()
+    page.get_by_text("Version 1", exact=True).wait_for()
+    page.get_by_role("button", name="Close", exact=True).click()
+
+
 def upload_source(page: Page) -> None:
     page.goto(f"{BASE_URL}/#library", wait_until="networkidle")
     page.locator("#surface-source-file").set_input_files(
@@ -105,6 +162,8 @@ def capture_views(page: Page, output: Path) -> None:
     for view, filename in VIEWS:
         page.goto(f"{BASE_URL}/#{view}", wait_until="networkidle")
         page.wait_for_timeout(250)
+        if view == "manuscript":
+            assert_single_manuscript_editor(page)
         (output / filename).write_bytes(stable_screenshot(page))
 
 
@@ -118,8 +177,11 @@ def main() -> None:
             viewport={"width": 1440, "height": 960},
             device_scale_factor=1,
         )
+        page.on("console", lambda message: print(f"BROWSER {message.type}: {message.text}"))
+        page.on("pageerror", lambda error: print(f"BROWSER PAGE ERROR: {error}"))
         install_authenticated_session(page)
         create_project(page)
+        create_manuscript(page)
         upload_source(page)
         add_question(page)
         add_note(page)

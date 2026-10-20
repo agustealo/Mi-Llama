@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator, Callable
-from typing import Annotated, cast
+from typing import cast
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -60,7 +60,7 @@ def register_writing_studio_routes(
     async def list_document_conversations(
         project_id: UUID,
         document_id: UUID,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> list[Conversation]:
         document = await repository.get_manuscript_document(
             access_token=access_token,
@@ -86,7 +86,7 @@ def register_writing_studio_routes(
         project_id: UUID,
         document_id: UUID,
         request: CreateDocumentConversationRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> Conversation:
         document = await repository.get_manuscript_document(
             access_token=access_token,
@@ -118,7 +118,7 @@ def register_writing_studio_routes(
         document_id: UUID,
         conversation_id: UUID,
         request: SendDocumentConversationMessageRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> StreamingResponse:
         existing = await conversation_service.get_conversation(
             access_token=access_token,
@@ -174,7 +174,7 @@ def register_writing_studio_routes(
     async def get_manuscript_draft(
         project_id: UUID,
         document_id: UUID,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> ManuscriptDraft | None:
         try:
             return await service.get_draft(
@@ -195,7 +195,7 @@ def register_writing_studio_routes(
         project_id: UUID,
         document_id: UUID,
         request: SaveManuscriptDraftRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> ManuscriptDraft:
         try:
             return await service.save_draft(
@@ -221,7 +221,7 @@ def register_writing_studio_routes(
         project_id: UUID,
         document_id: UUID,
         request: CheckpointManuscriptDraftRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> CheckpointManuscriptDraftResult:
         try:
             return await service.checkpoint_draft(
@@ -247,7 +247,7 @@ def register_writing_studio_routes(
     async def list_writing_proposals(
         project_id: UUID,
         document_id: UUID,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> list[WritingProposal]:
         try:
             return await service.list_proposals(
@@ -269,7 +269,7 @@ def register_writing_studio_routes(
         project_id: UUID,
         document_id: UUID,
         request: CreateWritingProposalRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> WritingProposal:
         try:
             return await service.create_proposal(
@@ -298,7 +298,7 @@ def register_writing_studio_routes(
         document_id: UUID,
         proposal_id: UUID,
         request: ApplyWritingProposalRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> WritingProposalApplicationResult:
         try:
             return await service.accept_proposal(
@@ -326,7 +326,7 @@ def register_writing_studio_routes(
         project_id: UUID,
         document_id: UUID,
         proposal_id: UUID,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> WritingProposal:
         try:
             return await service.reject_proposal(

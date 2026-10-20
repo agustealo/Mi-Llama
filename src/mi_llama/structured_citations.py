@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
-from typing import Annotated, Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -412,7 +412,7 @@ def register_structured_citation_routes(
         document_id: UUID,
         citation_id: UUID,
         request: CitationPreviewRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> CitationInsertionPlan:
         try:
             return await service.plan(
@@ -443,7 +443,7 @@ def register_structured_citation_routes(
         document_id: UUID,
         citation_id: UUID,
         request: StructuredCitationInsertionRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> CitationInsertionResult:
         try:
             return await service.insert(

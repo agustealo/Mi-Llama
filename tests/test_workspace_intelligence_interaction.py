@@ -40,7 +40,7 @@ def test_intelligence_review_uses_canonical_analysis_and_finding_authorities() -
 def test_intelligence_mutations_follow_studio_edit_authority() -> None:
     interaction = (ASSETS / "studio_intelligence.js").read_text()
 
-    assert "canEdit: Boolean(editor && !source?.readOnly)" in interaction
+    assert "canEdit: Boolean(editor && !editor.isReadOnly())" in interaction
     assert "!canEdit || intelligenceState.busy" in interaction
     assert "!manuscriptContext().canEdit" in interaction
     assert "Editing access is required to run a new evidence review." in interaction
@@ -78,7 +78,8 @@ def test_intelligence_installer_and_failed_loads_are_observer_safe() -> None:
     assert "key === intelligenceState.loadedKey" in interaction
     assert "context.editor === boundEditor" in interaction
     assert "intelligenceState.loadedKey = key" in interaction
-    assert "MutationObserver" in interaction
+    assert "MutationObserver" not in interaction
+    assert "mi-llama:manuscript-rendered" in interaction
     assert "else {\n    renderIntelligence()" not in interaction
 
 

@@ -544,10 +544,10 @@ function renderDocumentSelector() {
   const select = $('#document-select')
   if (!select) return
   select.replaceChildren()
-  for (const document of state.documents) {
+  for (const manuscript of state.documents) {
     const option = document.createElement('option')
-    option.value = document.id
-    option.textContent = document.title
+    option.value = manuscript.id
+    option.textContent = manuscript.title
     select.appendChild(option)
   }
   select.value = state.documentId || ''
@@ -676,6 +676,11 @@ function renderManuscriptStudio() {
   $('#reload-server-draft')?.addEventListener('click', reloadServerDraft)
   renderProposalPanel()
   updateSelectionToolbar()
+  window.dispatchEvent(
+    new CustomEvent('mi-llama:manuscript-rendered', {
+      detail: { projectId: state.projectId, documentId: state.documentId },
+    }),
+  )
 }
 
 function renderModelSelector() {
@@ -1201,6 +1206,14 @@ async function checkpointRevision() {
     const index = state.documents.findIndex((item) => item.id === state.documentId)
     if (index >= 0) state.documents[index] = result.document
     setStudioStatus(`Version ${result.revision.revision_number} saved`, 'saved')
+    window.dispatchEvent(
+      new CustomEvent('mi-llama:manuscript-checkpoint', {
+        detail: {
+          documentId: state.documentId,
+          revisionNumber: result.revision.revision_number,
+        },
+      }),
+    )
     renderProposalPanel()
     updateSelectionToolbar()
   } catch (error) {
@@ -1322,6 +1335,50 @@ function renderCurrentProjectSurface(view) {
   })
 }
 
+function adoptServerDraft(draft) {
+  if (
+    !draft ||
+    String(draft.project_id || '') !== String(state.projectId || '') ||
+    String(draft.document_id || '') !== String(state.documentId || '') ||
+    !Number.isInteger(draft.version)
+  ) {
+    return false
+  }
+  state.draft = draft
+  state.localText = draft.plain_text || ''
+  state.dirty = false
+  state.saveError = null
+  state.conflict = false
+  setStudioStatus('Saved', 'saved')
+  syncSaveAttention()
+  updateSelectionToolbar()
+  return true
+}
+
+async function refreshWritingWorkspace(documentId = null) {
+  if (!(await flushDraft())) return false
+  if (documentId) setStored(DOCUMENT_KEY, documentId)
+  await loadWritingWorkspace()
+  syncShell()
+  renderManuscriptStudio()
+  return true
+}
+
+function exposeManuscriptBridge() {
+  window.miLlamaManuscript = {
+    flushDraft,
+    refreshWorkspace: refreshWritingWorkspace,
+    getContext: () => ({
+      projectId: state.projectId,
+      documentId: state.documentId,
+    }),
+    adoptServerDraft,
+  }
+  window.addEventListener('mi-llama:writing-workspace-refresh', (event) => {
+    void refreshWritingWorkspace(event.detail?.documentId || null)
+  })
+}
+
 function bindShellActions() {
   window.addEventListener('beforeunload', (event) => {
     if (!state.dirty && !state.saving && !state.saveError) return
@@ -1341,6 +1398,7 @@ function enhanceCurrentView() {
 
 async function boot() {
   bindShellActions()
+  exposeManuscriptBridge()
   await loadModels()
   try {
     state.auth = await AuthClient.create()

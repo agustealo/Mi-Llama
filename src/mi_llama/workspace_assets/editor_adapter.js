@@ -42,6 +42,10 @@ class TextareaEditorAdapter {
     this.element.readOnly = Boolean(readOnly)
   }
 
+  isReadOnly() {
+    return Boolean(this.element.readOnly)
+  }
+
   focus() {
     this.element.focus()
   }
@@ -140,6 +144,13 @@ class SwappableEditorAdapter {
 
   setReadOnly(readOnly) {
     return this.implementation.setReadOnly(readOnly)
+  }
+
+  isReadOnly() {
+    if (typeof this.implementation.isReadOnly === 'function') {
+      return Boolean(this.implementation.isReadOnly())
+    }
+    return Boolean(this.sourceElement()?.readOnly)
   }
 
   focus() {

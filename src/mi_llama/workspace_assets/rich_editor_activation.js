@@ -6,6 +6,8 @@ import {
 } from './editor_adapter.js'
 
 let activationBusy = false
+let activationQueued = false
+let activationPending = false
 
 function parseJsonBody(options) {
   if (!options?.body || typeof options.body !== 'string') return null
@@ -155,8 +157,9 @@ installApiFetchInterceptor(richEditorApiInterceptor)
 
 function currentManuscriptContext() {
   if ((location.hash || '#overview').slice(1) !== 'manuscript') return null
-  const projectId = document.querySelector('#project-select')?.value || null
-  const documentId = document.querySelector('#document-select')?.value || null
+  const workspace = window.miLlamaManuscript?.getContext?.() || {}
+  const projectId = workspace.projectId || null
+  const documentId = workspace.documentId || null
   const editor = getEditorAdapter()
   if (!projectId || !documentId || !editor) return null
   return { projectId, documentId, editor }
@@ -224,13 +227,28 @@ function activateReadOnlyDraft(editor, draft) {
   ensureFormattingToolbar(richEditor, true)
 }
 
+function scheduleActivation() {
+  if (activationBusy) {
+    activationPending = true
+    return
+  }
+  if (activationQueued) return
+  activationQueued = true
+  queueMicrotask(() => {
+    activationQueued = false
+    void activateCurrentManuscript()
+  })
+}
+
 async function activateCurrentManuscript() {
-  if (activationBusy) return
+  if (activationBusy) {
+    activationPending = true
+    return
+  }
   const context = currentManuscriptContext()
   if (!context) return
   if (context.editor.getDocumentState()?.schema === 'tiptap_v1') {
-    const source = context.editor.sourceElement()
-    ensureFormattingToolbar(context.editor, Boolean(source?.readOnly))
+    ensureFormattingToolbar(context.editor, context.editor.isReadOnly())
     return
   }
 
@@ -261,19 +279,24 @@ async function activateCurrentManuscript() {
 
     if (source instanceof HTMLTextAreaElement) source.readOnly = true
     try {
-      await auth.apiJson(
+      const upgradedState = tiptapStateForText(draft.plain_text)
+      const updated = await auth.apiJson(
         `/api/projects/${context.projectId}/writing/documents/${context.documentId}/draft`,
         {
           method: 'PUT',
           body: JSON.stringify({
             expected_version: draft.version,
             base_revision_id: draft.base_revision_id,
-            editor_state: tiptapStateForText(draft.plain_text),
+            editor_state: upgradedState,
             plain_text: draft.plain_text,
           }),
         },
       )
-      window.location.reload()
+      if (!window.miLlamaManuscript?.adoptServerDraft?.(updated)) {
+        throw new Error('The upgraded manuscript draft no longer matches the active document')
+      }
+      const richEditor = activateTiptapEditor(updated.editor_state || upgradedState, false)
+      ensureFormattingToolbar(richEditor, false)
     } catch (error) {
       if (error instanceof AuthError && error.status === 403) {
         activateReadOnlyDraft(context.editor, draft)
@@ -290,15 +313,13 @@ async function activateCurrentManuscript() {
     console.error('Rich manuscript editor activation failed', error)
   } finally {
     activationBusy = false
+    if (activationPending) {
+      activationPending = false
+      scheduleActivation()
+    }
   }
 }
 
-const content = document.querySelector('#content')
-if (content) {
-  new MutationObserver(() => queueMicrotask(activateCurrentManuscript)).observe(content, {
-    childList: true,
-    subtree: true,
-  })
-}
-window.addEventListener('hashchange', () => queueMicrotask(activateCurrentManuscript))
-queueMicrotask(activateCurrentManuscript)
+window.addEventListener('hashchange', scheduleActivation)
+window.addEventListener('mi-llama:manuscript-rendered', scheduleActivation)
+scheduleActivation()

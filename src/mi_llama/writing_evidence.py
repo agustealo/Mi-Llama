@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Annotated, Protocol, Self, runtime_checkable
+from typing import Protocol, Self, runtime_checkable
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -143,7 +143,7 @@ def register_writing_evidence_routes(
         project_id: UUID,
         document_id: UUID,
         request: PromoteWritingEvidenceRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> WritingEvidencePromotionResult:
         try:
             return await repository.promote_writing_evidence(

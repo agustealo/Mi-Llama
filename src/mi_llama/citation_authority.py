@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Any, Literal, Protocol, Self, runtime_checkable
+from typing import Any, Literal, Protocol, Self, runtime_checkable
 from uuid import UUID
 
 from citeproc import (
@@ -505,7 +505,7 @@ def register_citation_authority_routes(
     async def get_citation_metadata(
         project_id: UUID,
         source_id: UUID,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> SourceCitationMetadata | None:
         return await repository.get_source_citation_metadata(
             access_token=access_token,
@@ -521,7 +521,7 @@ def register_citation_authority_routes(
         project_id: UUID,
         source_id: UUID,
         request: SaveSourceCitationMetadataRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> SourceCitationMetadata:
         try:
             return await service.save_metadata(
@@ -549,7 +549,7 @@ def register_citation_authority_routes(
     async def get_citation_context(
         project_id: UUID,
         citation_id: UUID,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> CitationContext:
         try:
             return await service.context(
@@ -566,7 +566,7 @@ def register_citation_authority_routes(
         project_id: UUID,
         citation_id: UUID,
         request: CitationPreviewRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> CitationPreview:
         try:
             return await service.preview(
@@ -592,7 +592,7 @@ def register_citation_authority_routes(
         document_id: UUID,
         citation_id: UUID,
         request: InsertCitationRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> CitationInsertionResult:
         try:
             return await service.insert(

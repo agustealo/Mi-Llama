@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
-from typing import Annotated, Any, Self
+from typing import Any, Self
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -175,7 +175,7 @@ def register_structured_writing_routes(
         document_id: UUID,
         proposal_id: UUID,
         request: ApplyStructuredWritingProposalRequest,
-        access_token: Annotated[str, Depends(access_token_dependency)],
+        access_token: str = Depends(access_token_dependency),
     ) -> WritingProposalApplicationResult:
         try:
             return await service.accept_proposal(
