@@ -23,6 +23,7 @@ on:
 permissions:
   actions: read
   contents: write
+  pull-requests: write
 
 concurrency:
   group: reviewed-product-gallery-promotion
@@ -75,9 +76,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/gallery-artifact
-          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts" --paginate)"
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100")"
           artifact_id="$(jq -r '[.artifacts[] | select(.name | startswith("mi-llama-product-gallery-"))] | if length == 1 then .[0].id else empty end' <<<"$artifacts")"
           [[ "$artifact_id" =~ ^[0-9]+$ ]] || { echo "Expected exactly one gallery artifact"; exit 1; }
+          artifact_name="$(jq -r --argjson id "$artifact_id" '.artifacts[] | select(.id == $id) | .name' <<<"$artifacts")"
+          [[ "$artifact_name" == "mi-llama-product-gallery-$SOURCE_SHA" || "$artifact_name" == "mi-llama-product-gallery-$(jq -r '.head_commit.id // empty' <<<"$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")")" ]] || { echo "Artifact name does not match capture provenance"; exit 1; }
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > /tmp/gallery-artifact/gallery.zip
           python docs/promote_reviewed_gallery.py /tmp/gallery-artifact/gallery.zip --head-sha "$SOURCE_SHA" --approve
 
