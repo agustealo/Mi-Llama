@@ -7,6 +7,7 @@ Usage:
 Download the artifact from the exact workflow head first. This program does not
 declare screenshots approved: --approve records a review decision by the operator.
 """
+
 from __future__ import annotations
 
 import argparse
