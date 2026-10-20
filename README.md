@@ -178,6 +178,7 @@ Technical implementation details are intentionally kept separate from this produ
 - [Development and verification](docs/DEVELOPMENT.md)
 - [Brand guide](docs/BRAND.md)
 - [Product media guide](docs/PRODUCT_MEDIA.md)
+- [Manuscript UX audit and screenshot verification status](docs/UX_AUDIT_MANUSCRIPT_20261020.md)
 
 ## License
 
