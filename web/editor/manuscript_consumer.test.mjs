@@ -231,3 +231,29 @@ test('manuscript disclosures close on Escape and management selection without sa
   assert.ok(selection.includes('void showManagement(mode)'))
   assert.ok(!selection.includes('ensureDraftSafe'))
 })
+
+test('first-run project and manuscript creation provide accessible labels and honest account guidance', async () => {
+  const studio = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/studio.js', import.meta.url),
+    'utf8',
+  )
+  const surfaces = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/studio_surfaces.js', import.meta.url),
+    'utf8',
+  )
+  const css = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/studio.css', import.meta.url),
+    'utf8',
+  )
+
+  assert.ok(studio.includes('for="new-project-title"'))
+  assert.ok(studio.includes('for="new-document-title"'))
+  assert.ok(studio.includes('id="create-project-form" class="inline-create onboarding-form"'))
+  assert.ok(studio.includes('id="create-document-form" class="inline-create onboarding-form"'))
+  assert.ok(studio.includes('Public account registration is not available'))
+  assert.ok(studio.includes('Public sign-up'))
+  assert.ok(surfaces.includes('Public sign-up is not enabled'))
+  assert.ok(surfaces.includes('start a manuscript, then build its evidence library'))
+  assert.ok(studio.includes('review proposals before applying edits'))
+  assert.ok(css.includes('.onboarding-form .onboarding-field-label'))
+})
