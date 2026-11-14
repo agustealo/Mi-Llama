@@ -132,7 +132,7 @@ function ensureAuthDialog() {
       <div class="auth-persona"><img src="mi-llama-mark.svg" alt=""><div><strong>Mi-Llama</strong><span>Writing Studio</span></div></div>
       <div id="auth-signed-out">
         <h2>Sign in to your studio</h2>
-        <p>Your sign-in keeps your projects, manuscripts, research, and Mi-Llama work connected to your account.</p>
+        <p>Use the email and password provided by your workspace operator. Public account registration is not available in this studio.</p>
         <label>Email<input id="auth-email" type="email" autocomplete="email" required></label>
         <label>Password<input id="auth-password" type="password" autocomplete="current-password" required></label>
         <div id="auth-error" class="auth-error" hidden></div>
@@ -484,6 +484,7 @@ function signedOutView() {
         <span class="eyebrow">WRITING STUDIO</span>
         <h1>Your manuscript is project work, not a loose chat.</h1>
         <p>${message}</p>
+        <p>New here? Ask your workspace operator to provision a Supabase Auth account. This studio does not offer public sign-up.</p>
         ${action}
       </div>
     </div>`
@@ -495,9 +496,10 @@ function noProjectView() {
       <div>
         <span class="eyebrow">FIRST PROJECT</span>
         <h1>Create a writing project</h1>
-        <p>Projects keep each manuscript, its sources, and Mi-Llama work together in one place.</p>
-        <form id="create-project-form" class="inline-create">
-          <input id="new-project-title" maxlength="200" placeholder="Project title" required>
+        <p>Start with a named project. Next you will create a manuscript, then add sources and research to support your writing.</p>
+        <form id="create-project-form" class="inline-create onboarding-form">
+          <label for="new-project-title" class="onboarding-field-label">Project title</label>
+          <input id="new-project-title" maxlength="200" placeholder="e.g. Coastal Resilience Brief" autocomplete="off" required>
           <button class="primary" type="submit">Create project</button>
         </form>
         <div id="studio-error" class="studio-error" hidden></div>
@@ -511,9 +513,10 @@ function noDocumentView() {
       <div>
         <span class="eyebrow">MANUSCRIPT</span>
         <h1>Create the first manuscript</h1>
-        <p>Your manuscript saves as you write. Save a version whenever you want a milestone, and every Mi-Llama edit waits for your approval.</p>
-        <form id="create-document-form" class="inline-create">
-          <input id="new-document-title" maxlength="300" placeholder="Manuscript title" required>
+        <p>Create a manuscript to start writing. Drafts autosave; use Save version to record a checkpoint. Then add project sources in Research Library and review proposals before applying edits.</p>
+        <form id="create-document-form" class="inline-create onboarding-form">
+          <label for="new-document-title" class="onboarding-field-label">Manuscript title</label>
+          <input id="new-document-title" maxlength="300" placeholder="e.g. First draft" autocomplete="off" required>
           <button class="primary" type="submit">Create manuscript</button>
         </form>
         <div id="studio-error" class="studio-error" hidden></div>

@@ -28,8 +28,8 @@ def test_product_gallery_uses_authenticated_fixture_and_real_api_path() -> None:
     assert "sessionStorage.setItem" in capture
     assert ".route(" not in capture
     assert "page.route" not in capture
-    assert "#new-project-title" in capture
-    assert "#new-document-title" in capture
+    assert 'get_by_role("textbox", name="Project title")' in capture
+    assert 'get_by_role("textbox", name="Manuscript title")' in capture
     assert ".rich-manuscript-editor" in capture
     assert '[contenteditable="true"]' in capture
     assert "#manuscript-consumer-bar" in capture
