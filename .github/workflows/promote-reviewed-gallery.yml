@@ -159,4 +159,11 @@ jobs:
           fi
           git commit -m "docs: propose current authenticated Product Gallery screenshots"
           git push origin "HEAD:refs/heads/$branch"
-          gh pr create --base main --head "$branch" --title "Review gallery baseline from ${SOURCE_SHA:0:12}" --body "Automated **unreviewed** full-page screenshot proposal for exact main revision \`$SOURCE_SHA\`. Source: $RUN_URL. Review all six actual images, stable editor and intentional layout, then require exact-head Quality and Gallery verification. No screenshot threshold changes. Closes #77 only after acceptance."
+          if gh pr create --base main --head "$branch" --title "Review gallery baseline from ${SOURCE_SHA:0:12}" --body "Automated **unreviewed** full-page screenshot proposal for exact main revision \`$SOURCE_SHA\`. Source: $RUN_URL. Review all six actual images before approval. No threshold changes." 2>/tmp/gallery-pr-error.log; then
+            echo "Review PR created."
+          elif grep -Fq "GitHub Actions is not permitted to create or approve pull requests" /tmp/gallery-pr-error.log; then
+            echo "::notice title=Review branch ready::GitHub Actions cannot create PRs under repository policy. Open https://github.com/$GITHUB_REPOSITORY/pull/new/$branch using an authorized GitHub connection."
+          else
+            cat /tmp/gallery-pr-error.log >&2
+            exit 1
+          fi
