@@ -123,6 +123,16 @@ function toolButton(label, action, title = '') {
   return button
 }
 
+function closeDisclosureOnEscape(disclosure) {
+  disclosure.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !disclosure.open) return
+    event.preventDefault()
+    event.stopPropagation()
+    disclosure.open = false
+    disclosure.querySelector('summary')?.focus()
+  })
+}
+
 function managementShell() {
   let panel = $('#manuscript-management-panel')
   if (panel) return panel
@@ -548,7 +558,10 @@ function createConsumerBar(context, manuscript, revisions) {
     ['outline', 'Outline'],
     ['versions', 'Versions'],
   ]) {
-    const button = toolButton(label, () => void showManagement(mode))
+    const button = toolButton(label, () => {
+      manuscriptOptions.open = false
+      void showManagement(mode)
+    })
     button.dataset.manuscriptManage = mode
     button.setAttribute('aria-expanded', 'false')
     manage.appendChild(button)
@@ -558,6 +571,7 @@ function createConsumerBar(context, manuscript, revisions) {
   const optionsToggle = document.createElement('summary')
   optionsToggle.textContent = 'Manage manuscript'
   manuscriptOptions.append(optionsToggle, manage)
+  closeDisclosureOnEscape(manuscriptOptions)
   summary.appendChild(manuscriptOptions)
 
   const tools = document.createElement('div')
@@ -607,6 +621,7 @@ function createConsumerBar(context, manuscript, revisions) {
     ),
   )
   reviewOptions.appendChild(reviewActions)
+  closeDisclosureOnEscape(reviewOptions)
   tools.appendChild(reviewOptions)
 
   bar.append(summary, tools)
