@@ -42,7 +42,7 @@ def install_authenticated_session(page: Page) -> None:
 def create_project(page: Page) -> None:
     page.goto(f"{BASE_URL}/#manuscript", wait_until="networkidle")
     page.get_by_role("heading", name="Create a writing project").wait_for()
-    page.locator("#new-project-title").fill("Coastal Resilience Brief")
+    page.get_by_role("textbox", name="Project title").fill("Coastal Resilience Brief")
     page.get_by_role("button", name="Create project").click()
     page.get_by_role("heading", name="Create the first manuscript").wait_for()
 
@@ -67,7 +67,7 @@ def assert_single_manuscript_editor(page: Page) -> None:
 
 
 def create_manuscript(page: Page) -> None:
-    page.locator("#new-document-title").fill("Coastal Resilience Draft")
+    page.get_by_role("textbox", name="Manuscript title").fill("Coastal Resilience Draft")
     page.get_by_role("button", name="Create manuscript").click()
     rich_host = page.locator(".rich-manuscript-editor")
     rich_host.wait_for()
