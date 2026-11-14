@@ -75,7 +75,9 @@ def create_manuscript(page: Page) -> None:
     rich_editor.wait_for()
     assert_single_manuscript_editor(page)
     page.locator("#manuscript-consumer-bar").wait_for()
-    page.get_by_role("button", name="Versions").wait_for()
+    page.get_by_text("Manage manuscript", exact=True).click()
+    page.get_by_role("button", name="Versions", exact=True).wait_for()
+    page.get_by_text("Manage manuscript", exact=True).click()
     rich_editor.fill(
         "Coastal resilience planning works best when claims stay connected to reviewed evidence. "
         "This manuscript keeps source-backed edits reviewable before they become part of the draft."
@@ -89,16 +91,19 @@ def create_manuscript(page: Page) -> None:
     )
     page.get_by_text("1 saved version", exact=False).wait_for()
 
+    page.get_by_text("Manage manuscript", exact=True).click()
     page.get_by_role("button", name="Outline", exact=True).click()
     page.locator(".manuscript-outline-create input").fill("Evidence and argument")
     page.get_by_role("button", name="Add section").click()
     page.get_by_text("Evidence and argument", exact=True).wait_for()
 
+    page.get_by_text("Manage manuscript", exact=True).click()
     page.get_by_role("button", name="Details", exact=True).click()
     page.locator("#manuscript-management-panel select").select_option("review")
     page.get_by_role("button", name="Save details").click()
     page.get_by_text("Review · 1 saved version", exact=False).wait_for()
 
+    page.get_by_text("Manage manuscript", exact=True).click()
     page.get_by_role("button", name="Versions", exact=True).click()
     page.get_by_text("Version 1", exact=True).wait_for()
     page.get_by_role("button", name="Close", exact=True).click()
@@ -167,6 +172,69 @@ def capture_views(page: Page, output: Path) -> None:
         (output / filename).write_bytes(stable_screenshot(page))
 
 
+def verify_responsive_manuscript_and_draft(page: Page) -> None:
+    """Exercise real packaged Manuscript at required widths, with keyboard and draft continuity."""
+    text = (
+        "Responsive acceptance draft: the writer must not lose edits while "
+        "using manuscript management and review disclosures."
+    )
+    page.set_viewport_size({"width": 1440, "height": 960})
+    page.goto(f"{BASE_URL}/#manuscript", wait_until="networkidle")
+    assert_single_manuscript_editor(page)
+    editor = page.locator('.rich-manuscript-editor [contenteditable="true"]')
+    editor.fill(text)
+    page.wait_for_function(
+        "() => document.querySelector('#studio-save-status')?.textContent === 'Saved'"
+    )
+
+    for width in (1440, 1024, 768, 390):
+        page.set_viewport_size({"width": width, "height": 960})
+        assert_single_manuscript_editor(page)
+        for name in ("Discuss", "Propose", "Evidence"):
+            assert page.get_by_role("button", name=name, exact=True).is_visible(), (
+                f"{name} disappeared at {width}px"
+            )
+        manage = page.get_by_text("Manage manuscript", exact=True)
+        manage.focus()
+        page.keyboard.press("Enter")
+        assert page.locator(".manuscript-consumer-options").evaluate(
+            "(node) => node.open"
+        ), f"Management disclosure did not open with Enter at {width}px"
+        page.get_by_role("button", name="Versions", exact=True).wait_for()
+        page.keyboard.press("Escape")
+        assert not page.locator(".manuscript-consumer-options").evaluate(
+            "(node) => node.open"
+        ), f"Escape did not close management at {width}px"
+        assert manage.evaluate("(node) => document.activeElement === node"), (
+            f"Focus not restored at {width}px"
+        )
+        review = page.get_by_text("More review tools", exact=True)
+        review.focus()
+        page.keyboard.press("Enter")
+        page.get_by_role("button", name="Citations", exact=True).wait_for()
+        page.get_by_role("button", name="Source history", exact=True).wait_for()
+        page.keyboard.press("Escape")
+        assert review.evaluate("(node) => document.activeElement === node"), (
+            f"Review focus not restored at {width}px"
+        )
+        assert editor.inner_text() == text, f"Draft text changed at {width}px"
+        width_state = page.evaluate(
+            """() => ({
+                viewport: document.documentElement.clientWidth,
+                scroll: document.documentElement.scrollWidth,
+            })"""
+        )
+        assert width_state["scroll"] <= width_state["viewport"] + 2, (
+            f"Horizontal page overflow at {width}px: {width_state}"
+        )
+
+    page.reload(wait_until="networkidle")
+    assert_single_manuscript_editor(page)
+    assert page.locator(
+        '.rich-manuscript-editor [contenteditable="true"]'
+    ).inner_text() == text, "Saved draft was not restored after reload"
+
+
 def main() -> None:
     output = Path(__file__).resolve().parent / "assets" / "screenshots"
     output.mkdir(parents=True, exist_ok=True)
@@ -187,6 +255,7 @@ def main() -> None:
         add_note(page)
         assert_overview_truth(page)
         capture_views(page, output)
+        verify_responsive_manuscript_and_draft(page)
         browser.close()
 
     captures = sorted(output.glob("*.png"))
