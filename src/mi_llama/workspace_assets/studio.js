@@ -497,7 +497,7 @@ function noProjectView() {
         <span class="eyebrow">FIRST PROJECT</span>
         <h1>Create a writing project</h1>
         <p>Start with a named project. Next you will create a manuscript, then add sources and research to support your writing.</p>
-        <form id="create-project-form" class="inline-create">
+        <form id="create-project-form" class="inline-create onboarding-form">
           <label for="new-project-title" class="onboarding-field-label">Project title</label>
           <input id="new-project-title" maxlength="200" placeholder="e.g. Coastal Resilience Brief" autocomplete="off" required>
           <button class="primary" type="submit">Create project</button>
@@ -514,7 +514,7 @@ function noDocumentView() {
         <span class="eyebrow">MANUSCRIPT</span>
         <h1>Create the first manuscript</h1>
         <p>Create a manuscript to start writing. Drafts autosave; use Save version to record a checkpoint. Then add project sources in Research Library and review proposals before applying edits.</p>
-        <form id="create-document-form" class="inline-create">
+        <form id="create-document-form" class="inline-create onboarding-form">
           <label for="new-document-title" class="onboarding-field-label">Manuscript title</label>
           <input id="new-document-title" maxlength="300" placeholder="e.g. First draft" autocomplete="off" required>
           <button class="primary" type="submit">Create manuscript</button>
