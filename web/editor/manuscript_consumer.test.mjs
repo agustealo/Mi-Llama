@@ -211,3 +211,23 @@ test('manuscript keeps primary actions visible and groups secondary controls acc
   assert.ok(css.includes('.manuscript-review-options>summary:focus-visible'))
   assert.ok(css.includes('.manuscript-consumer-options>summary:focus-visible'))
 })
+
+test('manuscript disclosures close on Escape and management selection without saving drafts', async () => {
+  const source = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/studio_manuscript_consumer.js', import.meta.url),
+    'utf8',
+  )
+  assert.ok(source.includes("function closeDisclosureOnEscape(disclosure)"))
+  assert.ok(source.includes("event.key !== 'Escape' || !disclosure.open"))
+  assert.ok(source.includes('disclosure.open = false'))
+  assert.ok(source.includes("disclosure.querySelector('summary')?.focus()"))
+  assert.ok(source.includes('manuscriptOptions.open = false'))
+  assert.ok(source.includes('closeDisclosureOnEscape(manuscriptOptions)'))
+  assert.ok(source.includes('closeDisclosureOnEscape(reviewOptions)'))
+  const selection = source.slice(
+    source.indexOf('const button = toolButton(label, () => {'),
+    source.indexOf('button.dataset.manuscriptManage = mode'),
+  )
+  assert.ok(selection.includes('void showManagement(mode)'))
+  assert.ok(!selection.includes('ensureDraftSafe'))
+})
