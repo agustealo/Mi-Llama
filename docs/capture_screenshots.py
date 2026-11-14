@@ -154,13 +154,15 @@ def assert_overview_truth(page: Page) -> None:
     page.get_by_text("Live project status", exact=False).wait_for()
 
 
-def stable_screenshot(page: Page) -> bytes:
-    first = page.screenshot(full_page=True, animations="disabled", caret="hide")
-    page.wait_for_timeout(100)
-    second = page.screenshot(full_page=True, animations="disabled", caret="hide")
-    if first != second:
-        raise RuntimeError("Product screenshot is not byte-stable across consecutive captures")
-    return first
+def stable_screenshot(page: Page, view: str) -> bytes:
+    previous = page.screenshot(full_page=True, animations="disabled", caret="hide")
+    for _ in range(12):
+        page.wait_for_timeout(200)
+        current = page.screenshot(full_page=True, animations="disabled", caret="hide")
+        if previous == current:
+            return current
+        previous = current
+    raise RuntimeError(f"{view}: product screenshot did not settle to byte-stable frames")
 
 
 def capture_views(page: Page, output: Path) -> None:
@@ -169,7 +171,8 @@ def capture_views(page: Page, output: Path) -> None:
         page.wait_for_timeout(250)
         if view == "manuscript":
             assert_single_manuscript_editor(page)
-        (output / filename).write_bytes(stable_screenshot(page))
+        print(f"Capturing stable screen: {view}", flush=True)
+        (output / filename).write_bytes(stable_screenshot(page, view))
 
 
 def verify_responsive_manuscript_and_draft(page: Page) -> None:
