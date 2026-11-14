@@ -553,7 +553,12 @@ function createConsumerBar(context, manuscript, revisions) {
     button.setAttribute('aria-expanded', 'false')
     manage.appendChild(button)
   }
-  summary.appendChild(manage)
+  const manuscriptOptions = document.createElement('details')
+  manuscriptOptions.className = 'manuscript-consumer-options'
+  const optionsToggle = document.createElement('summary')
+  optionsToggle.textContent = 'Manage manuscript'
+  manuscriptOptions.append(optionsToggle, manage)
+  summary.appendChild(manuscriptOptions)
 
   const tools = document.createElement('div')
   tools.className = 'manuscript-consumer-tools'
@@ -572,6 +577,16 @@ function createConsumerBar(context, manuscript, revisions) {
         ),
       'Review the saved manuscript against project evidence.',
     ),
+  )
+
+  const reviewOptions = document.createElement('details')
+  reviewOptions.className = 'manuscript-review-options'
+  const reviewToggle = document.createElement('summary')
+  reviewToggle.textContent = 'More review tools'
+  reviewOptions.appendChild(reviewToggle)
+  const reviewActions = document.createElement('div')
+  reviewActions.className = 'manuscript-review-actions'
+  reviewActions.append(
     toolButton(
       'Citations',
       () =>
@@ -591,6 +606,8 @@ function createConsumerBar(context, manuscript, revisions) {
       'Review evidence links after wording changes.',
     ),
   )
+  reviewOptions.appendChild(reviewActions)
+  tools.appendChild(reviewOptions)
 
   bar.append(summary, tools)
   return bar

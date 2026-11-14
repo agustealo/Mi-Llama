@@ -22,3 +22,14 @@
 .manuscript-version-row summary b,.manuscript-manage-empty,.manuscript-manage-error{font-size:12px}
 .manuscript-consumer-tools button,.manuscript-consumer-manage button{min-height:36px}
 .manuscript-consumer-tools button:focus-visible,.manuscript-consumer-manage button:focus-visible,.manuscript-version-row summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Native disclosures keep secondary controls discoverable without obscuring writing. */
+.manuscript-consumer-options,.manuscript-review-options{position:relative;min-width:0}
+.manuscript-consumer-options>summary,.manuscript-review-options>summary{cursor:pointer;list-style:none;display:flex;align-items:center;min-height:36px;padding:8px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel);font-size:12px;font-weight:650;color:inherit}
+.manuscript-consumer-options>summary::-webkit-details-marker,.manuscript-review-options>summary::-webkit-details-marker{display:none}
+.manuscript-consumer-options>summary::after,.manuscript-review-options>summary::after{content:'⌄';margin-left:12px}
+.manuscript-consumer-options[open]>summary::after,.manuscript-review-options[open]>summary::after{transform:rotate(180deg)}
+.manuscript-consumer-options>summary:focus-visible,.manuscript-review-options>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.manuscript-consumer-options .manuscript-consumer-manage{position:absolute;z-index:8;right:0;top:calc(100% + 6px);display:grid;justify-content:stretch;min-width:210px;max-width:min(320px,calc(100vw - 32px));padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:0 10px 28px rgba(0,0,0,.14)}
+.manuscript-review-actions{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0 2px}
+@media(max-width:760px){.manuscript-consumer-options{width:100%}.manuscript-consumer-options .manuscript-consumer-manage{left:0;right:auto}.manuscript-review-options{width:100%}.manuscript-review-actions>.manuscript-tool{flex:1 1 calc(50% - 8px)}}

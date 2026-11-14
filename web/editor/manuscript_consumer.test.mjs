@@ -188,3 +188,26 @@ test('rich editor keeps writing space without forcing a giant minimum page heigh
   assert.ok(studioCss.includes('.manuscript-editor[hidden]{display:none}'))
   assert.ok(!css.includes('overflow:hidden'))
 })
+
+test('manuscript keeps primary actions visible and groups secondary controls accessibly', async () => {
+  const consumer = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/studio_manuscript_consumer.js', import.meta.url),
+    'utf8',
+  )
+  const css = await readFile(
+    new URL('../../src/mi_llama/workspace_assets/studio_manuscript_consumer.css', import.meta.url),
+    'utf8',
+  )
+  assert.ok(consumer.includes("manuscriptOptions.className = 'manuscript-consumer-options'"))
+  assert.ok(consumer.includes("optionsToggle.textContent = 'Manage manuscript'"))
+  assert.ok(consumer.includes("reviewOptions.className = 'manuscript-review-options'"))
+  assert.ok(consumer.includes("reviewToggle.textContent = 'More review tools'"))
+  assert.ok(consumer.includes("reviewActions.append("))
+  assert.ok(consumer.includes("toolButton('Discuss'"))
+  assert.ok(consumer.includes("toolButton('Propose'"))
+  assert.ok(consumer.includes("toolButton(\n      'Evidence'"))
+  assert.ok(consumer.includes("toolButton(\n      'Citations'"))
+  assert.ok(consumer.includes("toolButton(\n      'Source history'"))
+  assert.ok(css.includes('.manuscript-review-options>summary:focus-visible'))
+  assert.ok(css.includes('.manuscript-consumer-options>summary:focus-visible'))
+})
