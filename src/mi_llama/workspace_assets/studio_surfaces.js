@@ -82,6 +82,7 @@ function signedOutView(unavailable) {
         <span class="eyebrow">PROJECT WORKSPACE</span>
         <h1>Your project is private work, not example data.</h1>
         <p>${message}</p>
+        <p>Need an account? Request access from your workspace operator. Public sign-up is not enabled.</p>
         ${action}
       </div>
     </div>`
@@ -93,7 +94,7 @@ function noProjectView() {
       <div>
         <span class="eyebrow">FIRST PROJECT</span>
         <h1>Create a project to begin</h1>
-        <p>Sources, questions, notes, and manuscripts belong to a project so their context stays together.</p>
+        <p>Each project keeps your manuscripts, research sources, questions, and notes together. Create a project, start a manuscript, then build its evidence library.</p>
         <button class="primary" data-view-target="manuscript">Create project</button>
       </div>
     </div>`
