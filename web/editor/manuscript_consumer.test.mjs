@@ -251,7 +251,7 @@ test('first-run project and manuscript creation provide accessible labels and ho
   assert.ok(studio.includes('id="create-project-form" class="inline-create onboarding-form"'))
   assert.ok(studio.includes('id="create-document-form" class="inline-create onboarding-form"'))
   assert.ok(studio.includes('Public account registration is not available'))
-  assert.ok(studio.includes('Public sign-up'))
+  assert.ok(studio.includes('public sign-up'))
   assert.ok(surfaces.includes('Public sign-up is not enabled'))
   assert.ok(surfaces.includes('start a manuscript, then build its evidence library'))
   assert.ok(studio.includes('review proposals before applying edits'))
