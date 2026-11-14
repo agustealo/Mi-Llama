@@ -60,9 +60,14 @@ def test_product_gallery_capture_is_deterministic_before_commit_comparison() -> 
     assert 'caret="hide"' in capture
     assert 'GALLERY_DATE = "9/28/2026"' in capture
     assert "Date.prototype.toLocaleDateString" in capture
-    assert "if first != second:" in capture
-    assert "Product screenshot is not byte-stable across consecutive captures" in capture
-    assert ".write_bytes(stable_screenshot(page))" in capture
+    assert "if previous == current:" in capture
+    assert "for _ in range(12):" in capture
+    assert "product screenshot did not settle to byte-stable frames" in capture
+    assert ".write_bytes(stable_screenshot(page, view))" in capture
+    assert "verify_responsive_manuscript_and_draft(page)" in capture
+    assert "for width in (1440, 1024, 768, 390):" in capture
+    assert 'page.keyboard.press("Escape")' in capture
+    assert "Saved draft was not restored after reload" in capture
 
 
 def test_product_gallery_uses_a_bounded_pixel_fidelity_contract() -> None:

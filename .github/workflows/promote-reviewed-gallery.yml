@@ -1,6 +1,10 @@
 name: Promote Reviewed Product Gallery
 
 on:
+  workflow_run:
+    workflows: [Product Gallery]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       source_run_id:
@@ -104,3 +108,55 @@ jobs:
           git commit -m "docs: promote visually approved product gallery from $SOURCE_SHA"
           git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push origin "HEAD:refs/heads/$branch"
           gh pr create --base "$TARGET_BRANCH" --head "$branch" --title "Promote reviewed Product Gallery captures into PR #${{ inputs.target_pr_number }}" --body "Approved full-page authenticated screenshots from Product Gallery run ${{ inputs.source_run_id }} at exact source SHA $SOURCE_SHA. Merge into the existing feature PR before promoting that PR to main. Requires normal CI checks; no threshold changes."
+
+  propose:
+    # Run only against completed Gallery captures of trusted main, never PR forks.
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted source revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Download exact failed Gallery artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100")"
+          artifact_id="$(jq -r --arg name "mi-llama-product-gallery-$SOURCE_SHA" '[.artifacts[] | select(.name == $name and .expired == false)] | if length == 1 then .[0].id else empty end' <<<"$artifacts")"
+          [[ "$artifact_id" =~ ^[0-9]+$ ]] || { echo "Missing unique full Gallery artifact"; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > /tmp/gallery.zip
+          python docs/promote_reviewed_gallery.py /tmp/gallery.zip --head-sha "$SOURCE_SHA" --propose
+
+      - name: Open a review-only screenshot baseline PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="gallery/review-${SOURCE_SHA:0:12}"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "Review branch already exists, not overwriting it."
+            exit 0
+          fi
+          git switch -c "$branch"
+          git add docs/assets/screenshots/*.png
+          if git diff --cached --quiet; then
+            echo "All six PNGs already match the source revision."
+            exit 0
+          fi
+          git commit -m "docs: propose current authenticated Product Gallery screenshots"
+          git push origin "HEAD:refs/heads/$branch"
+          gh pr create --base main --head "$branch" --title "Review gallery baseline from ${SOURCE_SHA:0:12}" --body "Automated **unreviewed** full-page screenshot proposal for exact main revision \`$SOURCE_SHA\`. Source: $RUN_URL. Review all six actual images, stable editor and intentional layout, then require exact-head Quality and Gallery verification. No screenshot threshold changes. Closes #77 only after acceptance."

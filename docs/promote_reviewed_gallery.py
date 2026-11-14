@@ -48,7 +48,7 @@ def load_images(archive: Path) -> dict[str, bytes]:
             if item.file_size > MAX_FILE_BYTES:
                 raise ValueError(f"Screenshot exceeds size limit: {item.filename}")
             content = zipped.read(item)
-            if len(content) < 33 or content[:8] != b"\\x89PNG\\r\\n\\x1a\\n":
+            if len(content) < 33 or content[:8] != b"\x89PNG\r\n\x1a\n":
                 raise ValueError(f"Invalid PNG signature: {item.filename}")
             if content[12:16] != b"IHDR" or struct.unpack(">I", content[8:12])[0] != 13:
                 raise ValueError(f"Invalid PNG header: {item.filename}")
@@ -63,10 +63,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("artifact", type=Path)
     parser.add_argument("--head-sha", required=True, help="Exact CI workflow head commit.")
-    parser.add_argument("--approve", action="store_true", help="Confirm human visual review.")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--approve", action="store_true", help="Confirm human visual review.")
+    mode.add_argument(
+        "--propose",
+        action="store_true",
+        help="Prepare a review-only PR; no human approval is asserted.",
+    )
     args = parser.parse_args()
-    if not args.approve:
-        parser.error("Explicit visual acceptance is required: pass --approve.")
     if not args.artifact.is_file():
         parser.error("Artifact ZIP not found.")
     expected_sha = args.head_sha.strip()
@@ -81,8 +85,11 @@ def main() -> int:
     GALLERY.mkdir(parents=True, exist_ok=True)
     for name in EXPECTED:
         (GALLERY / name).write_bytes(images[name])
-        print(f"Promoted {name} ({len(images[name])} bytes)")
-    print("Run the packaged Product Gallery verifier and Quality Gate before merging.")
+        print(f"Prepared {name} ({len(images[name])} bytes)")
+    if args.propose:
+        print("UNREVIEWED: review the proposed PNGs visually before merging.")
+    else:
+        print("Human review acknowledged. Re-run Gallery and Quality before merging.")
     return 0
 
 
