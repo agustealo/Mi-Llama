@@ -197,14 +197,14 @@ def verify_responsive_manuscript_and_draft(page: Page) -> None:
         manage = page.get_by_text("Manage manuscript", exact=True)
         manage.focus()
         page.keyboard.press("Enter")
-        assert page.locator(".manuscript-consumer-options").evaluate(
-            "(node) => node.open"
-        ), f"Management disclosure did not open with Enter at {width}px"
+        assert page.locator(".manuscript-consumer-options").evaluate("(node) => node.open"), (
+            f"Management disclosure did not open with Enter at {width}px"
+        )
         page.get_by_role("button", name="Versions", exact=True).wait_for()
         page.keyboard.press("Escape")
-        assert not page.locator(".manuscript-consumer-options").evaluate(
-            "(node) => node.open"
-        ), f"Escape did not close management at {width}px"
+        assert not page.locator(".manuscript-consumer-options").evaluate("(node) => node.open"), (
+            f"Escape did not close management at {width}px"
+        )
         assert manage.evaluate("(node) => document.activeElement === node"), (
             f"Focus not restored at {width}px"
         )
@@ -230,9 +230,9 @@ def verify_responsive_manuscript_and_draft(page: Page) -> None:
 
     page.reload(wait_until="networkidle")
     assert_single_manuscript_editor(page)
-    assert page.locator(
-        '.rich-manuscript-editor [contenteditable="true"]'
-    ).inner_text() == text, "Saved draft was not restored after reload"
+    assert page.locator('.rich-manuscript-editor [contenteditable="true"]').inner_text() == text, (
+        "Saved draft was not restored after reload"
+    )
 
 
 def main() -> None:
